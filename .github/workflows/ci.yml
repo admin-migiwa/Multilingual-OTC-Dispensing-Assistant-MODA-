@@ -18,10 +18,10 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
+      # pnpm-lock.yaml をコミットしたら、ここに「cache: pnpm」を足して高速化する
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: pnpm
 
       # pnpm-lock.yaml をコミットしたら --frozen-lockfile に切り替える
       - name: 依存パッケージのインストール
