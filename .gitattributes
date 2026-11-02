@@ -1,0 +1,5 @@
+# Windows でも改行コードを LF にそろえる
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pdf binary

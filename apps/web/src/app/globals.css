@@ -1,0 +1,13 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  /* 9言語の文字をきれいに表示するため、各言語に対応したフォントを並べる */
+  font-family:
+    "Noto Sans JP", "Noto Sans SC", "Noto Sans TC", "Noto Sans KR", "Hiragino Sans", "Hiragino Kaku Gothic ProN",
+    system-ui, sans-serif;
+  -webkit-text-size-adjust: 100%;
+}
