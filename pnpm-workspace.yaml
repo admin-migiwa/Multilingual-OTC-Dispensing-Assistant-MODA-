@@ -1,0 +1,7 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# インストール時にビルド処理を許可するパッケージ（pnpm 10 の安全設定）
+onlyBuiltDependencies:
+  - sharp

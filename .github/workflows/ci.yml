@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: 型チェック・書き方チェック・テスト・ビルド
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      # pnpm-lock.yaml をコミットしたら、ここに「cache: pnpm」を足して高速化する
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      # pnpm-lock.yaml をコミットしたら --frozen-lockfile に切り替える
+      - name: 依存パッケージのインストール
+        run: pnpm install --no-frozen-lockfile
+
+      - name: テスト（医療ルール・言語）
+        run: pnpm test
+
+      - name: 型チェック
+        run: pnpm typecheck
+
+      - name: 書き方チェック
+        run: pnpm lint
+
+      - name: ビルド
+        run: pnpm build
