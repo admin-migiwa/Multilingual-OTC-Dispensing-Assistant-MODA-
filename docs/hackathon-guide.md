@@ -48,7 +48,7 @@
 ### ① 残っている決めごとを片付ける（T0 の残り・約30分）
 
 - [x] **AI の接続先を決める** → Claude API に直接、モデルは Opus 5.5（spec.md 決まったこと #37）。CLAUDE.md と design.md もそろえた。
-  - [ ] Console（https://platform.claude.com）の Billing で、クレジットの有効期限を確かめ、月の利用上限（Spend limit）を50ドル程度に設定する
+  - [x] クレジットの有効期限を確かめた（2027年5月1日まで）。ハッカソンでは使ってよいクレジットなので、利用上限は設定しない
   - [ ] API キーを作り、本物の AI を使う段階（T12・T13）になったら、Claude の指示に従って `.env.local` に入れる（キーを会話に貼らない・コミットしない）
 - [ ] **design.md との食い違いを確認する**。spec.md の「design.md に反映が必要な差分」を Claude に読み上げてもらい、まとめて OK を出す。
 - [ ] **今日できた資料を保存する**。「docs ブランチを切って、spec.md・kickoff.md・hackathon-guide.md をコミットして。demo-drugs.md は .gitignore に入れてコミットしないで」と頼む（決まったこと #36）。
