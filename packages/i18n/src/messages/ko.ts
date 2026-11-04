@@ -1,0 +1,125 @@
+import type { Messages } from "./ja.ts";
+
+/** 韓国語（AI による翻訳・未確認） */
+export const ko: Messages = {
+  common: {
+    next: "다음",
+    back: "뒤로",
+    yes: "예",
+    no: "아니요",
+    unknown: "모르겠어요",
+    notApplicable: "해당 없음",
+    none: "없음",
+    other: "기타",
+    redo: "이전 답변 다시 하기",
+    emergencyButton: "갑자기 몸이 많이 안 좋아요",
+    aiTranslationNotice: "이 문장은 AI가 번역한 것입니다(아직 사람이 확인하지 않았습니다).",
+  },
+  languageSelect: {
+    title: "언어를 선택해 주세요",
+    selected: "한국어로 계속합니다",
+  },
+  start: {
+    title: "어떻게 오셨어요?",
+    haveProduct: "원하는 약이 있어요",
+    haveProductHint: "상품명을 입력하거나, 휴대폰 화면 또는 상품을 촬영합니다",
+    findBySymptom: "증상으로 찾기",
+    findBySymptomHint: "몸 상태를 하나씩 질문합니다",
+  },
+  photoConsent: {
+    title: "사진에 대해",
+    body: "사진은 글자를 읽기 위해서만 AI에 보냅니다. 사진은 저장하지 않습니다. 이름이나 휴대폰 알림 등이 찍히지 않도록 촬영해 주세요.",
+    agree: "동의하고 촬영하기",
+    decline: "촬영하지 않기(이름 입력)",
+  },
+  interview: {
+    intro: "몸 상태에 대해 하나씩 질문합니다.",
+    questions: {
+      Q01: { text: "나이를 알려 주세요.", unit: "세" },
+      Q02: {
+        text: "성별을 알려 주세요.",
+        options: { male: "남성", female: "여성", other: "기타", noAnswer: "답하지 않음" },
+      },
+      Q03: {
+        text: "임신 중이신가요?",
+        options: { pregnant: "임신 중", maybe: "임신했을 수도 있음", notPregnant: "임신하지 않음", notApplicable: "해당 없음" },
+      },
+      Q03a: { text: "출산 예정일까지 12주 이내인가요?" },
+      Q04: { text: "모유 수유 중이신가요?" },
+      Q05: { text: "체중을 알려 주세요.", unit: "kg" },
+      Q06: { text: "천식을 일으킨 적이 있나요?" },
+      Q07: {
+        text: "치료 중인 병이 있나요? (여러 개 선택 가능)",
+        options: {
+          stomachUlcer: "위궤양",
+          liver: "간 질환",
+          kidney: "신장 질환",
+          heart: "심장 질환",
+          hypertension: "고혈압",
+          glaucoma: "녹내장",
+          dialysis: "투석 중",
+        },
+      },
+      Q08: {
+        text: "약 때문에 알레르기(발진, 호흡 곤란 등)가 생긴 적이 있나요?",
+        drugNameLabel: "그 약의 이름",
+      },
+      Q09: {
+        text: "지금 복용 중인 약이 있나요? (여러 개 선택 가능)",
+        options: {
+          coldMedicine: "감기약",
+          painReliever: "해열진통제",
+          antihistamine: "알레르기·비염약",
+          kampo: "한방약",
+          prescription: "병원에서 처방받은 약(약 수첩이 있으면 보여 주세요)",
+        },
+        drugNameLabel: "약 이름",
+      },
+      Q10: { text: "약을 먹은 후에 자동차나 오토바이를 운전할 예정인가요?" },
+      Q11: { text: "약을 먹기 전후에 술을 마실 예정인가요?" },
+      Q12: { text: "며칠 정도 복용할 예정인가요?", unit: "일" },
+      Q13: { text: "소프트 콘택트렌즈를 끼고 있나요?" },
+      Q14: {
+        text: "어디에 붙이실 건가요?",
+        options: { body: "목·어깨·허리 등", nearEyes: "눈 주위·입이나 코 근처", skinProblem: "습진·피부염·상처가 있는 곳" },
+      },
+      R01: { text: "최근에 다른 가게에서 비슷한 약을 산 적이 있나요?" },
+      R02: {
+        text: "몇 개를 사고 싶으세요?",
+        options: { smallOne: "작은 상자 1개", largeOne: "큰 상자 1개", multiple: "2개 이상" },
+      },
+      R03: { text: "큰 상자나 2개 이상이 필요한 이유를 알려 주세요." },
+      R04: { text: "어떤 증상에 사용하실 건가요?" },
+    },
+    notUnderstood: "죄송합니다. 답변을 잘 이해하지 못했습니다. 다시 답해 주세요.",
+    done: "질문은 여기까지입니다. 약사가 확인하니 잠시 기다려 주세요.",
+  },
+  emergency: {
+    title: "지금 바로 구급차를 부르세요",
+    body: "지금 증상은 바로 병원에서 진찰을 받아야 할 수도 있습니다.",
+    call119: "119에 전화해서 먼저 \"규큐데스(救急です)\"(응급입니다)라고 말하세요.",
+    staffHelp: "직원이 바로 도와드리겠습니다. 이 화면을 직원에게 보여 주세요.",
+    consultLine: "구급차를 부를지 망설여질 때는 응급 상담 창구(#7119 등, 지역에 따라 번호가 다름)에 상담할 수 있습니다.",
+    childLine: "어린이의 휴일·야간 상담은 #8000입니다.",
+  },
+  pharmacist: {
+    waiting: "약사가 내용을 확인하고 있습니다. 잠시 기다려 주세요.",
+    notForSale: "죄송합니다. 지금 상태로는 가게에서 파는 약(일반의약품)으로 대응하기 어렵습니다. 병원이나 의원에서 진찰받으시기를 권합니다.",
+  },
+  guidance: {
+    title: "약 설명",
+    printed: "설명서를 인쇄했습니다. 일본어 설명서도 함께 드립니다.",
+    understandQuestion: "설명을 이해하셨나요?",
+    understandOptions: { understood: "이해했어요", partly: "조금 모르는 부분이 있어요", notUnderstood: "이해하지 못했어요" },
+    askAgain: "모르는 부분은 약사가 다시 설명해 드립니다.",
+  },
+  feedback: {
+    title: "협조해 주셔서 감사합니다",
+    question: "오늘 설명은 이해하기 쉬웠나요?",
+    options: { good: "이해하기 쉬웠어요", fair: "보통이에요", poor: "이해하기 어려웠어요" },
+  },
+  checkout: {
+    title: "계산",
+    body: "계산대에서 계산해 주세요. 몸조리 잘하세요.",
+  },
+};

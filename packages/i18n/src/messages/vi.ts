@@ -1,0 +1,125 @@
+import type { Messages } from "./ja.ts";
+
+/** ベトナム語（AI による翻訳・未確認） */
+export const vi: Messages = {
+  common: {
+    next: "Tiếp theo",
+    back: "Quay lại",
+    yes: "Có",
+    no: "Không",
+    unknown: "Tôi không biết",
+    notApplicable: "Không áp dụng",
+    none: "Không có",
+    other: "Khác",
+    redo: "Trả lời lại câu trước",
+    emergencyButton: "Tôi đột nhiên thấy rất khó chịu",
+    aiTranslationNotice: "Nội dung này do AI dịch (chưa được người kiểm tra).",
+  },
+  languageSelect: {
+    title: "Vui lòng chọn ngôn ngữ",
+    selected: "Tiếp tục bằng tiếng Việt",
+  },
+  start: {
+    title: "Chúng tôi có thể giúp gì cho bạn?",
+    haveProduct: "Tôi biết loại thuốc mình muốn",
+    haveProductHint: "Nhập tên sản phẩm, hoặc chụp màn hình điện thoại hay sản phẩm",
+    findBySymptom: "Tìm thuốc theo triệu chứng",
+    findBySymptomHint: "Chúng tôi sẽ hỏi về tình trạng sức khỏe của bạn, từng câu một",
+  },
+  photoConsent: {
+    title: "Về việc chụp ảnh",
+    body: "Ảnh chỉ được gửi cho AI để đọc chữ trên đó. Ảnh sẽ không được lưu lại. Khi chụp, vui lòng không để lộ tên hoặc thông báo trên điện thoại.",
+    agree: "Đồng ý và chụp ảnh",
+    decline: "Không chụp (nhập tên)",
+  },
+  interview: {
+    intro: "Chúng tôi sẽ hỏi về tình trạng sức khỏe của bạn, từng câu một.",
+    questions: {
+      Q01: { text: "Bạn bao nhiêu tuổi?", unit: "tuổi" },
+      Q02: {
+        text: "Giới tính của bạn là gì?",
+        options: { male: "Nam", female: "Nữ", other: "Khác", noAnswer: "Không muốn trả lời" },
+      },
+      Q03: {
+        text: "Bạn có đang mang thai không?",
+        options: { pregnant: "Đang mang thai", maybe: "Có thể đang mang thai", notPregnant: "Không mang thai", notApplicable: "Không áp dụng" },
+      },
+      Q03a: { text: "Còn 12 tuần hoặc ít hơn đến ngày dự sinh phải không?" },
+      Q04: { text: "Bạn có đang cho con bú không?" },
+      Q05: { text: "Cân nặng của bạn là bao nhiêu?", unit: "kg" },
+      Q06: { text: "Bạn đã từng bị hen suyễn chưa?" },
+      Q07: {
+        text: "Bạn có đang điều trị bệnh nào không? (Có thể chọn nhiều)",
+        options: {
+          stomachUlcer: "Loét dạ dày",
+          liver: "Bệnh gan",
+          kidney: "Bệnh thận",
+          heart: "Bệnh tim",
+          hypertension: "Huyết áp cao",
+          glaucoma: "Tăng nhãn áp (glôcôm)",
+          dialysis: "Đang chạy thận",
+        },
+      },
+      Q08: {
+        text: "Bạn đã từng bị dị ứng thuốc (nổi mẩn, khó thở, v.v.) chưa?",
+        drugNameLabel: "Tên thuốc đó",
+      },
+      Q09: {
+        text: "Hiện tại bạn có đang dùng thuốc nào không? (Có thể chọn nhiều)",
+        options: {
+          coldMedicine: "Thuốc cảm",
+          painReliever: "Thuốc hạ sốt, giảm đau",
+          antihistamine: "Thuốc dị ứng hoặc viêm mũi",
+          kampo: "Thuốc Kampo (thuốc thảo dược Nhật Bản)",
+          prescription: "Thuốc do bác sĩ kê đơn (nếu có sổ theo dõi thuốc, vui lòng cho xem)",
+        },
+        drugNameLabel: "Tên thuốc",
+      },
+      Q10: { text: "Sau khi uống thuốc, bạn có định lái ô tô hoặc xe máy không?" },
+      Q11: { text: "Bạn có định uống rượu bia trước hoặc sau khi uống thuốc không?" },
+      Q12: { text: "Bạn định dùng khoảng bao nhiêu ngày?", unit: "ngày" },
+      Q13: { text: "Bạn có đang đeo kính áp tròng mềm không?" },
+      Q14: {
+        text: "Bạn định dán ở đâu?",
+        options: { body: "Cổ, vai, thắt lưng, v.v.", nearEyes: "Quanh mắt, gần miệng hoặc mũi", skinProblem: "Chỗ bị chàm, viêm da hoặc có vết thương" },
+      },
+      R01: { text: "Gần đây bạn có mua loại thuốc tương tự ở cửa hàng khác không?" },
+      R02: {
+        text: "Bạn muốn mua bao nhiêu?",
+        options: { smallOne: "1 hộp nhỏ", largeOne: "1 hộp lớn", multiple: "Từ 2 hộp trở lên" },
+      },
+      R03: { text: "Vui lòng cho biết lý do bạn cần hộp lớn hoặc từ 2 hộp trở lên." },
+      R04: { text: "Bạn sẽ dùng cho triệu chứng gì?" },
+    },
+    notUnderstood: "Xin lỗi, chúng tôi chưa hiểu câu trả lời của bạn. Vui lòng trả lời lại.",
+    done: "Đó là tất cả câu hỏi. Dược sĩ sẽ kiểm tra câu trả lời của bạn. Vui lòng chờ một chút.",
+  },
+  emergency: {
+    title: "Hãy gọi xe cấp cứu ngay",
+    body: "Triệu chứng của bạn có thể cần được khám ở bệnh viện ngay lập tức.",
+    call119: "Hãy gọi 119 và trước tiên nói \"Kyukyu desu\" (đây là cấp cứu).",
+    staffHelp: "Nhân viên sẽ giúp bạn ngay. Hãy cho nhân viên xem màn hình này.",
+    consultLine: "Nếu bạn phân vân có nên gọi xe cấp cứu hay không, bạn có thể gọi đường dây tư vấn cấp cứu (#7119, v.v.; số khác nhau tùy khu vực).",
+    childLine: "Tư vấn cho trẻ em vào ngày nghỉ hoặc ban đêm: gọi #8000.",
+  },
+  pharmacist: {
+    waiting: "Dược sĩ đang kiểm tra câu trả lời của bạn. Vui lòng chờ một chút.",
+    notForSale: "Chúng tôi rất tiếc. Với tình trạng hiện tại của bạn, cửa hàng không thể cung cấp thuốc không kê đơn. Chúng tôi khuyên bạn nên đi khám tại bệnh viện hoặc phòng khám.",
+  },
+  guidance: {
+    title: "Hướng dẫn về thuốc",
+    printed: "Chúng tôi đã in hướng dẫn sử dụng. Chúng tôi cũng sẽ đưa kèm tờ hướng dẫn gốc bằng tiếng Nhật.",
+    understandQuestion: "Bạn đã hiểu phần giải thích chưa?",
+    understandOptions: { understood: "Tôi đã hiểu", partly: "Có chỗ tôi chưa hiểu rõ", notUnderstood: "Tôi không hiểu" },
+    askAgain: "Dược sĩ sẽ giải thích lại những chỗ bạn chưa hiểu.",
+  },
+  feedback: {
+    title: "Cảm ơn sự hợp tác của bạn",
+    question: "Phần giải thích hôm nay có dễ hiểu không?",
+    options: { good: "Dễ hiểu", fair: "Bình thường", poor: "Khó hiểu" },
+  },
+  checkout: {
+    title: "Thanh toán",
+    body: "Vui lòng thanh toán tại quầy. Chúc bạn mau khỏe.",
+  },
+};
