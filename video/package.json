@@ -1,0 +1,12 @@
+{
+  "name": "moda-video",
+  "private": true,
+  "description": "デモ動画をコードで作るための道具（アプリ本体とは別）",
+  "type": "module",
+  "scripts": {
+    "render": "node render.mjs"
+  },
+  "dependencies": {
+    "playwright-core": "1.56.1"
+  }
+}
