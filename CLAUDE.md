@@ -51,7 +51,9 @@ AI は問診と翻訳を手伝うだけで、販売してよいかの最終判�
 
 - パッケージ管理は pnpm（ワークスペース）。Node.js 22 以上。
 - DB は Supabase（PostgreSQL、東京リージョン）。Supabase 独自の機能は認証とファイル保存にとどめ、DB は素の PostgreSQL として使う。
-- AI は Amazon Bedrock の国内推論（`jp.` の推論プロファイル）。開発中は仮の AI を使う。
+- AI は試験運用から Amazon Bedrock の国内推論（`jp.` の推論プロファイル）。開発中は仮の AI を使う。
+  ハッカソン版（架空のデータだけ）は Claude API に直接つなぎ、モデルは Claude Opus 5.5（`claude-opus-5-5`）。
+  接続先は AI の呼び出し口1か所の差し替えで切り替え、ほかの処理に接続先ごとの分岐を書かない。
 - 音声は Azure AI Speech（日本リージョン）。
 - 端末は iPad の Safari（ホーム画面に追加して使う）。iPad で動くことを前提に作る。
 

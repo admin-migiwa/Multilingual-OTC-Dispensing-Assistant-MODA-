@@ -42,3 +42,6 @@ pnpm-debug.log*
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# 手元だけに置く資料（実在の商品名・勤務先の情報を含む。spec.md 決まったこと #36）
+docs/demo-drugs.md
