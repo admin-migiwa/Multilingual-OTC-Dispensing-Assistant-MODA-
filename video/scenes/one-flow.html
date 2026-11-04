@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>MODA がひと続きで準備する</title>
+<style>
+  html, body { margin: 0; background: #0b1d1f; }
+  canvas { display: block; width: 100vw; height: auto; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script>
+/*
+ * 導入アニメーション「まとめ・候補・説明書を、ひと続きで準備」（約25秒）。
+ * 伝えること：患者さんは母国語で答えるだけ → MODA が日本語のまとめ・薬の候補（薬剤師への提案）・
+ * 母国語の説明書を準備 → 薬剤師が選んで PIN で承認 → 承認後に説明書が患者さんへ。
+ * 決まったこと #22：AI は助言しない。候補は薬剤師の画面にだけ出す。説明書は承認の後（絶対ルール1）。
+ * 薬の名前はすべて架空（docs/demo-data/drugs.md）。
+ */
+const W = 1920, H = 1080;
+const DURATION = 25;
+const ctx = document.getElementById("c").getContext("2d");
+const FONT = '"Segoe UI", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif';
+
+const C = {
+  wall: "#e6f4f1", counter: "#1f3b3e", counterTop: "#2c5256",
+  ink: "#15292b", muted: "#6b7c7e", line: "#d9e2e4",
+  teal: "#0f766e", tealLight: "#5eead4", tealSoft: "#d5f0ec",
+  warn: "#d97706", warnSoft: "#fdf0dc",
+  skin: "#f2c9a5", skin2: "#d9a77f", skinLine: "#c98f66",
+  coat: "#ffffff", coatLine: "#cfdcdd", shirt: "#f59e0b", shirtLine: "#d48806",
+  hair: "#3b2a20", hair2: "#1e1e24", night: "#0b1d1f",
+};
+
+window.DURATION = DURATION;
+window.SOUND_EVENTS = [
+  { t: 1.2, kind: "tap" }, { t: 1.4, kind: "pop" },
+  { t: 2.4, kind: "tap" }, { t: 2.6, kind: "pop" },
+  { t: 3.6, kind: "tap" }, { t: 3.8, kind: "pop" },
+  { t: 5.0, kind: "swoosh" },
+  { t: 6.4, kind: "check" }, { t: 8.0, kind: "check" }, { t: 9.6, kind: "check" },
+  { t: 12.3, kind: "tap" },
+  { t: 13.3, kind: "tap" }, { t: 13.6, kind: "tap" }, { t: 13.9, kind: "tap" }, { t: 14.2, kind: "tap" },
+  { t: 14.6, kind: "stamp" },
+  { t: 15.4, kind: "pop" }, { t: 15.9, kind: "swoosh" },
+  { t: 19.2, kind: "pop" },
+  { t: 21.0, kind: "swoosh" },
+];
+
+// ---- 動きの補助 ----
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const prog = (t, s, len) => clamp((t - s) / len);
+const easeOut = (x) => 1 - Math.pow(1 - x, 3);
+const easeInOut = (x) => (x < 0.5 ? 4 * x * x * x : 1 - Math.pow(-2 * x + 2, 3) / 2);
+const backOut = (x) => { const c1 = 1.7, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const pop = (t, s, len = 0.35) => (t < s ? 0 : backOut(prog(t, s, len)));
+const lerp = (a, b, k) => a + (b - a) * k;
+// 弧を描いて飛ぶ
+function arcPos(x0, y0, x1, y1, k, lift) {
+  return [lerp(x0, x1, k), lerp(y0, y1, k) - Math.sin(k * Math.PI) * lift];
+}
+
+function rr(x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + w, y, x + w, y + h, r);
+  ctx.arcTo(x + w, y + h, x, y + h, r);
+  ctx.arcTo(x, y + h, x, y, r);
+  ctx.arcTo(x, y, x + w, y, r);
+  ctx.closePath();
+}
+function text(s, x, y, size, color, weight = 700, align = "center") {
+  ctx.font = `${weight} ${size}px ${FONT}`;
+  ctx.fillStyle = color;
+  ctx.textAlign = align;
+  ctx.textBaseline = "middle";
+  ctx.fillText(s, x, y);
+}
+function shadowed(fn) {
+  ctx.save();
+  ctx.shadowColor = "rgba(0,0,0,.14)"; ctx.shadowBlur = 22; ctx.shadowOffsetY = 8;
+  fn();
+  ctx.restore();
+}
+
+// ---- 人の絵：腕・まばたき・体の揺れつき ----
+// arm: { a: 肩からの角度（ラジアン、0=真下、正=体の外側）, bend: ひじの曲げ }
+function arm(side, a, bend, color, line, skin) {
+  const sx = side * 92, sy = 175;
+  const l1 = 120, l2 = 110;
+  const a1 = side * a;
+  const ex = sx + Math.sin(a1) * l1, ey = sy + Math.cos(a1) * l1;
+  const a2 = a1 + side * bend;
+  const hx = ex + Math.sin(a2) * l2, hy = ey + Math.cos(a2) * l2;
+  ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.strokeStyle = line; ctx.lineWidth = 54;
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
+  ctx.strokeStyle = color; ctx.lineWidth = 46;
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
+  ctx.fillStyle = skin;
+  ctx.beginPath(); ctx.arc(hx, hy, 24, 0, Math.PI * 2); ctx.fill();
+}
+function person(t, x, y, o) {
+  const bob = Math.sin(t * 2.4 + (o.phase || 0)) * 5;
+  ctx.save();
+  ctx.translate(x, y + bob);
+  // 体
+  ctx.fillStyle = o.body; ctx.strokeStyle = o.bodyLine; ctx.lineWidth = 3;
+  rr(-120, 120, 240, 360, 110); ctx.fill(); ctx.stroke();
+  if (o.coat) {
+    ctx.fillStyle = C.tealSoft;
+    ctx.beginPath(); ctx.moveTo(-45, 125); ctx.lineTo(0, 200); ctx.lineTo(45, 125); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = C.teal; rr(30, 230, 54, 30, 6); ctx.fill();
+  }
+  // 腕
+  arm(-1, o.armL[0], o.armL[1], o.body, o.bodyLine, o.skin);
+  arm(1, o.armR[0], o.armR[1], o.body, o.bodyLine, o.skin);
+  // 首と頭（うなずき・かしげ）
+  ctx.save();
+  ctx.translate(0, 110);
+  ctx.rotate(o.tilt || 0);
+  ctx.translate(0, -110 + (o.nod || 0));
+  ctx.fillStyle = o.skin; rr(-24, 90, 48, 40, 14); ctx.fill();
+  ctx.beginPath(); ctx.arc(0, 30, 92, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = o.hair;
+  ctx.beginPath();
+  if (o.long) {
+    ctx.arc(0, 18, 98, Math.PI * 0.95, Math.PI * 2.05);
+    ctx.lineTo(98, 90); ctx.lineTo(70, 90); ctx.lineTo(70, 10);
+    ctx.lineTo(-70, 10); ctx.lineTo(-70, 90); ctx.lineTo(-98, 90);
+  } else {
+    ctx.arc(0, 22, 96, Math.PI * 1.02, Math.PI * 1.98);
+    ctx.quadraticCurveTo(40, -10, -90, 5);
+  }
+  ctx.closePath(); ctx.fill();
+  // 目（ときどきまばたき）
+  const blink = ((t + (o.phase || 0)) % 3.3) < 0.13;
+  const look = o.look || 0;
+  ctx.strokeStyle = C.ink; ctx.fillStyle = C.ink; ctx.lineCap = "round";
+  if (o.mood === "happy") {
+    ctx.lineWidth = 7;
+    for (const ex of [-32, 32]) { ctx.beginPath(); ctx.arc(ex + look, 44, 12, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); }
+  } else if (blink) {
+    ctx.lineWidth = 6;
+    for (const ex of [-32, 32]) { ctx.beginPath(); ctx.moveTo(ex - 10 + look, 38); ctx.lineTo(ex + 10 + look, 38); ctx.stroke(); }
+  } else {
+    for (const ex of [-32, 32]) { ctx.beginPath(); ctx.arc(ex + look, 38, 9, 0, Math.PI * 2); ctx.fill(); }
+  }
+  // 口
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  if (o.mood === "happy") ctx.arc(look * 0.5, 62, 22, Math.PI * 0.15, Math.PI * 0.85);
+  else if (o.talk) { const m = 6 + Math.abs(Math.sin(t * 14)) * 10; ctx.ellipse(look * 0.5, 76, 13, m, 0, 0, Math.PI * 2); ctx.fillStyle = "#7a3b2e"; ctx.fill(); }
+  else { ctx.moveTo(-16 + look * 0.5, 75); ctx.lineTo(16 + look * 0.5, 75); }
+  ctx.stroke();
+  if (o.mood === "happy") {
+    ctx.fillStyle = "rgba(244,114,94,.35)";
+    for (const ex of [-56, 56]) { ctx.beginPath(); ctx.ellipse(ex, 66, 16, 10, 0, 0, Math.PI * 2); ctx.fill(); }
+  }
+  ctx.restore();
+  ctx.restore();
+}
+
+function bubble(cx, cy, w, h, s, msg, sub, tailLeft = true) {
+  if (s <= 0) return;
+  ctx.save();
+  ctx.translate(cx, cy); ctx.scale(s, s);
+  shadowed(() => { ctx.fillStyle = "#fff"; rr(-w / 2, -h / 2, w, h, 32); ctx.fill(); });
+  ctx.fillStyle = "#fff";
+  const tx = tailLeft ? -w / 2 + 60 : w / 2 - 60;
+  ctx.beginPath(); ctx.moveTo(tx - 18, h / 2 - 2); ctx.lineTo(tx + (tailLeft ? -24 : 24), h / 2 + 36); ctx.lineTo(tx + 18, h / 2 - 2); ctx.fill();
+  if (sub) { text(msg, 0, -15, 36, C.ink); text(sub, 0, 24, 24, C.muted, 500); }
+  else text(msg, 0, 0, 36, C.ink);
+  ctx.restore();
+}
+
+// ---- 配置 ----
+const PX = 300, PY = 420;       // 患者さん
+const RX = 1700, RY = 420;      // 薬剤師
+const HX = 900, HY = 400;       // MODA（中央）
+const PAN_X = 1320, PAN_Y = 470, PAN_W = 440, PAN_H = 560; // 薬剤師の画面
+const SLOTS = [PAN_Y - 165, PAN_Y + 5, PAN_Y + 185];
+const TAB_X = 560, TAB_Y = 700; // 患者さんの iPad
+
+// 患者さんの答え（ベトナム語）と、日本語の意味
+const ANSWERS = [
+  { t: 1.4, vi: "Sốt 38°C", ja: "38℃の熱" },
+  { t: 2.6, vi: "Ho từ 2 ngày trước", ja: "2日前からせき" },
+  { t: 3.8, vi: "Không dị ứng", ja: "アレルギーなし" },
+];
+
+function hub(t) {
+  const on = easeOut(prog(t, 0.4, 0.6));
+  if (on <= 0) return;
+  const busy = clamp(prog(t, 1.4, 0.3)) * (1 - prog(t, 11.0, 1.0));
+  const pulse = 1 + Math.sin(t * 6) * 0.04 * busy;
+  ctx.save();
+  ctx.translate(HX, HY); ctx.scale(on * pulse, on * pulse);
+  // 外側の回る輪
+  ctx.strokeStyle = C.tealLight; ctx.lineWidth = 10; ctx.setLineDash([30, 22]);
+  ctx.lineDashOffset = -t * 120 * (0.3 + busy);
+  ctx.beginPath(); ctx.arc(0, 0, 150, 0, Math.PI * 2); ctx.stroke();
+  ctx.setLineDash([]);
+  shadowed(() => { ctx.fillStyle = C.teal; ctx.beginPath(); ctx.arc(0, 0, 124, 0, Math.PI * 2); ctx.fill(); });
+  text("MODA", 0, -22, 56, "#fff", 800);
+  text("訳す・まとめる", 0, 28, 20, C.tealSoft, 700);
+  text("照らし合わせる", 0, 56, 20, C.tealSoft, 700);
+  // 衛星の点
+  for (let i = 0; i < 3; i++) {
+    const a = t * (1.4 + busy * 2) + (i * Math.PI * 2) / 3;
+    ctx.fillStyle = "#fff";
+    ctx.beginPath(); ctx.arc(Math.cos(a) * 150, Math.sin(a) * 150, 9, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+function patientTablet(t) {
+  const s = easeOut(prog(t, 0.3, 0.5));
+  if (s <= 0) return;
+  ctx.save();
+  ctx.translate(TAB_X, TAB_Y); ctx.scale(s, s); ctx.rotate(-0.05);
+  ctx.fillStyle = "#33484b"; rr(-26, 80, 52, 40, 6); ctx.fill();
+  ctx.fillStyle = "#26363a"; rr(-150, -110, 300, 200, 20); ctx.fill();
+  ctx.fillStyle = "#fff"; rr(-136, -96, 272, 172, 10); ctx.fill();
+  text("Tiếng Việt", 0, -70, 18, C.teal, 700);
+  const qi = t < 2.4 ? 0 : t < 3.6 ? 1 : 2;
+  const qs = ["Bạn có sốt không?", "Bạn bị ho từ khi nào?", "Bạn có dị ứng không?"];
+  if (t < 5) {
+    text(qs[qi], 0, -28, 21, C.ink, 700);
+    ctx.fillStyle = C.tealSoft; rr(-90, 12, 180, 44, 10); ctx.fill();
+    text(`${qi + 1} / 3`, 0, 34, 18, C.teal, 700);
+  } else {
+    const k = prog(t, 5, 0.3);
+    ctx.globalAlpha = k;
+    text("Cảm ơn bạn.", 0, -20, 22, C.ink, 700);
+    text("Vui lòng chờ dược sĩ.", 0, 20, 18, C.muted, 500);
+    ctx.globalAlpha = 1;
+  }
+  ctx.restore();
+}
+
+// 流れる点（答え → MODA、MODA → 薬剤師の画面）
+function stream(t, x0, y0, x1, y1, start, end, lift) {
+  if (t < start || t > end + 0.8) return;
+  for (let i = 0; i < 10; i++) {
+    const born = start + i * ((end - start) / 10);
+    const k = prog(t, born, 0.8);
+    if (k <= 0 || k >= 1) continue;
+    const [x, y] = arcPos(x0, y0, x1, y1, easeInOut(k), lift);
+    ctx.globalAlpha = Math.sin(k * Math.PI) * 0.9;
+    ctx.fillStyle = C.teal;
+    ctx.beginPath(); ctx.arc(x, y, 9, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+function panelFrame(t) {
+  const s = easeOut(prog(t, 4.8, 0.5));
+  if (s <= 0) return;
+  ctx.save();
+  ctx.translate(PAN_X, PAN_Y); ctx.scale(s, s);
+  shadowed(() => { ctx.fillStyle = "#26363a"; rr(-PAN_W / 2 - 16, -PAN_H / 2 - 16, PAN_W + 32, PAN_H + 32, 30); ctx.fill(); });
+  ctx.fillStyle = "#f4f8f8"; rr(-PAN_W / 2, -PAN_H / 2, PAN_W, PAN_H, 16); ctx.fill();
+  text("薬剤師の画面", -PAN_W / 2 + 22, -PAN_H / 2 + 28, 20, C.muted, 700, "left");
+  text("薬はすべて架空", PAN_W / 2 - 22, -PAN_H / 2 + 28, 16, C.muted, 500, "right");
+  ctx.restore();
+}
+
+// カードの中身
+function cardSummary() {
+  text("日本語のまとめ", -180, -52, 22, C.teal, 800, "left");
+  text("38℃の熱・せき（2日前から）", -180, -6, 26, C.ink, 700, "left");
+  text("アレルギー：なし", -180, 36, 26, C.ink, 700, "left");
+}
+function cardCandidates(t) {
+  text("薬の候補（薬剤師への提案）", -180, -52, 22, C.teal, 800, "left");
+  const picked = t > 12.3;
+  [["モダかぜゴールド錠", -6, false], ["モダ漢方かぜ顆粒", 38, true]].forEach(([name, y, isPick]) => {
+    const on = isPick && picked;
+    ctx.strokeStyle = on ? C.teal : "#9fb3b5"; ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(-166, y, 13, 0, Math.PI * 2); ctx.stroke();
+    if (on) { ctx.fillStyle = C.teal; ctx.beginPath(); ctx.arc(-166, y, 7, 0, Math.PI * 2); ctx.fill(); }
+    text(name, -140, y, 25, on ? C.teal : C.ink, 700, "left");
+  });
+}
+function cardLeaflet(t) {
+  text("説明書（Tiếng Việt）", -180, -52, 22, C.teal, 800, "left");
+  const unlock = prog(t, 15.4, 0.4);
+  // 本文の仮の線（承認までは薄く）
+  ctx.fillStyle = unlock > 0 ? "#b9cfd0" : "#dbe5e6";
+  rr(-180, -14, 260, 14, 7); ctx.fill();
+  rr(-180, 16, 300, 14, 7); ctx.fill();
+  rr(-180, 46, 200, 14, 7); ctx.fill();
+  // 鍵
+  ctx.save();
+  ctx.translate(120, 10);
+  const lift = easeOut(unlock) * 16;
+  ctx.strokeStyle = unlock > 0 ? C.teal : C.warn; ctx.lineWidth = 7;
+  ctx.beginPath(); ctx.arc(unlock > 0.5 ? 10 : 0, -16 - lift, 16, Math.PI, 0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-16, -16); ctx.lineTo(-16, -16 - lift); ctx.stroke();
+  ctx.fillStyle = unlock > 0 ? C.teal : C.warn; rr(-26, -14, 52, 40, 8); ctx.fill();
+  ctx.restore();
+  text(unlock > 0 ? "承認済み" : "承認まで渡せません", 120, 58, 15, unlock > 0 ? C.teal : C.warn, 700);
+}
+const CARDS = [
+  { t: 5.8, draw: cardSummary },
+  { t: 7.4, draw: cardCandidates },
+  { t: 9.0, draw: cardLeaflet },
+];
+function cards(t) {
+  CARDS.forEach((cd, i) => {
+    if (t < cd.t) return;
+    const k = easeInOut(prog(t, cd.t, 0.7));
+    const [x, y] = arcPos(HX, HY, PAN_X, SLOTS[i], k, 140);
+    const s = lerp(0.25, 1, k);
+    const glow = 1 - prog(t, cd.t + 0.6, 0.8);
+    ctx.save();
+    ctx.translate(x, y); ctx.scale(s, s); ctx.rotate((1 - k) * -0.25);
+    shadowed(() => { ctx.fillStyle = "#fff"; rr(-200, -78, 400, 156, 16); ctx.fill(); });
+    if (glow > 0 && k >= 1) { ctx.strokeStyle = `rgba(15,118,110,${glow})`; ctx.lineWidth = 6; rr(-200, -78, 400, 156, 16); ctx.stroke(); }
+    cd.draw(t);
+    ctx.restore();
+  });
+}
+
+// PIN と承認
+function pinAndStamp(t) {
+  const s = easeOut(prog(t, 12.9, 0.3)) * (1 - prog(t, 14.4, 0.25));
+  if (s > 0) {
+    ctx.save();
+    ctx.translate(PAN_X, PAN_Y + PAN_H / 2 + 70); ctx.scale(s, s);
+    shadowed(() => { ctx.fillStyle = "#fff"; rr(-170, -46, 340, 92, 46); ctx.fill(); });
+    text("PIN", -112, 0, 26, C.muted, 800);
+    [13.3, 13.6, 13.9, 14.2].forEach((pt, i) => {
+      const on = t > pt;
+      ctx.fillStyle = on ? C.teal : "#d6e1e2";
+      ctx.beginPath(); ctx.arc(-40 + i * 52, 0, on ? 15 : 12, 0, Math.PI * 2); ctx.fill();
+    });
+    ctx.restore();
+  }
+  const st = pop(t, 14.6, 0.4);
+  if (st > 0 && t < 21) {
+    ctx.save();
+    ctx.translate(PAN_X + 40, PAN_Y + PAN_H / 2 + 70); ctx.rotate(-0.07); ctx.scale(st, st);
+    ctx.fillStyle = C.teal; rr(-180, -42, 360, 84, 42); ctx.fill();
+    text("薬剤師が承認", 0, 2, 38, "#fff", 800);
+    ctx.restore();
+  }
+}
+
+// 承認後、説明書が患者さんへ飛んでいき、大きく開く
+function leafletToPatient(t) {
+  const k = easeInOut(prog(t, 15.9, 1.1));
+  if (k <= 0) return;
+  const [x, y] = arcPos(PAN_X, SLOTS[2], 640, 330, k, 260);
+  const s = lerp(0.55, 1, k);
+  ctx.save();
+  ctx.translate(x, y); ctx.scale(s, s); ctx.rotate(Math.sin(k * Math.PI) * 0.3 - 0.04);
+  shadowed(() => { ctx.fillStyle = "#fff"; rr(-220, -190, 440, 380, 18); ctx.fill(); });
+  ctx.fillStyle = C.teal; rr(-220, -190, 440, 70, 18); ctx.fill(); ctx.fillRect(-220, -140, 440, 20);
+  text("Hướng dẫn sử dụng", 0, -155, 30, "#fff", 800);
+  text("Moda Kanpo Kaze (hư cấu)", -190, -88, 22, C.muted, 700, "left");
+  text("Ngày 3 lần, trước bữa ăn", -190, -38, 28, C.ink, 700, "left");
+  text("Nếu sốt cao, hãy đi khám.", -190, 6, 28, C.ink, 700, "left");
+  ctx.fillStyle = C.line; ctx.fillRect(-190, 50, 380, 3);
+  text("原文（日本語）", -190, 84, 18, C.muted, 700, "left");
+  text("1日3回、食前に服用", -190, 118, 22, C.muted, 500, "left");
+  text("高い熱が続くときは受診", -190, 152, 22, C.muted, 500, "left");
+  ctx.restore();
+}
+
+function caption(s, a, color = "#fff") {
+  if (a <= 0) return;
+  ctx.globalAlpha = a;
+  text(s, W / 2, 985, 48, color, 700);
+  ctx.globalAlpha = 1;
+}
+const CAPS = [
+  [0.8, 4.8, "患者さんは、母国語で答えるだけ。", "#fff"],
+  [5.4, 11.6, "MODA が、日本語のまとめ・薬の候補・母国語の説明書を準備。", "#fff"],
+  [12.0, 15.6, "選ぶのも、承認するのも薬剤師。", C.tealLight],
+  [16.0, 20.6, "承認すると、母国語の説明書が患者さんへ。", "#fff"],
+];
+
+function endCard(t) {
+  const a = easeOut(prog(t, 21.0, 0.6));
+  if (a <= 0) return;
+  ctx.globalAlpha = a;
+  ctx.fillStyle = C.night; ctx.fillRect(0, 0, W, H);
+  ctx.globalAlpha = 1;
+  const lines = [
+    [21.4, "まとめ・候補・説明書を、ひと続きで。", 76, "#fff", 400],
+    [22.2, "決めるのは、薬剤師。", 76, C.tealLight, 540],
+  ];
+  for (const [st, s, size, col, y] of lines) {
+    const k = easeOut(prog(t, st, 0.6));
+    if (k <= 0) continue;
+    ctx.globalAlpha = k;
+    text(s, W / 2, y + (1 - k) * 30, size, col, 800);
+    ctx.globalAlpha = 1;
+  }
+  const k3 = easeOut(prog(t, 23.0, 0.5));
+  if (k3 > 0) {
+    ctx.globalAlpha = k3;
+    const nudge = Math.sin(t * 5) * 8;
+    text("実際の画面で見てみましょう", W / 2 - 20, 720, 40, "#cfe3e1", 700);
+    ctx.fillStyle = C.tealLight;
+    ctx.beginPath(); ctx.moveTo(W / 2 + 240 + nudge, 704); ctx.lineTo(W / 2 + 270 + nudge, 720); ctx.lineTo(W / 2 + 240 + nudge, 736); ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+}
+
+window.draw = function (t) {
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = C.wall; ctx.fillRect(0, 0, W, H);
+  // 背景のやわらかい円（ゆっくり動く）
+  for (let i = 0; i < 4; i++) {
+    ctx.fillStyle = "rgba(15,118,110,.05)";
+    ctx.beginPath(); ctx.arc(300 + i * 480 + Math.sin(t * 0.4 + i) * 40, 160 + Math.cos(t * 0.3 + i) * 30, 180 + i * 20, 0, Math.PI * 2); ctx.fill();
+  }
+
+  // 患者さんの動き：答えるときに iPad をタップ、説明書を読むときは下を向き、最後にうなずく
+  const tapping = ANSWERS.some((a) => Math.abs(t - (a.t - 0.2)) < 0.25) ? 1 : 0;
+  const reaching = t > 0.8 && t < 4.4;
+  const reading = t > 17.0 && t < 18.8;
+  const nod = t > 18.8 && t < 19.8 ? Math.sin(prog(t, 18.8, 1.0) * Math.PI * 2) * 10 : 0;
+  person(t, PX, PY, {
+    body: C.shirt, bodyLine: C.shirtLine, skin: C.skin, hair: C.hair, long: true, phase: 0.7,
+    armL: [0.15, 0.1],
+    armR: reaching ? [0.95 - tapping * 0.15, -0.35 + tapping * 0.2] : t > 19.2 ? [2.6, 0.4] : [0.2, 0.15],
+    mood: t > 18.6 ? "happy" : "neutral",
+    talk: t > 1.0 && t < 4.2 && !tapping,
+    look: reading ? 14 : t < 5 ? 10 : 0,
+    tilt: reading ? 0.12 : 0, nod,
+  });
+  // 薬剤師の動き：カードが届くと画面を見る、候補を選ぶときに腕を伸ばす、承認後にうなずく
+  const choosing = t > 11.6 && t < 14.4;
+  const pNod = t > 14.7 && t < 15.6 ? Math.sin(prog(t, 14.7, 0.9) * Math.PI * 2) * 9 : 0;
+  person(t, RX, RY, {
+    body: C.coat, bodyLine: C.coatLine, skin: C.skin2, hair: C.hair2, coat: true, phase: 2.1,
+    armL: choosing ? [1.25, -0.5] : [0.2, 0.15],
+    armR: t > 19.2 && t < 21 ? [2.4, 0.5] : [0.2, 0.15],
+    mood: t > 14.6 ? "happy" : "neutral",
+    look: t > 5.5 && t < 16 ? -14 : 0, tilt: choosing ? -0.06 : 0, nod: pNod,
+  });
+
+  ctx.fillStyle = C.counterTop; ctx.fillRect(0, 790, W, 26);
+  ctx.fillStyle = C.counter; ctx.fillRect(0, 816, W, H - 816);
+
+  patientTablet(t);
+  hub(t);
+
+  // 答えの吹き出しが出て、MODA に吸い込まれる
+  ANSWERS.forEach((a, i) => {
+    const s = pop(t, a.t);
+    const fly = easeInOut(prog(t, a.t + 0.9, 0.7));
+    if (s <= 0 || fly >= 1) return;
+    const bx0 = 420 + i * 30, by0 = 120 + i * 0;
+    const [x, y] = arcPos(bx0, by0, HX, HY, fly, 60);
+    bubble(x, y, 380, 108, s * (1 - fly * 0.8), a.vi, a.ja);
+  });
+  stream(t, 420, 160, HX, HY, 1.6, 4.6, 40);
+  stream(t, HX + 130, HY, PAN_X - 220, PAN_Y, 5.2, 10.0, 120);
+
+  panelFrame(t);
+  cards(t);
+  // 薬剤師の手が候補を選ぶ（タップの波紋）
+  const rip = prog(t, 12.3, 0.5);
+  if (rip > 0 && rip < 1) {
+    ctx.strokeStyle = `rgba(15,118,110,${1 - rip})`; ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.arc(PAN_X - 166, SLOTS[1] + 38, 18 + rip * 40, 0, Math.PI * 2); ctx.stroke();
+  }
+  pinAndStamp(t);
+  leafletToPatient(t);
+  bubble(400, 110, 320, 100, pop(t, 19.2) * (1 - prog(t, 20.8, 0.2)), "Cảm ơn!", "（ありがとう）");
+
+  for (const [s, e, msg, col] of CAPS) caption(msg, clamp(prog(t, s, 0.4)) * (1 - prog(t, e - 0.4, 0.4)), col);
+  endCard(t);
+
+  const fade = Math.max(1 - prog(t, 0, 0.4), prog(t, DURATION - 0.5, 0.5));
+  if (fade > 0) { ctx.fillStyle = `rgba(11,29,31,${fade})`; ctx.fillRect(0, 0, W, H); }
+};
+
+window.__rendering = false;
+document.fonts.ready.then(() => {
+  const start = performance.now();
+  (function loop() {
+    if (window.__rendering) return;
+    window.draw(((performance.now() - start) / 1000) % DURATION);
+    requestAnimationFrame(loop);
+  })();
+});
+</script>
+</body>
+</html>
