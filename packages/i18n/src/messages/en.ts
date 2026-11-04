@@ -1,0 +1,125 @@
+import type { Messages } from "./ja.ts";
+
+/** 英語（AI による翻訳・未確認） */
+export const en: Messages = {
+  common: {
+    next: "Next",
+    back: "Back",
+    yes: "Yes",
+    no: "No",
+    unknown: "I don't know",
+    notApplicable: "Not applicable",
+    none: "None",
+    other: "Other",
+    redo: "Redo my last answer",
+    emergencyButton: "I suddenly feel very unwell",
+    aiTranslationNotice: "This text was translated by AI (not yet checked by a person).",
+  },
+  languageSelect: {
+    title: "Please select your language",
+    selected: "Continuing in English",
+  },
+  start: {
+    title: "How can we help you?",
+    haveProduct: "I know which medicine I want",
+    haveProductHint: "Enter the product name, or take a photo of your phone screen or the product",
+    findBySymptom: "Find a medicine by symptoms",
+    findBySymptomHint: "We will ask about how you feel, one question at a time",
+  },
+  photoConsent: {
+    title: "About the photo",
+    body: "The photo is sent to AI only to read the text on it. The photo is not saved. Please make sure your name and phone notifications are not visible.",
+    agree: "Agree and take a photo",
+    decline: "Don't take a photo (type the name instead)",
+  },
+  interview: {
+    intro: "We will ask about your health, one question at a time.",
+    questions: {
+      Q01: { text: "How old are you?", unit: "years old" },
+      Q02: {
+        text: "What is your sex?",
+        options: { male: "Male", female: "Female", other: "Other", noAnswer: "Prefer not to say" },
+      },
+      Q03: {
+        text: "Are you pregnant?",
+        options: { pregnant: "I am pregnant", maybe: "I might be pregnant", notPregnant: "I am not pregnant", notApplicable: "Not applicable" },
+      },
+      Q03a: { text: "Is your due date within 12 weeks?" },
+      Q04: { text: "Are you breastfeeding?" },
+      Q05: { text: "What is your body weight?", unit: "kg" },
+      Q06: { text: "Have you ever had asthma?" },
+      Q07: {
+        text: "Are you being treated for any illness? (Choose all that apply)",
+        options: {
+          stomachUlcer: "Stomach ulcer",
+          liver: "Liver disease",
+          kidney: "Kidney disease",
+          heart: "Heart disease",
+          hypertension: "High blood pressure",
+          glaucoma: "Glaucoma",
+          dialysis: "Dialysis",
+        },
+      },
+      Q08: {
+        text: "Have you ever had an allergic reaction (rash, difficulty breathing, etc.) to a medicine?",
+        drugNameLabel: "Name of the medicine",
+      },
+      Q09: {
+        text: "Are you taking any medicines now? (Choose all that apply)",
+        options: {
+          coldMedicine: "Cold medicine",
+          painReliever: "Fever or pain reliever",
+          antihistamine: "Allergy or nasal medicine",
+          kampo: "Kampo (Japanese herbal medicine)",
+          prescription: "Medicine prescribed by a doctor (please show your medication record if you have one)",
+        },
+        drugNameLabel: "Name of the medicine",
+      },
+      Q10: { text: "Will you drive a car or motorcycle after taking the medicine?" },
+      Q11: { text: "Will you drink alcohol before or after taking the medicine?" },
+      Q12: { text: "For about how many days will you take it?", unit: "days" },
+      Q13: { text: "Are you wearing soft contact lenses?" },
+      Q14: {
+        text: "Where will you apply the patch?",
+        options: { body: "Neck, shoulders, lower back, etc.", nearEyes: "Around the eyes, or near the mouth or nose", skinProblem: "On a rash, irritated skin, or a wound" },
+      },
+      R01: { text: "Have you recently bought a similar medicine at another store?" },
+      R02: {
+        text: "How many would you like to buy?",
+        options: { smallOne: "One small box", largeOne: "One large box", multiple: "Two or more" },
+      },
+      R03: { text: "Please tell us why you need a large box or two or more." },
+      R04: { text: "What symptoms will you use it for?" },
+    },
+    notUnderstood: "Sorry, we could not understand your answer. Please answer again.",
+    done: "That is all of our questions. A pharmacist will check your answers. Please wait a moment.",
+  },
+  emergency: {
+    title: "Call an ambulance now",
+    body: "Your symptoms may need to be checked at a hospital right away.",
+    call119: "Call 119 and first say \"Kyukyu desu\" (It's an emergency).",
+    staffHelp: "Our staff will help you right away. Please show this screen to a staff member.",
+    consultLine: "If you are not sure whether to call an ambulance, you can call an emergency consultation line (#7119 etc.; the number differs by area).",
+    childLine: "For advice about a child on holidays or at night, call #8000.",
+  },
+  pharmacist: {
+    waiting: "A pharmacist is checking your answers. Please wait a moment.",
+    notForSale: "We are sorry. With your current condition, we cannot offer an over-the-counter medicine. We recommend that you see a doctor at a hospital or clinic.",
+  },
+  guidance: {
+    title: "About your medicine",
+    printed: "We have printed the instructions. We will also give you the original Japanese leaflet.",
+    understandQuestion: "Did you understand the explanation?",
+    understandOptions: { understood: "Yes, I understood", partly: "Some parts were unclear", notUnderstood: "No, I did not understand" },
+    askAgain: "The pharmacist will explain the unclear parts again.",
+  },
+  feedback: {
+    title: "Thank you",
+    question: "Was today's explanation easy to understand?",
+    options: { good: "Easy to understand", fair: "Okay", poor: "Hard to understand" },
+  },
+  checkout: {
+    title: "Payment",
+    body: "Please pay at the cashier. Take care of yourself.",
+  },
+};

@@ -1,0 +1,125 @@
+import type { Messages } from "./ja.ts";
+
+/** スペイン語（AI による翻訳・未確認） */
+export const es: Messages = {
+  common: {
+    next: "Siguiente",
+    back: "Atrás",
+    yes: "Sí",
+    no: "No",
+    unknown: "No lo sé",
+    notApplicable: "No corresponde",
+    none: "Ninguno",
+    other: "Otro",
+    redo: "Volver a responder la pregunta anterior",
+    emergencyButton: "De repente me siento muy mal",
+    aiTranslationNotice: "Este texto fue traducido por IA (todavía no lo ha revisado una persona).",
+  },
+  languageSelect: {
+    title: "Seleccione su idioma",
+    selected: "Continuamos en español",
+  },
+  start: {
+    title: "¿En qué podemos ayudarle?",
+    haveProduct: "Sé qué medicamento quiero",
+    haveProductHint: "Escriba el nombre del producto, o tome una foto de la pantalla de su teléfono o del producto",
+    findBySymptom: "Buscar por síntomas",
+    findBySymptomHint: "Le preguntaremos cómo se siente, una pregunta a la vez",
+  },
+  photoConsent: {
+    title: "Sobre la foto",
+    body: "La foto se envía a la IA solo para leer el texto. La foto no se guarda. Asegúrese de que no se vean su nombre ni las notificaciones del teléfono.",
+    agree: "Aceptar y tomar la foto",
+    decline: "No tomar la foto (escribir el nombre)",
+  },
+  interview: {
+    intro: "Le haremos preguntas sobre su salud, una a la vez.",
+    questions: {
+      Q01: { text: "¿Qué edad tiene?", unit: "años" },
+      Q02: {
+        text: "¿Cuál es su sexo?",
+        options: { male: "Hombre", female: "Mujer", other: "Otro", noAnswer: "Prefiero no responder" },
+      },
+      Q03: {
+        text: "¿Está embarazada?",
+        options: { pregnant: "Estoy embarazada", maybe: "Puede que esté embarazada", notPregnant: "No estoy embarazada", notApplicable: "No corresponde" },
+      },
+      Q03a: { text: "¿Faltan 12 semanas o menos para la fecha prevista del parto?" },
+      Q04: { text: "¿Está dando el pecho?" },
+      Q05: { text: "¿Cuál es su peso?", unit: "kg" },
+      Q06: { text: "¿Alguna vez ha tenido asma?" },
+      Q07: {
+        text: "¿Recibe tratamiento por alguna enfermedad? (Puede elegir varias)",
+        options: {
+          stomachUlcer: "Úlcera de estómago",
+          liver: "Enfermedad del hígado",
+          kidney: "Enfermedad del riñón",
+          heart: "Enfermedad del corazón",
+          hypertension: "Presión arterial alta",
+          glaucoma: "Glaucoma",
+          dialysis: "Diálisis",
+        },
+      },
+      Q08: {
+        text: "¿Alguna vez ha tenido una alergia (erupción, dificultad para respirar, etc.) a un medicamento?",
+        drugNameLabel: "Nombre del medicamento",
+      },
+      Q09: {
+        text: "¿Toma algún medicamento ahora? (Puede elegir varios)",
+        options: {
+          coldMedicine: "Medicamento para el resfriado",
+          painReliever: "Medicamento para la fiebre o el dolor",
+          antihistamine: "Medicamento para la alergia o la nariz",
+          kampo: "Kampo (medicina herbal japonesa)",
+          prescription: "Medicamento recetado por un médico (muestre su libreta de medicamentos si la tiene)",
+        },
+        drugNameLabel: "Nombre del medicamento",
+      },
+      Q10: { text: "¿Va a conducir un coche o una moto después de tomar el medicamento?" },
+      Q11: { text: "¿Va a beber alcohol antes o después de tomar el medicamento?" },
+      Q12: { text: "¿Cuántos días piensa tomarlo, más o menos?", unit: "días" },
+      Q13: { text: "¿Usa lentes de contacto blandos?" },
+      Q14: {
+        text: "¿Dónde se pondrá el parche?",
+        options: { body: "Cuello, hombros, espalda baja, etc.", nearEyes: "Alrededor de los ojos o cerca de la boca o la nariz", skinProblem: "Sobre eccema, irritación o una herida" },
+      },
+      R01: { text: "¿Ha comprado hace poco un medicamento parecido en otra tienda?" },
+      R02: {
+        text: "¿Cuántos quiere comprar?",
+        options: { smallOne: "Una caja pequeña", largeOne: "Una caja grande", multiple: "Dos o más" },
+      },
+      R03: { text: "Díganos por qué necesita una caja grande o dos o más." },
+      R04: { text: "¿Para qué síntomas lo va a usar?" },
+    },
+    notUnderstood: "Lo sentimos, no pudimos entender su respuesta. Responda de nuevo, por favor.",
+    done: "Esas son todas las preguntas. Un farmacéutico revisará sus respuestas. Espere un momento, por favor.",
+  },
+  emergency: {
+    title: "Llame a una ambulancia ahora",
+    body: "Es posible que sus síntomas necesiten atención en un hospital de inmediato.",
+    call119: "Llame al 119 y diga primero \"Kyukyu desu\" (es una emergencia).",
+    staffHelp: "Nuestro personal le ayudará de inmediato. Muestre esta pantalla a un miembro del personal.",
+    consultLine: "Si no está seguro de llamar a una ambulancia, puede consultar una línea de urgencias (#7119, etc.; el número cambia según la zona).",
+    childLine: "Para consultas sobre niños en días festivos o por la noche, llame al #8000.",
+  },
+  pharmacist: {
+    waiting: "Un farmacéutico está revisando sus respuestas. Espere un momento, por favor.",
+    notForSale: "Lo sentimos. Con su estado actual, no podemos ofrecerle un medicamento sin receta. Le recomendamos acudir a un hospital o una clínica.",
+  },
+  guidance: {
+    title: "Sobre su medicamento",
+    printed: "Hemos impreso las instrucciones. También le daremos el prospecto original en japonés.",
+    understandQuestion: "¿Entendió la explicación?",
+    understandOptions: { understood: "Sí, la entendí", partly: "Hay partes que no entendí", notUnderstood: "No la entendí" },
+    askAgain: "El farmacéutico volverá a explicar las partes que no entendió.",
+  },
+  feedback: {
+    title: "Gracias por su colaboración",
+    question: "¿Fue fácil de entender la explicación de hoy?",
+    options: { good: "Fácil de entender", fair: "Normal", poor: "Difícil de entender" },
+  },
+  checkout: {
+    title: "Pago",
+    body: "Pague en la caja, por favor. Que se mejore.",
+  },
+};

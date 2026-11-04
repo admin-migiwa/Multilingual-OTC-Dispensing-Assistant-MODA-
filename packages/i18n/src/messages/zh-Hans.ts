@@ -1,0 +1,125 @@
+import type { Messages } from "./ja.ts";
+
+/** 中国語（簡体）（AI による翻訳・未確認） */
+export const zhHans: Messages = {
+  common: {
+    next: "下一步",
+    back: "返回",
+    yes: "是",
+    no: "否",
+    unknown: "不知道",
+    notApplicable: "不适用",
+    none: "无",
+    other: "其他",
+    redo: "重新回答上一题",
+    emergencyButton: "突然感到非常不舒服",
+    aiTranslationNotice: "本文由 AI 翻译（尚未经过人工确认）。",
+  },
+  languageSelect: {
+    title: "请选择语言",
+    selected: "将使用简体中文继续",
+  },
+  start: {
+    title: "请问有什么需要？",
+    haveProduct: "我有想买的药",
+    haveProductHint: "输入商品名称，或拍摄手机屏幕或商品",
+    findBySymptom: "根据症状找药",
+    findBySymptomHint: "我们会逐一询问您的身体状况",
+  },
+  photoConsent: {
+    title: "关于照片",
+    body: "照片仅用于让 AI 读取上面的文字，不会保存。拍摄时请注意不要拍到姓名或手机通知等信息。",
+    agree: "同意并拍摄",
+    decline: "不拍摄（输入名称）",
+  },
+  interview: {
+    intro: "我们将逐一询问您的身体状况。",
+    questions: {
+      Q01: { text: "请告诉我们您的年龄。", unit: "岁" },
+      Q02: {
+        text: "请告诉我们您的性别。",
+        options: { male: "男性", female: "女性", other: "其他", noAnswer: "不愿回答" },
+      },
+      Q03: {
+        text: "您是否怀孕？",
+        options: { pregnant: "已怀孕", maybe: "可能怀孕", notPregnant: "没有怀孕", notApplicable: "不适用" },
+      },
+      Q03a: { text: "距离预产期是否在12周以内？" },
+      Q04: { text: "您是否正在哺乳？" },
+      Q05: { text: "请告诉我们您的体重。", unit: "kg" },
+      Q06: { text: "您是否曾经发作过哮喘？" },
+      Q07: {
+        text: "您是否有正在治疗的疾病？（可多选）",
+        options: {
+          stomachUlcer: "胃溃疡",
+          liver: "肝脏疾病",
+          kidney: "肾脏疾病",
+          heart: "心脏疾病",
+          hypertension: "高血压",
+          glaucoma: "青光眼",
+          dialysis: "正在接受透析",
+        },
+      },
+      Q08: {
+        text: "您是否曾因药物出现过敏（皮疹、呼吸困难等）？",
+        drugNameLabel: "药物名称",
+      },
+      Q09: {
+        text: "您现在是否正在服用药物？（可多选）",
+        options: {
+          coldMedicine: "感冒药",
+          painReliever: "退烧止痛药",
+          antihistamine: "过敏或鼻炎药",
+          kampo: "汉方药",
+          prescription: "医院开的药（如有用药手册请出示）",
+        },
+        drugNameLabel: "药物名称",
+      },
+      Q10: { text: "服药后是否打算驾驶汽车或摩托车？" },
+      Q11: { text: "服药前后是否打算饮酒？" },
+      Q12: { text: "大约打算服用几天？", unit: "天" },
+      Q13: { text: "您是否佩戴软性隐形眼镜？" },
+      Q14: {
+        text: "您打算贴在哪里？",
+        options: { body: "颈部、肩部、腰部等", nearEyes: "眼睛周围、口鼻附近", skinProblem: "有湿疹、皮炎或伤口的部位" },
+      },
+      R01: { text: "您最近是否在其他店购买过类似的药？" },
+      R02: {
+        text: "您想购买几盒？",
+        options: { smallOne: "小盒1盒", largeOne: "大盒1盒", multiple: "2盒以上" },
+      },
+      R03: { text: "请告诉我们需要大盒或2盒以上的原因。" },
+      R04: { text: "您打算用于什么症状？" },
+    },
+    notUnderstood: "抱歉，我们没能理解您的回答。请再回答一次。",
+    done: "问题到此结束。药剂师将进行确认，请稍候。",
+  },
+  emergency: {
+    title: "请立即呼叫救护车",
+    body: "您的症状可能需要马上到医院就诊。",
+    call119: "请拨打119，并首先说「急救です（kyukyu desu）」（是急救）。",
+    staffHelp: "工作人员会马上为您提供帮助。请把这个画面给工作人员看。",
+    consultLine: "如果不确定是否需要叫救护车，可以拨打急救咨询电话（#7119 等，号码因地区而异）。",
+    childLine: "儿童在节假日或夜间的咨询电话是 #8000。",
+  },
+  pharmacist: {
+    waiting: "药剂师正在确认内容，请稍候。",
+    notForSale: "非常抱歉。以您目前的状况，本店的非处方药无法满足您的需要。建议您到医院或诊所就诊。",
+  },
+  guidance: {
+    title: "用药说明",
+    printed: "说明书已打印。我们也会一并提供日文原版说明书。",
+    understandQuestion: "您理解说明了吗？",
+    understandOptions: { understood: "理解了", partly: "有些地方不太明白", notUnderstood: "没有理解" },
+    askAgain: "不明白的地方，药剂师会再为您说明。",
+  },
+  feedback: {
+    title: "感谢您的配合",
+    question: "今天的说明容易理解吗？",
+    options: { good: "容易理解", fair: "一般", poor: "不易理解" },
+  },
+  checkout: {
+    title: "结账",
+    body: "请到收银台结账。祝您早日康复。",
+  },
+};
