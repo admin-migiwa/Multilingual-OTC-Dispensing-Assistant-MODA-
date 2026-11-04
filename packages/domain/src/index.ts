@@ -11,3 +11,16 @@ export {
   type SessionSnapshot,
   type PostApprovalAction,
 } from "./session/state.ts";
+export {
+  EMERGENCY_KEYWORD_LANGUAGES,
+  EMERGENCY_KEYWORD_TRANSLATION,
+  EMERGENCY_RULES,
+  CHILD_MAX_AGE,
+  detectEmergency,
+  type EmergencyKeywordLanguage,
+  type EmergencyRule,
+  type KeywordsByLanguage,
+  type EmergencyDetectionOptions,
+  type EmergencyDetectionResult,
+  type EmergencyHit,
+} from "./emergency/index.ts";
