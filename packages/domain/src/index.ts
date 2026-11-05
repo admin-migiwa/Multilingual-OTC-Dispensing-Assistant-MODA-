@@ -39,3 +39,6 @@ export {
   type RequiredStep,
   type RequiredProcedure,
 } from "./sales-procedure/index.ts";
+
+// 禁忌判定（T4）
+export * from "./contraindication/index.ts";
