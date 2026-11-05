@@ -5,6 +5,13 @@ import { useState } from "react";
 import type { EmergencyHit } from "@moda/domain";
 import { getMessages, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
 
+import {
+  EMPTY_FOLLOW_UP,
+  FollowUpPatientPrompt,
+  FollowUpPharmacistPanel,
+  type FollowUpState,
+} from "./emergency-follow-up";
+
 /** 緊急の確認を始めたきっかけ。keyword：入力から緊急キーワードを検知／button：「具合が急に悪くなった」ボタン */
 export type EmergencyTrigger =
   | { readonly kind: "keyword"; readonly text: string; readonly hits: readonly EmergencyHit[] }
@@ -33,6 +40,7 @@ export function EmergencyGuide({
   onReturn: () => void;
 }) {
   const [step, setStep] = useState<"confirm" | "guide">("confirm");
+  const [followUp, setFollowUp] = useState<FollowUpState>(EMPTY_FOLLOW_UP);
   const messages = getMessages(language);
   const t = messages.emergency;
   const aiNotice = needsAiTranslationNotice(language) ? (
@@ -43,7 +51,11 @@ export function EmergencyGuide({
     return (
       <section className="space-y-8" aria-live="assertive">
         <div lang={language} className="space-y-4 rounded-3xl border-4 border-amber-500 bg-amber-50 p-6">
-          <p className="text-2xl font-bold">{t.staffHelp}</p>
+          {followUp.active === null ? (
+            <p className="text-2xl font-bold">{t.staffHelp}</p>
+          ) : (
+            <FollowUpPatientPrompt language={language} state={followUp} onChange={setFollowUp} />
+          )}
           {aiNotice}
         </div>
 
@@ -79,6 +91,8 @@ export function EmergencyGuide({
           <p className="text-sm text-slate-600">
             キーワードは見落とさないことを優先しているため、言い過ぎで当てはまることがあります。
           </p>
+
+          <FollowUpPharmacistPanel state={followUp} onChange={setFollowUp} />
 
           <div className="grid gap-3 sm:grid-cols-2">
             <button

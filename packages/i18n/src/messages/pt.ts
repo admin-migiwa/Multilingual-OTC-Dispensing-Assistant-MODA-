@@ -102,6 +102,24 @@ export const pt: Messages = {
     consultLine: "Se não tiver certeza se deve chamar uma ambulância, você pode ligar para uma linha de consulta de emergência (#7119 etc.; o número muda conforme a região).",
     childLine: "Para dúvidas sobre crianças em feriados ou à noite, ligue para #8000.",
   },
+  emergencyFollowUp: {
+    intro: "São perguntas do farmacêutico. Escolha a resposta que se aplica.",
+    questions: {
+      EF01: { text: "O sintoma começou de repente?" },
+      EF02: {
+        text: "Desde quando?",
+        options: { minutes: "Há alguns minutos", withinHour: "Na última hora", today: "Hoje", yesterdayOrEarlier: "Ontem ou antes" },
+      },
+      EF03: { text: "Ainda continua agora?" },
+      EF04: { text: "Está piorando?" },
+      EF05: { text: "É o pior que você já sentiu?" },
+      EF06: { text: "Tem dificuldade para respirar?" },
+      EF07: { text: "Tem suor frio ou náusea?" },
+      EF08: { text: "Já teve o mesmo sintoma antes?" },
+      EF09: { text: "Consegue andar sem ajuda?" },
+    },
+    scale: { text: "Escolha de 0 a 10 o quanto você se sente mal agora.", min: "0: sem desconforto", max: "10: o pior imaginável" },
+  },
   pharmacist: {
     waiting: "Um farmacêutico está verificando as suas respostas. Aguarde um momento, por favor.",
     notForSale: "Sentimos muito. No seu estado atual, não podemos oferecer um remédio sem receita. Recomendamos que consulte um médico em um hospital ou clínica.",

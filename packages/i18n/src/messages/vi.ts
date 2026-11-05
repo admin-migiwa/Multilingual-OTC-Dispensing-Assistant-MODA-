@@ -102,6 +102,24 @@ export const vi: Messages = {
     consultLine: "Nếu bạn phân vân có nên gọi xe cấp cứu hay không, bạn có thể gọi đường dây tư vấn cấp cứu (#7119, v.v.; số khác nhau tùy khu vực).",
     childLine: "Tư vấn cho trẻ em vào ngày nghỉ hoặc ban đêm: gọi #8000.",
   },
+  emergencyFollowUp: {
+    intro: "Đây là câu hỏi của dược sĩ. Hãy chọn câu trả lời phù hợp.",
+    questions: {
+      EF01: { text: "Triệu chứng có bắt đầu đột ngột không?" },
+      EF02: {
+        text: "Bắt đầu từ khi nào?",
+        options: { minutes: "Vài phút trước", withinHour: "Trong vòng 1 giờ", today: "Hôm nay", yesterdayOrEarlier: "Hôm qua hoặc trước đó" },
+      },
+      EF03: { text: "Bây giờ vẫn còn tiếp diễn không?" },
+      EF04: { text: "Có đang nặng dần lên không?" },
+      EF05: { text: "Đây có phải là lần khó chịu nhất từ trước đến nay không?" },
+      EF06: { text: "Bạn có bị khó thở không?" },
+      EF07: { text: "Bạn có đổ mồ hôi lạnh hoặc buồn nôn không?" },
+      EF08: { text: "Trước đây bạn đã từng bị triệu chứng giống vậy chưa?" },
+      EF09: { text: "Bạn có tự đi lại được không?" },
+    },
+    scale: { text: "Hãy chọn mức độ khó chịu hiện tại từ 0 đến 10.", min: "0: không khó chịu", max: "10: khó chịu nhất có thể tưởng tượng" },
+  },
   pharmacist: {
     waiting: "Dược sĩ đang kiểm tra câu trả lời của bạn. Vui lòng chờ một chút.",
     notForSale: "Chúng tôi rất tiếc. Với tình trạng hiện tại của bạn, cửa hàng không thể cung cấp thuốc không kê đơn. Chúng tôi khuyên bạn nên đi khám tại bệnh viện hoặc phòng khám.",

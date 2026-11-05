@@ -102,6 +102,24 @@ export const zhHant: Messages = {
     consultLine: "如果不確定是否需要叫救護車，可以撥打急救諮詢電話（#7119 等，號碼依地區而異）。",
     childLine: "兒童在假日或夜間的諮詢電話是 #8000。",
   },
+  emergencyFollowUp: {
+    intro: "這是藥劑師的問題。請選擇符合的答案。",
+    questions: {
+      EF01: { text: "這個症狀是突然開始的嗎？" },
+      EF02: {
+        text: "從什麼時候開始的？",
+        options: { minutes: "幾分鐘前", withinHour: "1小時以內", today: "今天", yesterdayOrEarlier: "昨天或更早" },
+      },
+      EF03: { text: "現在還在持續嗎？" },
+      EF04: { text: "是否越來越嚴重？" },
+      EF05: { text: "這是您有生以來最難受的一次嗎？" },
+      EF06: { text: "有呼吸困難嗎？" },
+      EF07: { text: "有冷汗或噁心嗎？" },
+      EF08: { text: "以前有過同樣的症狀嗎？" },
+      EF09: { text: "您能自己走路嗎？" },
+    },
+    scale: { text: "請用0到10的數字選擇您現在的難受程度。", min: "0：不難受", max: "10：能想像到的最難受" },
+  },
   pharmacist: {
     waiting: "藥劑師正在確認內容，請稍候。",
     notForSale: "非常抱歉。以您目前的狀況，本店的成藥無法滿足您的需要。建議您到醫院或診所就診。",
