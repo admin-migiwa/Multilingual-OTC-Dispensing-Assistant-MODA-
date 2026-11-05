@@ -133,7 +133,8 @@ export const SALES_PROCEDURE_VERSIONS: readonly SalesProcedureVersion[] = [
       smallPackageMaxDays: 5,
       extendedSmallPackageMaxDays: 7,
       // Q-1「かぜ薬・解熱鎮痛薬・鼻炎用内服薬」。効き目の分類の名前は drugs.md に合わせる
-      extendedSmallPackageClasses: ["かぜ薬（総合）", "解熱鎮痛薬", "鼻炎用内服薬"],
+      // かぜ薬には漢方のかぜ薬も含める（11/5 薬剤師の判断）
+      extendedSmallPackageClasses: ["かぜ薬（総合）", "かぜ薬（漢方）", "解熱鎮痛薬", "鼻炎用内服薬"],
       minorAgeBelow: 18,
       minorMaxQuantity: 1,
       noticeTextJa: {
