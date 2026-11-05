@@ -5,6 +5,7 @@ import { useState, type FormEvent } from "react";
 import { detectEmergency } from "@moda/domain";
 import { LANGUAGES, getMessages, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
 
+import { EMPTY_FOLLOW_UP, hasFollowUpRecord, type FollowUpState } from "./emergency-follow-up";
 import { EmergencyGuide, type EmergencyTrigger } from "./emergency-guide";
 
 /**
@@ -19,6 +20,11 @@ export function LanguageStart() {
   const [selected, setSelected] = useState<LanguageCode | null>(null);
   /** null：緊急の確認・案内を出していない */
   const [emergency, setEmergency] = useState<EmergencyTrigger | null>(null);
+  /**
+   * 緊急の確認で聞いた答えと観察の印。問診の内容として残すため、元の画面に戻っても消さない。
+   * T7 で問診の記録（サーバー）ができたら、そこに移す。
+   */
+  const [followUp, setFollowUp] = useState<FollowUpState>(EMPTY_FOLLOW_UP);
 
   if (selected === null) {
     return (
@@ -50,7 +56,15 @@ export function LanguageStart() {
   }
 
   if (emergency !== null) {
-    return <EmergencyGuide language={selected} trigger={emergency} onReturn={() => setEmergency(null)} />;
+    return (
+      <EmergencyGuide
+        language={selected}
+        trigger={emergency}
+        followUp={followUp}
+        onFollowUpChange={setFollowUp}
+        onReturn={() => setEmergency(null)}
+      />
+    );
   }
 
   const t = getMessages(selected);
@@ -87,6 +101,12 @@ export function LanguageStart() {
       >
         {t.common.emergencyButton}
       </button>
+
+      {hasFollowUpRecord(followUp) ? (
+        <p lang="ja" className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+          緊急の確認で聞いた答えと観察の印は、問診の内容として残っています（もう一度緊急の確認を開くと見られます）。
+        </p>
+      ) : null}
 
       <EmergencyCheckBox language={selected} onEmergency={setEmergency} />
 

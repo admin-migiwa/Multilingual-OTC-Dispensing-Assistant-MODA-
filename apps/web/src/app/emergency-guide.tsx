@@ -5,7 +5,7 @@ import { useState } from "react";
 import type { EmergencyHit } from "@moda/domain";
 import { getMessages, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
 
-import { EMPTY_FOLLOW_UP, FollowUpPharmacistPanel, type FollowUpState } from "./emergency-follow-up";
+import { FollowUpPharmacistPanel, type FollowUpState } from "./emergency-follow-up";
 
 /** 緊急の確認を始めたきっかけ。keyword：入力から緊急キーワードを検知／button：「具合が急に悪くなった」ボタン */
 export type EmergencyTrigger =
@@ -28,14 +28,19 @@ export type EmergencyTrigger =
 export function EmergencyGuide({
   language,
   trigger,
+  followUp,
+  onFollowUpChange,
   onReturn,
 }: {
   language: LanguageCode;
   trigger: EmergencyTrigger;
+  /** 追加の質問の答えと観察の印。問診の内容として残すため、呼び出し側が持つ（元の画面に戻っても消えない） */
+  followUp: FollowUpState;
+  onFollowUpChange: (next: FollowUpState) => void;
   onReturn: () => void;
 }) {
   const [step, setStep] = useState<"confirm" | "guide">("confirm");
-  const [followUp, setFollowUp] = useState<FollowUpState>(EMPTY_FOLLOW_UP);
+  const setFollowUp = onFollowUpChange;
   const messages = getMessages(language);
   const t = messages.emergency;
   const aiNotice = needsAiTranslationNotice(language) ? (
