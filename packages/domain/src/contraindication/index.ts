@@ -8,6 +8,8 @@ export {
   type Ingredient,
   type IngredientId,
   type IngredientFlag,
+  INGREDIENT_GROUPS,
+  type IngredientGroup,
   type EfficacyCategory,
   type RuleVerdict,
   type RuleCondition,
@@ -28,4 +30,11 @@ export {
   type JudgmentReason,
   type DrugJudgment,
 } from "./judge.ts";
-export { matchStockedDrugs, type MatchLevel, type MatchCandidate, type ShownDrug } from "./match.ts";
+export {
+  matchStockedDrugs,
+  MATCH_LEVELS,
+  type MatchLevel,
+  type MatchCandidate,
+  type MatchResult,
+  type ShownDrug,
+} from "./match.ts";

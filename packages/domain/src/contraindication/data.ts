@@ -45,50 +45,69 @@ export type IngredientId =
   | "KP1"
   | "GZ1";
 
+/** 成分の系統（「店にない商品」の照合に使う。drugs.md の「系統」の列。解熱鎮痛は NSAID系と非NSAID系で分ける） */
+export const INGREDIENT_GROUPS = [
+  "nsaid_analgesic",
+  "non_nsaid_analgesic",
+  "antitussive",
+  "sympathomimetic",
+  "antihistamine",
+  "sedative",
+  "caffeine",
+  "emergency_contraceptive",
+  "antacid",
+  "ophthalmic_decongestant",
+  "topical_analgesic",
+  "kampo_herb",
+  "licorice",
+] as const;
+export type IngredientGroup = (typeof INGREDIENT_GROUPS)[number];
+
 export type Ingredient = {
   id: IngredientId;
+  group: IngredientGroup;
   name: string;
   kind: string;
   flags: readonly IngredientFlag[];
 };
 
 export const INGREDIENTS: Readonly<Record<IngredientId, Ingredient>> = {
-  N1: { id: "N1", name: "架空成分 N1", kind: "解熱鎮痛（NSAID系・強め）", flags: ["nsaid", "gi_damage"] },
-  N2: { id: "N2", name: "架空成分 N2", kind: "解熱鎮痛（NSAID系）", flags: ["nsaid"] },
-  P1: { id: "P1", name: "架空成分 P1", kind: "解熱鎮痛（非NSAID系）", flags: [] },
+  N1: { id: "N1", group: "nsaid_analgesic", name: "架空成分 N1", kind: "解熱鎮痛（NSAID系・強め）", flags: ["nsaid", "gi_damage"] },
+  N2: { id: "N2", group: "nsaid_analgesic", name: "架空成分 N2", kind: "解熱鎮痛（NSAID系）", flags: ["nsaid"] },
+  P1: { id: "P1", group: "non_nsaid_analgesic", name: "架空成分 P1", kind: "解熱鎮痛（非NSAID系）", flags: [] },
   C1: {
-    id: "C1",
+    id: "C1", group: "antitussive",
     name: "架空成分 C1",
     kind: "鎮咳（麻薬性鎮咳成分の類）",
     flags: ["abuse_prevention", "drowsiness", "avoid_breastfeeding"],
   },
   E1: {
-    id: "E1",
+    id: "E1", group: "sympathomimetic",
     name: "架空成分 E1",
     kind: "気管支拡張・鼻づまり（交感神経刺激の類）",
     flags: ["abuse_prevention"],
   },
-  H2: { id: "H2", name: "架空成分 H2", kind: "抗ヒスタミン", flags: ["drowsiness", "antihistamine"] },
-  S1: { id: "S1", name: "架空成分 S1", kind: "鎮静", flags: ["drowsiness"] },
-  K1: { id: "K1", name: "架空成分 K1", kind: "カフェインの類", flags: [] },
+  H2: { id: "H2", group: "antihistamine", name: "架空成分 H2", kind: "抗ヒスタミン", flags: ["drowsiness", "antihistamine"] },
+  S1: { id: "S1", group: "sedative", name: "架空成分 S1", kind: "鎮静", flags: ["drowsiness"] },
+  K1: { id: "K1", group: "caffeine", name: "架空成分 K1", kind: "カフェインの類", flags: [] },
   L1: {
-    id: "L1",
+    id: "L1", group: "emergency_contraceptive",
     name: "架空成分 L1",
     kind: "緊急避妊（ホルモン系）",
     flags: ["specially_guided", "avoid_breastfeeding_24h"],
   },
-  G1: { id: "G1", name: "架空成分 G1", kind: "制酸（ナトリウム系）", flags: ["no_dialysis"] },
-  G2: { id: "G2", name: "架空成分 G2", kind: "制酸（マグネシウム系）", flags: [] },
-  V1: { id: "V1", name: "架空成分 V1", kind: "点眼・充血除去（血管収縮）", flags: ["glaucoma_consult"] },
-  T1: { id: "T1", name: "架空成分 T1", kind: "外用消炎鎮痛（サリチル酸系の類）", flags: ["topical"] },
+  G1: { id: "G1", group: "antacid", name: "架空成分 G1", kind: "制酸（ナトリウム系）", flags: ["no_dialysis"] },
+  G2: { id: "G2", group: "antacid", name: "架空成分 G2", kind: "制酸（マグネシウム系）", flags: [] },
+  V1: { id: "V1", group: "ophthalmic_decongestant", name: "架空成分 V1", kind: "点眼・充血除去（血管収縮）", flags: ["glaucoma_consult"] },
+  T1: { id: "T1", group: "topical_analgesic", name: "架空成分 T1", kind: "外用消炎鎮痛（サリチル酸系の類）", flags: ["topical"] },
   KP1: {
-    id: "KP1",
+    id: "KP1", group: "kampo_herb",
     name: "架空生薬 KP1",
     kind: "漢方（かぜの初期向けの処方を構成する生薬の類）",
     flags: ["kampo"],
   },
   GZ1: {
-    id: "GZ1",
+    id: "GZ1", group: "licorice",
     name: "架空生薬 GZ1",
     kind: "カンゾウ（甘草）の類",
     flags: ["licorice_edema_hypertension"],
@@ -136,11 +155,8 @@ export type RuleCondition =
   | { kind: "taking"; any: readonly CurrentMedication[] }
   | { kind: "driving" }
   | { kind: "alcohol" }
-  /**
-   * 飲む予定の日数が days を超える。
-   * days が null のときは、表に日数の基準がまだないため判定しない（推測で数字を決めない）。
-   */
-  | { kind: "planned_days_over"; days: number | null }
+  /** 飲む予定の日数が days を超える */
+  | { kind: "planned_days_over"; days: number }
   | { kind: "soft_contact_lens" }
   | { kind: "application_site"; site: ApplicationSite };
 
@@ -183,7 +199,6 @@ export type StockedDrug = {
   /** 区分（販売手順は T5 の sales-procedure が持つ。ここでは表示用） */
   classification: string;
   category: EfficacyCategory;
-  /** 成分。先頭を主成分とする */
   ingredients: readonly IngredientId[];
   /** 表に「ほか」と書かれていて、成分の全部はわからない */
   hasUnlistedIngredients: boolean;
@@ -438,11 +453,11 @@ export const STOCKED_DRUGS: readonly StockedDrug[] = [
         basis: { ingredients: ["G1"], flags: ["no_dialysis"] },
       },
       {
-        // drugs.md・問診 Q12 に「長く」の日数の基準がないため、まだ判定しない（薬剤師に確認中）
+        // 14日は11/5 薬剤師の判断（一般的な長期連用の目安「2週間〜1か月」の短い方）
         code: "LONG_TERM_USE",
-        condition: { kind: "planned_days_over", days: null },
+        condition: { kind: "planned_days_over", days: 14 },
         verdict: "caution",
-        label: "長く続けて飲む予定",
+        label: "14日を超えて飲む予定",
         basis: { productLabel: true },
       },
     ],
@@ -551,7 +566,7 @@ export const STOCKED_DRUGS: readonly StockedDrug[] = [
     rules: [
       AGE_UNDER(2),
       {
-        // 表の「むくみがある」は、問診に聞く項目がないためまだ判定しない
+        // 表の「むくみがある」は問診で聞かず、必要そうな人には薬剤師がチャットで確認する（11/5）
         code: "CONDITION",
         condition: { kind: "condition", any: ["hypertension", "heart", "kidney"] },
         verdict: "caution",
@@ -585,7 +600,6 @@ export type UnstockedDrug = {
   name: string;
   classification: string;
   category: EfficacyCategory;
-  /** 成分。先頭を主成分とする */
   ingredients: readonly IngredientId[];
   hasUnlistedIngredients: boolean;
 };

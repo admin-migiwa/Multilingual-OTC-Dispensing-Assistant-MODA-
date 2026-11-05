@@ -3,6 +3,7 @@
  *
  * - 結果は薬剤師への提案。禁忌は既定で選べず、解除は薬剤師の PIN 再認証と理由の記録が必要（ルール4・10）。
  * - 「わからない」「かもしれない」と答えた項目が禁忌に関わるときは禁忌にする（interview-items.md）。
+ *   例外：薬のアレルギー歴（Q08）の「わからない」は「なし」として扱う（11/5）。
  * - 判定に必要な答えがまだないときは、推測せずエラーで止める（ルール7）。
  * - 処方薬を飲んでいるだけでは判定を変えない（K39）。
  */
@@ -124,12 +125,10 @@ function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
       return condition.any.some((c) => conditions.includes(c)) ? hit(["Q07"]) : NO_MATCH;
     }
 
-    case "drug_allergy": {
-      const answer = need(facts, "drugAllergy", "Q08");
-      if (answer === "yes") return hit(["Q08"]);
-      if (answer === "unknown") return hit(["Q08"], true);
-      return NO_MATCH;
-    }
+    case "drug_allergy":
+      // 「わからない」は、どの薬でも「アレルギー歴なし」として扱う（11/5 薬剤師の判断。
+      // わからないなら成分を特定しようがないため。「わからないは禁忌」の例外）
+      return need(facts, "drugAllergy", "Q08") === "yes" ? hit(["Q08"]) : NO_MATCH;
 
     case "taking": {
       // 「処方薬」はここでは判定に使わない（rules に入れていない）。K39
@@ -143,11 +142,8 @@ function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
     case "alcohol":
       return need(facts, "alcohol", "Q11") ? hit(["Q11"]) : NO_MATCH;
 
-    case "planned_days_over": {
-      // 日数の基準が表にない（null）ときは判定しない。推測で数字を決めない
-      if (condition.days === null) return NO_MATCH;
+    case "planned_days_over":
       return need(facts, "plannedDays", "Q12") > condition.days ? hit(["Q12"]) : NO_MATCH;
-    }
 
     case "soft_contact_lens":
       return need(facts, "softContactLens", "Q13") ? hit(["Q13"]) : NO_MATCH;
