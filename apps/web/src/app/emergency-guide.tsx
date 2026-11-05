@@ -5,12 +5,7 @@ import { useState } from "react";
 import type { EmergencyHit } from "@moda/domain";
 import { getMessages, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
 
-import {
-  EMPTY_FOLLOW_UP,
-  FollowUpPatientPrompt,
-  FollowUpPharmacistPanel,
-  type FollowUpState,
-} from "./emergency-follow-up";
+import { EMPTY_FOLLOW_UP, FollowUpPharmacistPanel, type FollowUpState } from "./emergency-follow-up";
 
 /** 緊急の確認を始めたきっかけ。keyword：入力から緊急キーワードを検知／button：「具合が急に悪くなった」ボタン */
 export type EmergencyTrigger =
@@ -51,16 +46,22 @@ export function EmergencyGuide({
     return (
       <section className="space-y-8" aria-live="assertive">
         <div lang={language} className="space-y-4 rounded-3xl border-4 border-amber-500 bg-amber-50 p-6">
-          {followUp.active === null ? (
-            <p className="text-2xl font-bold">{t.staffHelp}</p>
-          ) : (
-            <FollowUpPatientPrompt language={language} state={followUp} onChange={setFollowUp} />
-          )}
+          <p className="text-2xl font-bold">{t.staffHelp}</p>
           {aiNotice}
         </div>
 
         <div lang="ja" className="space-y-4 rounded-2xl border-2 border-slate-300 p-5">
-          <h2 className="text-xl font-bold">薬剤師の確認：119番の案内を出しますか？</h2>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h2 className="text-xl font-bold">薬剤師の確認：119番の案内を出しますか？</h2>
+            {/* 明らかに救急のときに、下まで操作せずにすぐ案内へ進めるように上にも置く */}
+            <button
+              type="button"
+              onClick={() => setStep("guide")}
+              className="rounded-2xl bg-red-700 px-4 py-3 text-base font-bold text-white hover:bg-red-800"
+            >
+              119番の案内を出す
+            </button>
+          </div>
           <p className="text-sm text-slate-600">問診は止めてあります。下の根拠を確認して、どちらかを選んでください。</p>
 
           {trigger.kind === "keyword" ? (
@@ -92,7 +93,7 @@ export function EmergencyGuide({
             キーワードは見落とさないことを優先しているため、言い過ぎで当てはまることがあります。
           </p>
 
-          <FollowUpPharmacistPanel state={followUp} onChange={setFollowUp} />
+          <FollowUpPharmacistPanel language={language} state={followUp} onChange={setFollowUp} />
 
           <div className="grid gap-3 sm:grid-cols-2">
             <button

@@ -5,7 +5,7 @@ import { getMessages, type LanguageCode, type Messages } from "@moda/i18n";
 
 /**
  * 緊急の確認画面で使う、追加の質問・つらさの数字・薬剤師の観察項目
- * （docs/demo-data/emergency.md「緊急の確認画面で使う質問と観察項目」。確認待ち）。
+ * （docs/demo-data/emergency.md「緊急の確認画面で使う質問と観察項目」。11/5 薬剤師確認済み）。
  *
  * 答えと印は薬剤師が判断する材料として並べるだけで、アプリは緊急かどうかを判定しない。
  * 記録の保存はハッカソン版では保留のため、画面を離れると消える。
@@ -53,8 +53,8 @@ function answerLabelJa(question: QuestionId, key: string): string {
   return found ? found[1] : key;
 }
 
-/** 患者さんに見せる部分（患者さんの言語）。質問が選ばれていないときは null */
-export function FollowUpPatientPrompt({
+/** 患者さんに見せる質問と答えのボタン（患者さんの言語）。薬剤師が押した質問のすぐ下に出す */
+function FollowUpPatientPrompt({
   language,
   state,
   onChange,
@@ -115,11 +115,22 @@ export function FollowUpPatientPrompt({
   );
 }
 
-/** 薬剤師が操作する部分（日本語） */
+/** 質問のすぐ下に出す枠。患者さんが答えるので、患者さんの言語で書く */
+function PromptBox(props: { language: LanguageCode; state: FollowUpState; onChange: (next: FollowUpState) => void }) {
+  return (
+    <div lang={props.language} className="rounded-2xl border-4 border-teal-600 bg-white p-4">
+      <FollowUpPatientPrompt {...props} />
+    </div>
+  );
+}
+
+/** 薬剤師が操作する部分（日本語）。押した質問の答えは、その質問のすぐ下で患者さんが選ぶ */
 export function FollowUpPharmacistPanel({
+  language,
   state,
   onChange,
 }: {
+  language: LanguageCode;
   state: FollowUpState;
   onChange: (next: FollowUpState) => void;
 }) {
@@ -140,12 +151,12 @@ export function FollowUpPharmacistPanel({
   return (
     <div className="space-y-5">
       <div className="space-y-2">
-        <h3 className="text-base font-bold">患者さんに聞く（押すと患者さんの言語で上に出ます）</h3>
-        <ul className="grid gap-2 sm:grid-cols-2">
+        <h3 className="text-base font-bold">患者さんに聞く（押すと、すぐ下に患者さんの言語で質問と答えのボタンが出ます）</h3>
+        <ul className="space-y-2">
           {QUESTION_IDS.map((id) => {
             const answer = state.answers[id];
             return (
-              <li key={id}>
+              <li key={id} className="space-y-2">
                 <button
                   type="button"
                   onClick={() => onChange({ ...state, active: state.active === id ? null : id })}
@@ -156,10 +167,11 @@ export function FollowUpPharmacistPanel({
                     {answer === undefined ? "未回答" : answerLabelJa(id, answer)}
                   </span>
                 </button>
+                {state.active === id ? <PromptBox language={language} state={state} onChange={onChange} /> : null}
               </li>
             );
           })}
-          <li>
+          <li className="space-y-2">
             <button
               type="button"
               onClick={() => onChange({ ...state, active: state.active === "ES01" ? null : "ES01" })}
@@ -170,6 +182,7 @@ export function FollowUpPharmacistPanel({
                 {state.scale === null ? "未回答" : `${state.scale} / 10`}
               </span>
             </button>
+            {state.active === "ES01" ? <PromptBox language={language} state={state} onChange={onChange} /> : null}
           </li>
         </ul>
         <p className="text-sm text-slate-500">
