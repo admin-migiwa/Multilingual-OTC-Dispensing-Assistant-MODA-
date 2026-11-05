@@ -2,22 +2,23 @@
 
 import { useState, type FormEvent } from "react";
 
-import { detectEmergency, type EmergencyHit } from "@moda/domain";
+import { detectEmergency } from "@moda/domain";
 import { LANGUAGES, getMessages, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
 
-import { EmergencyGuide } from "./emergency-guide";
+import { EmergencyGuide, type EmergencyTrigger } from "./emergency-guide";
 
 /**
  * 言語選択と、最初の案内（T3：言語を切り替えると文が変わることの確認用）。
  * 「ほしい薬がある」「症状から探す」から先の画面は T7 で作る。まだボタンを押しても先に進まない。
  *
- * T6：「具合が急に悪くなった」ボタンと、確認用の入力欄（緊急キーワードの判定）から緊急案内に切り替わる。
+ * T6：「具合が急に悪くなった」ボタンと、確認用の入力欄（緊急キーワードの判定）から、
+ * 薬剤師の確認 → 119番の案内 に切り替わる。
  * 判定と案内の表示は、この端末（ブラウザ）の中だけで行い、サーバーへの通信を使わない（絶対に守るルール2）。
  */
 export function LanguageStart() {
   const [selected, setSelected] = useState<LanguageCode | null>(null);
-  /** null：緊急案内を出していない／配列：緊急案内を出している（緊急ボタンのときは空の配列） */
-  const [emergencyHits, setEmergencyHits] = useState<readonly EmergencyHit[] | null>(null);
+  /** null：緊急の確認・案内を出していない */
+  const [emergency, setEmergency] = useState<EmergencyTrigger | null>(null);
 
   if (selected === null) {
     return (
@@ -48,8 +49,8 @@ export function LanguageStart() {
     );
   }
 
-  if (emergencyHits !== null) {
-    return <EmergencyGuide language={selected} hits={emergencyHits} onReturn={() => setEmergencyHits(null)} />;
+  if (emergency !== null) {
+    return <EmergencyGuide language={selected} trigger={emergency} onReturn={() => setEmergency(null)} />;
   }
 
   const t = getMessages(selected);
@@ -81,13 +82,13 @@ export function LanguageStart() {
 
       <button
         type="button"
-        onClick={() => setEmergencyHits([])}
+        onClick={() => setEmergency({ kind: "button" })}
         className="w-full rounded-2xl bg-red-700 px-5 py-4 text-xl font-bold text-white transition hover:bg-red-800"
       >
         {t.common.emergencyButton}
       </button>
 
-      <EmergencyCheckBox language={selected} onEmergency={setEmergencyHits} />
+      <EmergencyCheckBox language={selected} onEmergency={setEmergency} />
 
       {needsAiTranslationNotice(selected) ? (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{t.common.aiTranslationNotice}</p>
@@ -106,7 +107,7 @@ export function LanguageStart() {
 
 /**
  * 確認用の入力欄（T6）。T7 で問診の画面ができるまでの仮のもの。
- * 「胸が痛い」などを入れて「判定する」を押すと、緊急キーワードに当てはまれば緊急案内に切り替わる。
+ * 「胸が痛い」などを入れて「判定する」を押すと、緊急キーワードに当てはまれば薬剤師の確認の画面に切り替わる。
  * 入力した文はどこにも送らず、保存もしない。
  */
 function EmergencyCheckBox({
@@ -114,7 +115,7 @@ function EmergencyCheckBox({
   onEmergency,
 }: {
   language: LanguageCode;
-  onEmergency: (hits: readonly EmergencyHit[]) => void;
+  onEmergency: (trigger: EmergencyTrigger) => void;
 }) {
   const [text, setText] = useState("");
   const [age, setAge] = useState("");
@@ -126,7 +127,7 @@ function EmergencyCheckBox({
     const detection = detectEmergency(text, { language, age: parsedAge });
     if (detection.isEmergency) {
       setNoMatch(false);
-      onEmergency(detection.hits);
+      onEmergency({ kind: "keyword", text, hits: detection.hits });
     } else {
       setNoMatch(true);
     }
