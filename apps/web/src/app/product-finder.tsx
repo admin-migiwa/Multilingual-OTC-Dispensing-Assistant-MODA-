@@ -114,11 +114,14 @@ export function ProductFinder({
     // 選んだ写真を入力欄からすぐに消す（同じ写真をもう一度選べるように、また端末の画面に残さないように）
     event.target.value = "";
     if (!file) return;
+    // 写真を小さくしている間も「読み取り中」にして、2枚目を選べないようにする
+    setBusy(true);
     let base64: string;
     try {
       base64 = await shrinkToJpeg(file);
     } catch {
       setError("写真を読み込めませんでした。");
+      setBusy(false);
       return;
     }
     await send({ consent: true, image: { mediaType: "image/jpeg", base64 } });
@@ -224,7 +227,7 @@ export function ProductFinder({
               <p className="text-sm font-semibold text-slate-700">候補（薬剤師が確かめて選んでください）</p>
               {!result.ambiguous && !result.exactMatch ? (
                 <p className="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
-                  名前が完全には一致していません。箱やスマホの画面の名前と見比べてください。
+                  読み取った名前が、表の商品名と同じではありません。箱やスマホの画面の名前と見比べてください。
                 </p>
               ) : null}
               {result.ambiguous ? (
