@@ -10,6 +10,7 @@ import type { StockedDrugId } from "../contraindication/data.ts";
 import { judgeDrug } from "../contraindication/judge.ts";
 import {
   applyAnswers,
+  applyAnswersWithReport,
   assertInterviewComplete,
   isBasicInterviewComplete,
   isInterviewComplete,
@@ -119,9 +120,34 @@ describe("妊娠・授乳（Q03・Q04）を聞く条件", () => {
     assert.ok(!asked.includes("Q04"));
   });
 
-  it("男性への妊娠の答えは受け取らない（サーバー側で除外する）", () => {
+  it("男性への妊娠の答えは記録に残さない（サーバー側で除外する）", () => {
     const male = withAnswers({ age: 30, sex: "male" });
-    assertRuleError(() => applyAnswers(male, { pregnancy: "no" }), "QUESTION_NOT_ASKED");
+    const result = applyAnswersWithReport(male, { pregnancy: "no" });
+    assert.equal(result.state.answers.pregnancy, undefined);
+    assert.deepEqual(result.ignored, ["Q03"]);
+  });
+
+  it("聞かない項目への答えが混じっても、ほかの答えは受け取る（11/6 の判断）", () => {
+    const result = applyAnswersWithReport(empty, { age: 30, sex: "male", pregnancy: "not_applicable", asthmaHistory: "no" });
+    assert.equal(result.state.answers.age, 30);
+    assert.equal(result.state.answers.sex, "male");
+    assert.equal(result.state.answers.asthmaHistory, "no");
+    assert.equal(result.state.answers.pregnancy, undefined);
+    assert.deepEqual(result.ignored, ["Q03"]);
+  });
+
+  it("薬を選ぶ前の、薬ごとの項目への答えは捨てて、ほかの答えは受け取る", () => {
+    const result = applyAnswersWithReport(withAnswers({ age: 30, sex: "female" }), { asthmaHistory: "no", alcohol: false });
+    assert.equal(result.state.answers.asthmaHistory, "no");
+    assert.equal(result.state.answers.alcohol, undefined);
+    assert.deepEqual(result.ignored, ["Q11"]);
+  });
+
+  it("問診の項目にない答えは、捨てずに止める", () => {
+    assertRuleError(
+      () => applyAnswers(empty, { age: 30, favoriteColor: "blue" } as unknown as InterviewAnswers),
+      "FACT_INVALID",
+    );
   });
 });
 

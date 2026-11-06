@@ -172,31 +172,45 @@ function dropAnswersNoLongerAsked(state: InterviewState, settings: InterviewSett
  *
  * - 一度に複数の項目に答えてもよい（当てはまる項目をすべて確認済みにする）。
  * - すでに答えた項目に答え直すと、上書きする（訂正。「前の答えをやり直す」）。
- * - 決められた形でない答えは DomainRuleError で止める。呼び出す側は同じ質問をもう一度出す。
- * - 聞く条件に当てはまらない項目への答えは受け取らない（例：男性への妊娠の答え）。
+ * - 決められた形でない答え（聞く項目への答え）は DomainRuleError で止める。呼び出す側は同じ質問をもう一度出す。
+ * - 聞く条件に当てはまらない項目への答え（例：男性への妊娠の答え）は、捨てて記録に残さず、ほかの答えは受け取る
+ *   （11/6 依頼主の判断。docs/backlog.md J-06。患者さんはほかのことも一緒に答えることが多いため）。
+ * - 問診の項目にない答え（知らない項目）は止める。
  */
 export function applyAnswers(
   state: InterviewState,
   newAnswers: InterviewAnswers,
   settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
 ): InterviewState {
+  return applyAnswersWithReport(state, newAnswers, settings).state;
+}
+
+export interface ApplyAnswersResult {
+  readonly state: InterviewState;
+  /** 聞かない項目への答えだったので捨てた項目（履歴に種類だけを残すため。中身は返さない） */
+  readonly ignored: readonly QuestionId[];
+}
+
+/** applyAnswers と同じ。あわせて、捨てた答えの項目 ID を返す */
+export function applyAnswersWithReport(
+  state: InterviewState,
+  newAnswers: InterviewAnswers,
+  settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
+): ApplyAnswersResult {
   const merged: InterviewAnswers = { ...state.answers, ...newAnswers };
-  // 先に「聞く必要がなくなった答え」を消してから形を確かめる。
+  // 先に「聞く必要がなくなった答え」と「聞かない項目への答え」を消してから形を確かめる。
   // 例：R02 を「複数個・3個」から「小箱1個」に直したとき、古い個数が残って形の誤りにならないように
   const next: InterviewState = { ...state, answers: dropAnswersNoLongerAsked({ ...state, answers: merged }, settings) };
   assertValidAnswers(next.answers);
 
-  // 聞く条件に当てはまらない項目への答えは、消されて残らない。受け取ったつもりにならないよう止める
+  const ignored = new Set<QuestionId>();
   for (const key of Object.keys(newAnswers) as (keyof InterviewAnswers)[]) {
     if (newAnswers[key] !== undefined && next.answers[key] === undefined) {
       const owner = QUESTIONS.find((q) => q.answerKeys.includes(key));
-      throw new DomainRuleError(
-        "QUESTION_NOT_ASKED",
-        `問診の ${owner?.id ?? key} は、この患者さんには聞かない項目です`,
-      );
+      if (owner) ignored.add(owner.id);
     }
   }
-  return next;
+  return { state: next, ignored: [...ignored] };
 }
 
 /** 選んだ薬を変える。聞く必要がなくなった薬ごとの項目の答えは消す。取扱薬にない記号は止める */
