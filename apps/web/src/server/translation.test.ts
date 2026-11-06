@@ -241,6 +241,37 @@ describe("AI の緊急フラグ（docs/backlog.md S-02、spec.md 決まったこ
     assert.equal(getSession(deps, id).emergencies.length, 1);
   });
 
+  it("AI の設定がなくて AI を作れないときも、キーワードに当たれば問診を止めてからエラーを返す", async () => {
+    const base = testDeps(simpleAi());
+    const deps: TranslationDeps = {
+      store: base.store,
+      now: base.now,
+      newId: base.newId,
+      get ai(): AiClient {
+        throw new AiError("AI_NOT_CONFIGURED", "設定がありません");
+      },
+    };
+    const id = startInterview(deps);
+    await assertRejects(translate(deps, id, { direction: "to_ja", text: "I have chest pain." }), "AI_NOT_CONFIGURED");
+    assert.equal(getSession(deps, id).snapshot.status, "emergency_review");
+  });
+
+  it("AI の答えの訳が形から外れていても、表にある緊急の ID が付いていれば、問診を止めてからエラーを返す", async () => {
+    const deps = testDeps(fakeAi(() => ({ translation: "", emergencyRuleIds: ["EA12"] })));
+    const id = startInterview(deps);
+    await assertRejects(translate(deps, id, { direction: "to_ja", text: "Something is pressing on me." }), "AI_INVALID_OUTPUT");
+    const record = getSession(deps, id);
+    assert.equal(record.snapshot.status, "emergency_review");
+    assert.equal(record.emergencies[0]?.trigger, "ai");
+  });
+
+  it("答えの形が外れていて、緊急の ID も表にないものなら、止めずにエラーだけ返す", async () => {
+    const deps = testDeps(fakeAi(() => ({ translation: "", emergencyRuleIds: ["EA99"] })));
+    const id = startInterview(deps);
+    await assertRejects(translate(deps, id, { direction: "to_ja", text: "hello" }), "AI_INVALID_OUTPUT");
+    assert.equal(getSession(deps, id).snapshot.status, "interview");
+  });
+
   it("すでに緊急の確認中なら開き直さず、当てはまった項目だけを返す（薬剤師がチャットで様子をたずねている最中）", async () => {
     const deps = testDeps(simpleAi(["EA12"]));
     const id = startInterview(deps);

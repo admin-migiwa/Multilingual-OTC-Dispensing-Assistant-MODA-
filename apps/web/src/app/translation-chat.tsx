@@ -12,8 +12,17 @@ import { getLanguage, type LanguageCode } from "@moda/i18n";
  * - 訳はすべて「参考訳（AI の訳）」と出す（決まったこと No.23）。仮の AI のときは、そのことも出す。
  * - 患者さんの文は、送る前に端末の中でも緊急キーワードを照合する（通信が止まっていても緊急の確認を開けるように。CLAUDE.md 絶対に守るルール2）。
  * - サーバーが緊急と判断したら（AI の緊急フラグ・キーワード）、onEmergency で呼び出し元に知らせる。
+ *   サーバーは自分で緊急の確認を開く（問診を止める）ので、呼び出し元は onEmergency を受けて画面を切り替えるだけにし、
+ *   緊急を開く API をもう一度呼ばない（kind "keyword" は通信なしでも出すための端末の中の知らせ）。
+ * - 翻訳がエラーで終わっても、サーバー側では緊急で止まっていることがある（AI の緊急フラグのあと、訳し戻しが失敗したなど）。
+ *   そのため、エラーのときは接客の状態を読み直し、緊急の確認中なら onEmergency で知らせる（CLAUDE.md 絶対に守るルール2）。
+ * - 薬剤師が一度「緊急ではない」と判断した接客（emergencyCleared）では、端末の中のキーワードでも知らせない（ルール2の例外）。
  * - 会話の中身は画面の中だけに置き、端末に保存しない。
  */
+
+interface SessionStatusView {
+  readonly status: string;
+}
 
 interface TranslationResponse {
   readonly direction: "to_ja" | "to_patient";
@@ -22,6 +31,7 @@ interface TranslationResponse {
   readonly label: string;
   readonly provider: "mock" | "anthropic";
   readonly emergency: { readonly ruleIds: readonly string[]; readonly labelsJa: readonly string[]; readonly opened: boolean };
+  readonly view: SessionStatusView;
 }
 
 interface ChatEntry {
@@ -42,18 +52,23 @@ const ERROR_TEXT: Readonly<Record<string, string>> = {
   AI_REFUSED: "AI がこの文を訳しませんでした。言い方を変えてください。",
   INVALID_REQUEST: "文が空か、長すぎます（500字まで）。",
   SESSION_ALREADY_ENDED: "この接客は終わっています。",
+  SESSION_NOT_FOUND: "接客の記録が見つかりません。最初からやり直してください。",
+  INVALID_TRANSITION: "いまの画面では翻訳できません。",
 };
 
 export function TranslationChat({
   sessionId,
   language,
   age,
+  emergencyCleared = false,
   onEmergency,
 }: {
   sessionId: string;
   language: LanguageCode;
   /** わかっていれば年齢（端末の中のキーワード照合で、こどもの項目を使うかに使う） */
   age?: number | undefined;
+  /** 薬剤師が一度「緊急ではない」と判断した接客か（patientView.emergencyCleared） */
+  emergencyCleared?: boolean;
   onEmergency: (emergency: ChatEmergency) => void;
 }) {
   const [direction, setDirection] = useState<"to_ja" | "to_patient">("to_ja");
@@ -63,6 +78,18 @@ export function TranslationChat({
   const [error, setError] = useState<string | null>(null);
   const patientLanguage = getLanguage(language);
 
+  /** 翻訳がエラーで終わったとき、サーバー側で緊急の確認に入っていないかを読み直す */
+  async function checkStoppedByServer() {
+    try {
+      const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { cache: "no-store" });
+      if (!response.ok) return;
+      const view = (await response.json()) as Partial<SessionStatusView>;
+      if (view.status === "emergency_review") onEmergency({ kind: "server", ruleIds: [], labelsJa: [] });
+    } catch {
+      // 通信が止まっているときは、端末の中のキーワード照合と薬剤師の手動ボタンで対応する
+    }
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const sent = text.trim();
@@ -70,7 +97,7 @@ export function TranslationChat({
     setError(null);
 
     // 患者さんの文は、送る前に端末の中で緊急キーワードを照合する（通信に頼らない）
-    if (direction === "to_ja") {
+    if (direction === "to_ja" && !emergencyCleared) {
       const local = detectEmergency(sent, { language, age });
       if (local.isEmergency) onEmergency({ kind: "keyword", text: sent, hits: local.hits });
     }
@@ -85,16 +112,19 @@ export function TranslationChat({
       const body = (await response.json().catch(() => ({}))) as Partial<TranslationResponse> & { error?: string };
       if (!response.ok || typeof body.translation !== "string") {
         setError(ERROR_TEXT[body.error ?? ""] ?? "翻訳できませんでした。");
+        if (direction === "to_ja") await checkStoppedByServer();
         return;
       }
       const result = body as TranslationResponse;
       setEntries((previous) => [...previous, { id: previous.length + 1, direction, original: sent, result }]);
       setText("");
-      if (result.emergency.opened) {
+      // この翻訳で止めたとき、またはすでに止まっていて緊急の項目が当てはまったとき（送り直しなど）
+      if (result.emergency.opened || (result.view.status === "emergency_review" && result.emergency.ruleIds.length > 0)) {
         onEmergency({ kind: "server", ruleIds: result.emergency.ruleIds, labelsJa: result.emergency.labelsJa });
       }
     } catch {
       setError("通信が止まりました。右上の「緊急の確認を開く」は使えます。");
+      if (direction === "to_ja") await checkStoppedByServer();
     } finally {
       setSending(false);
     }

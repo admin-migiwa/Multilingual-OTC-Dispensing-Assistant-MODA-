@@ -14,8 +14,11 @@ import { AiError, type AiClient, type AiContent, type AiRequest } from "./types.
 
 export const ANTHROPIC_MODEL = "claude-opus-5-5";
 
-/** 1回の呼び出しを待つ長さ（ミリ秒）。店頭で長く待たせないため短めにする */
-const TIMEOUT_MS = 30_000;
+/**
+ * 1回の呼び出しを待つ長さ（ミリ秒）。店頭で長く待たせないため短めにする。
+ * 翻訳は2回続けて呼ぶので、やり直し1回を入れても、いちばん長くて約1分で止まる（ふだんは1件4秒ほど。J-13）
+ */
+const TIMEOUT_MS = 15_000;
 
 function toBlock(part: AiContent): Anthropic.ContentBlockParam {
   if (part.type === "text") return { type: "text", text: part.text };
