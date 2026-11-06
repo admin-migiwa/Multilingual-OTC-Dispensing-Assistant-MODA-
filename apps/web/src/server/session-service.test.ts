@@ -412,6 +412,13 @@ describe("119番の案内の取り消しと、確認済みの接客（11/6 依�
     assert.equal(patientView(decideEmergency(deps, id, "not_emergency")).emergencyCleared, true);
   });
 
+  it("画面を読み直したときに緊急キーワードの確認で使う年齢を返す（まだ答えていなければ null）", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    assert.equal(patientView(getSession(deps, id)).age, null);
+    assert.equal(patientView(answer(deps, id, { age: 30, sex: "female" })).age, 30);
+  });
+
   it("119番の案内を押し間違いで取り消しただけでは、確認済みの印は付かない（「緊急ではない」の判断ではないため）", () => {
     const deps = testDeps();
     const id = startInterview(deps);

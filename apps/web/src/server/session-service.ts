@@ -29,6 +29,8 @@ import {
 } from "@moda/domain";
 import { isSupportedLanguage, type LanguageCode } from "@moda/i18n";
 
+import type { PharmacistReviewRound } from "./pharmacist-service";
+
 /** セッションが見つからないなど、ルール以外の理由で処理できないとき */
 export type SessionServiceErrorCode = "SESSION_NOT_FOUND" | "UNSUPPORTED_LANGUAGE" | "INVALID_REQUEST";
 
@@ -93,7 +95,12 @@ export type SessionEventType =
   | "emergency_opened"
   | "emergency_follow_up"
   | "emergency_decided"
-  | "emergency_cancelled";
+  | "emergency_cancelled"
+  // 薬剤師の確認（T8a。apps/web/src/server/pharmacist-service.ts）
+  | "pharmacist_review_opened"
+  | "sale_drugs_chosen"
+  | "procedure_step_checked"
+  | "sale_declined";
 
 export interface SessionEvent {
   readonly at: string;
@@ -111,10 +118,12 @@ export interface SessionRecord {
   /** 「症状から探す」で入力された症状（薬剤師の画面で候補を選ぶのに使う。ログ・履歴には出さない） */
   readonly symptomText: string | null;
   readonly emergencies: readonly EmergencyEvent[];
+  /** 薬剤師の確認（T8a）。確認の画面を開くたびに1つ足す（なければ空。中身は pharmacist-service.ts） */
+  readonly pharmacistReviews?: readonly PharmacistReviewRound[];
   readonly events: readonly SessionEvent[];
 }
 
-/** 患者さんの画面に返す内容（答えの中身は返さない） */
+/** 患者さんの画面に返す内容（答えの中身は返さない。年齢だけは緊急キーワードの確認に使うので返す） */
 export interface PatientView {
   readonly id: string;
   readonly language: LanguageCode;
@@ -134,6 +143,8 @@ export interface PatientView {
    * （11/6 依頼主の判断。CLAUDE.md 絶対に守るルール2・spec.md 決まったこと No.38 の例外）
    */
   readonly emergencyCleared: boolean;
+  /** 年齢（Q01）の答え。画面を読み直したときに、緊急キーワードの確認で子どもの項目を使うかを決め直すため（T8a）。まだなら null */
+  readonly age: number | null;
 }
 
 export interface SessionStore {
@@ -161,18 +172,18 @@ export function defaultDeps(): ServiceDeps {
 
 // ---------------------------------------------------------------------------
 
-function load(deps: ServiceDeps, id: string): SessionRecord {
+export function load(deps: ServiceDeps, id: string): SessionRecord {
   const record = deps.store.get(id);
   if (!record) throw new SessionServiceError("SESSION_NOT_FOUND", "接客の記録が見つかりません");
   return record;
 }
 
-function event(deps: ServiceDeps, type: SessionEventType, detail: readonly string[] = []): SessionEvent {
+export function event(deps: ServiceDeps, type: SessionEventType, detail: readonly string[] = []): SessionEvent {
   return { at: deps.now().toISOString(), type, detail };
 }
 
 /** 状態を進め、履歴に残す */
-function moveTo(deps: ServiceDeps, record: SessionRecord, to: SessionStatus): SessionRecord {
+export function moveTo(deps: ServiceDeps, record: SessionRecord, to: SessionStatus): SessionRecord {
   const snapshot = transition(record.snapshot, to);
   return { ...record, snapshot, events: [...record.events, event(deps, "status_changed", [to])] };
 }
@@ -213,6 +224,7 @@ export function patientView(record: SessionRecord): PatientView {
     basicInterviewComplete: isBasicInterviewComplete(record.interview),
     interviewComplete: isInterviewComplete(record.interview),
     emergencyCleared: record.emergencies.some((e) => e.decision === "not_emergency"),
+    age: record.interview.answers.age ?? null,
   };
 }
 

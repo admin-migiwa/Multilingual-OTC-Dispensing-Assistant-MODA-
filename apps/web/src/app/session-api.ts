@@ -20,6 +20,8 @@ export interface PatientView {
   readonly interviewComplete: boolean;
   /** 薬剤師が一度でも「緊急ではない」と判断したか（119番の押し間違いの取り消しは含めない）。true なら緊急キーワードで自動に切り替えない */
   readonly emergencyCleared: boolean;
+  /** 年齢の答え（緊急キーワードの確認で子どもの項目を使うかを決める）。まだなら null */
+  readonly age: number | null;
 }
 
 export class NetworkError extends Error {

@@ -1,9 +1,9 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { STOCKED_DRUGS, detectEmergency, type InterviewAnswers, type StockedDrugId } from "@moda/domain";
-import { LANGUAGES, getMessages, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
+import { LANGUAGES, getMessages, isSupportedLanguage, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
 
 import { EMPTY_FOLLOW_UP, type FollowUpState } from "./emergency-follow-up";
 import { EmergencyGuide, type EmergencyTrigger } from "./emergency-guide";
@@ -46,6 +46,13 @@ export function LanguageStart() {
   const show119Recorded = useRef(false);
   /** 「119番の案内を出す」の記録の通信（取り消しは、この記録が終わってから行う） */
   const show119Pending = useRef<Promise<void>>(Promise.resolve());
+  /** 住所の ?session= から読み直している接客（読み直しが済むまでは、新しい接客を始めずにこの接客を読み直す） */
+  const restoringId = useRef<string | null>(null);
+  /**
+   * 薬剤師の確認画面から緊急の確認を開いたときの、後ろで動く記録の処理。緊急の確認を記録できたら、その接客の内容になる
+   * （記録できなければ null）。薬剤師の判断は、この記録が終わってから残す（記録の順番を守るため）
+   */
+  const pendingOpen = useRef<Promise<PatientView | null> | null>(null);
 
   /** サーバーを呼び、結果で画面を進める。通信が止まったら「通信が止まりました」の画面にする */
   async function run(action: () => Promise<PatientView>): Promise<void> {
@@ -80,8 +87,66 @@ export function LanguageStart() {
     }
   }
 
+  /** 読み直した接客の言語と年齢を画面に戻す（年齢は、緊急キーワードの確認で子どもの項目を使うかを決める） */
+  function restoreBasics(latest: PatientView) {
+    setLanguage(latest.language);
+    age.current = latest.age ?? undefined;
+  }
+
+  /** 読み直した接客を、状態に合わせて画面に出す（緊急を確認中なら緊急の確認、119番の案内で終わっていれば「終わっています」） */
+  function applyRestored(latest: PatientView): PatientView {
+    restoreBasics(latest);
+    restoringId.current = null;
+    if (latest.status === "emergency_review") setEmergency({ kind: "staff" });
+    if (latest.status === "emergency_ended") setSessionLost(true);
+    return latest;
+  }
+
+  // 薬剤師の確認画面（/pharmacist/[id]）から戻ったときは、住所の ?session= の接客を読み直して続ける（T8a）
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("session");
+    if (!id) return;
+    restoringId.current = id;
+
+    if (params.get("emergency") === "staff") {
+      // 薬剤師の確認画面の「緊急の確認を開く」から来た（CLAUDE.md ルール2）。通信を待たずに、すぐに緊急の確認を出す。
+      // 住所から印を外し、読み直しでもう一度開かないようにする
+      const lang = params.get("lang");
+      if (lang !== null && isSupportedLanguage(lang)) setLanguage(lang);
+      setEmergency({ kind: "staff" });
+      setRecordFailed(false);
+      show119Recorded.current = false;
+      window.history.replaceState(null, "", `/?session=${encodeURIComponent(id)}`);
+      pendingOpen.current = (async () => {
+        try {
+          const latest = await sessionApi.get(id);
+          restoreBasics(latest);
+          const opened = latest.status === "emergency_review" ? latest : await sessionApi.openEmergency(id, { trigger: "staff" });
+          setView(opened);
+          // restoringId はここでは消さない（画面が描き直される前に「緊急ではない」が押されても、新しい接客を始めないため）
+          return opened;
+        } catch {
+          // 記録に残せなかった（通信が止まっている、接客が終わっているなど）。案内はこのまま出せる
+          setRecordFailed(true);
+          return null;
+        }
+      })();
+      return;
+    }
+
+    void run(async () => applyRestored(await sessionApi.get(id)));
+  }, []);
+
   function chooseLanguage(code: LanguageCode) {
+    if (busy) return; // 読み直しなどの通信の途中では受け付けない（同じ接客の読み直しが重ならないように）
     setLanguage(code);
+    // 住所の ?session= の接客を読み直せていない（通信が止まっていたなど）ときは、新しい接客を始めずに読み直す
+    const restoring = restoringId.current;
+    if (restoring !== null) {
+      void run(async () => applyRestored(await sessionApi.get(restoring)));
+      return;
+    }
     void run(() => sessionApi.start(code));
   }
 
@@ -114,13 +179,15 @@ export function LanguageStart() {
 
   /** 薬剤師の判断を記録に残す（追加の答えを先に残す） */
   async function recordDecision(decision: "show_119" | "not_emergency"): Promise<PatientView | null> {
-    if (view === null) return null;
+    // 薬剤師の確認画面から開いて、まだ画面に接客がないときは、緊急の確認の記録が終わるのを待って、その接客に残す
+    const id = view?.id ?? (await pendingOpen.current)?.id ?? null;
+    if (id === null) return null;
     const answers: Record<string, string> = {};
     for (const [key, value] of Object.entries(followUp.answers)) {
       if (typeof value === "string") answers[key] = value;
     }
-    await sessionApi.recordFollowUp(view.id, { answers, scale: followUp.scale, observedRuleIds: [...followUp.observed] });
-    return sessionApi.decideEmergency(view.id, decision);
+    await sessionApi.recordFollowUp(id, { answers, scale: followUp.scale, observedRuleIds: [...followUp.observed] });
+    return sessionApi.decideEmergency(id, decision);
   }
 
   if (emergency !== null) {
@@ -152,9 +219,11 @@ export function LanguageStart() {
             // 押し間違い：119番の案内を取り消し、押す前の薬剤師の確認に戻る（11/6 依頼主の判断）。
             // 「緊急ではない」の判断ではないので、以降の緊急キーワードの確認はそのまま続く
             await show119Pending.current; // 記録の途中なら、記録が終わってから取り消す
-            if (!show119Recorded.current || view === null) return true; // 記録できていない（通信が止まっていた）ので画面だけ戻す
+            // 薬剤師の確認画面から開いて、押した時点で画面に接客がなかったときも、緊急の確認を記録した接客で取り消す
+            const id = view?.id ?? (await pendingOpen.current)?.id ?? null;
+            if (!show119Recorded.current || id === null) return true; // 記録できていない（通信が止まっていた）ので画面だけ戻す
             try {
-              setView(await sessionApi.cancelEmergency119(view.id));
+              setView(await sessionApi.cancelEmergency119(id));
               show119Recorded.current = false;
               return true;
             } catch {
@@ -165,11 +234,24 @@ export function LanguageStart() {
             setEmergency(null);
             setFollowUp(EMPTY_FOLLOW_UP);
             if (view === null) {
+              // 薬剤師の確認画面から来て、まだ画面に接客がないときは、新しい接客を始めない。
+              // 緊急の確認の記録が終わるのを待ち、記録できていれば「緊急ではない」を残す。記録できていなければ読み直す
+              // （読み直して緊急を確認中なら、もう一度緊急の確認を出す。安全側）
+              const restoring = restoringId.current;
+              if (restoring !== null) {
+                void run(async () => {
+                  const opened = await pendingOpen.current;
+                  const decided = opened === null ? null : await recordDecision("not_emergency");
+                  return applyRestored(decided ?? (await sessionApi.get(restoring)));
+                });
+                return;
+              }
               // 言語を選ぶ前に開いて、確認の画面で言語を選んだときは、ここから接客を始める
               if (language !== null) void run(() => sessionApi.start(language));
               return;
             }
             const id = view.id;
+            restoringId.current = null; // 画面に接客があるので、読み直しは済んでいる
             void run(async () => (await recordDecision("not_emergency")) ?? sessionApi.get(id));
           }}
         />
@@ -188,6 +270,8 @@ export function LanguageStart() {
           onRestart={() => {
             setSessionLost(false);
             setView(null);
+            restoringId.current = null;
+            pendingOpen.current = null;
             setMode("questions");
             setLanguage(null);
           }}
@@ -200,7 +284,17 @@ export function LanguageStart() {
             setNetworkDown(false);
             setMode("not_for_sale");
           }}
-          onRetry={() => void run(() => (view === null ? sessionApi.start(language) : sessionApi.get(view.id)))}
+          onRetry={() => {
+            const restoring = restoringId.current;
+            // 住所の ?session= の接客を読み直せていないときは、新しい接客を始めずに、その接客を読み直す
+            if (view === null && restoring !== null) void run(async () => applyRestored(await sessionApi.get(restoring)));
+            else if (view === null) void run(() => sessionApi.start(language));
+            else {
+              // 読み直した状態に合わせて画面を出す（緊急を確認中なら緊急の確認に戻す）
+              const id = view.id;
+              void run(async () => applyRestored(await sessionApi.get(id)));
+            }
+          }}
         />
       ) : (
         <PatientFrame language={language}>
@@ -330,15 +424,20 @@ function PatientBody({
 }) {
   const t = getMessages(language);
 
-  if (mode === "not_for_sale") {
+  // 「販売しない」で終えた（薬剤師の確認画面で選んだ。受診案内の画面は T11）
+  if (mode === "not_for_sale" || view?.status === "declined") {
     return <p className="rounded-2xl bg-slate-50 px-5 py-6 text-2xl leading-relaxed">{t.pharmacist.notForSale}</p>;
   }
   if (view === null) {
     return <p className="text-center text-lg text-slate-500">…</p>;
   }
 
-  // 「ほしい薬がある」で薬を選んだあと：問診の途中でも薬を選び直せる（サーバーの chooseDrugs が受け付ける）
-  const canReselect = view.route === "product" && view.selectedDrugs.length > 0 && !view.interviewComplete;
+  // 「ほしい薬がある」で薬を選んだあと：問診の途中でも、薬剤師の確認から「戻る」で薬の選択に戻ったときも、
+  // 薬を選び直せる（サーバーの chooseDrugs が受け付ける）
+  const canReselect =
+    view.route === "product" &&
+    view.selectedDrugs.length > 0 &&
+    (!view.interviewComplete || view.status === "drug_selection");
   if (mode === "reselect" && canReselect) {
     return <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={() => onMode("questions")} />;
   }
@@ -370,13 +469,32 @@ function PatientBody({
     );
   }
 
-  // 選んだ薬の項目まで答え終えた、または「症状から探す」で基本の項目を答え終えた → 薬剤師の確認待ち（T8）
+  // 選んだ薬の項目まで答え終えた、または「症状から探す」で基本の項目を答え終えた → 薬剤師の確認待ち
   const noDrug = view.selectedDrugs.length === 0;
-  if (view.interviewComplete || (view.route === "symptom" && view.status === "drug_selection" && noDrug)) {
+  const waitingStatus = view.status === "drug_selection" || view.status === "pharmacist_review";
+  if (view.interviewComplete || (view.route === "symptom" && waitingStatus && noDrug)) {
     return (
       <div className="space-y-4 rounded-2xl bg-teal-50 px-5 py-6">
         <p className="text-2xl font-bold">{t.interview.done}</p>
         <p className="text-lg">{t.pharmacist.waiting}</p>
+        {/* 薬剤師用（日本語・小さく）。いまは同じ iPad で開くので、仮にここに置く（T8a） */}
+        <a
+          lang="ja"
+          href={`/pharmacist/${encodeURIComponent(view.id)}`}
+          className="inline-block rounded-lg border border-teal-400 bg-white px-3 py-1.5 text-xs font-semibold text-teal-900 hover:bg-teal-100"
+        >
+          薬剤師用：確認の画面を開く
+        </a>
+        {canReselect ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onMode("reselect")}
+            className="block rounded-2xl border-2 border-slate-300 bg-white px-5 py-3 text-lg font-semibold hover:bg-slate-50 disabled:opacity-50"
+          >
+            {t.start.changeDrug}
+          </button>
+        ) : null}
       </div>
     );
   }
