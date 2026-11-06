@@ -46,4 +46,5 @@ export const pharmacistApi = {
   checkStep: (id: string, stepId: string, checked: boolean) => call(`${base(id)}/steps`, { stepId, checked }),
   back: (id: string) => call(`${base(id)}/back`, {}),
   decline: (id: string, reason: string) => call(`${base(id)}/decline`, { reason }),
+  chooseCandidates: (id: string, drugIds: readonly StockedDrugId[]) => call(`${base(id)}/candidates`, { drugIds }),
 };

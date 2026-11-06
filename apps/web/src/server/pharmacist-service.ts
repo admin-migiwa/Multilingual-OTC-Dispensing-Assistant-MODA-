@@ -25,6 +25,10 @@ import {
   isBasicInterviewComplete,
   isInterviewComplete,
   judgeDrugs,
+  nextQuestion,
+  previewCandidates,
+  selectCandidateDrugs,
+  type CandidatePreview,
   questionsAskedForDrug,
   saleSelectionsFor,
   DEFAULT_INTERVIEW_SETTINGS,
@@ -72,6 +76,8 @@ export interface PharmacistReviewRound {
   /** 「販売しない」の理由（薬剤師が入力。ログ・履歴には出さない） */
   readonly declinedReason: string | null;
   readonly declinedAt: string | null;
+  /** この確認で、候補・代わりの薬を選んで問診に戻したときの薬（なければ undefined。backlog C-03） */
+  readonly candidateDrugIds?: readonly StockedDrugId[];
 }
 
 /** 「販売しない」の理由の長さの上限 */
@@ -222,6 +228,34 @@ export function returnToDrugSelection(deps: ServiceDeps, id: string): SessionRec
   return next;
 }
 
+/**
+ * 候補の薬（「症状から探す」）・代わりの薬（「ほしい薬がある」）を薬剤師が選び、その薬の項目を聞く問診に戻す（backlog C-03・C-11）。
+ * - 薬剤師の確認中だけ。いまの答えで禁忌と分かっている薬は選べない（ルール4。packages/domain の selectCandidateDrugs）。
+ * - 今の確認は閉じて残し（選んだ薬も記録）、薬の選択に戻して薬を選び直す。聞く項目が残っていれば問診へ進める。
+ *   聞く項目がなければ薬の選択のまま（画面がもう一度薬剤師の確認を開き、答えがそろった判定で確かめる）。
+ * - 選び直しで聞かなくなった答えは消える（selectDrugs。もとの薬は履歴の drugs_selected に残る）。
+ */
+export function chooseCandidateDrugs(deps: ServiceDeps, id: string, drugIds: readonly StockedDrugId[]): SessionRecord {
+  const record = load(deps, id);
+  const { index, round } = currentRound(record);
+  const interview = selectCandidateDrugs(record.interview, [...new Set(drugIds)]);
+  const at = deps.now().toISOString();
+  const closed = withRound(record, index, { ...round, closedAt: at, candidateDrugIds: interview.selectedDrugs });
+  let next = moveTo(deps, closed, "drug_selection");
+  next = {
+    ...next,
+    interview,
+    events: [
+      ...next.events,
+      event(deps, "candidate_drugs_chosen", interview.selectedDrugs),
+      event(deps, "drugs_selected", interview.selectedDrugs),
+    ],
+  };
+  if (nextQuestion(next.interview) !== null) next = moveTo(deps, next, "interview");
+  deps.store.set(next);
+  return next;
+}
+
 /** 「販売しない」：理由を記録して終える（pharmacist_review → declined）。受診案内の画面は T11 */
 export function declineSale(deps: ServiceDeps, id: string, reason: string): SessionRecord {
   const record = load(deps, id);
@@ -282,6 +316,11 @@ export interface PharmacistView {
   readonly checkHistory: readonly { readonly at: string; readonly stepId: string; readonly label: string; readonly checked: boolean }[];
   /** 「販売しない」で終えたときの理由 */
   readonly declinedReason: string | null;
+  /**
+   * 候補の薬・代わりの薬（いま選んでいない取扱薬）の、いまの答えでの仮の判定（薬剤師の確認中だけ。backlog C-03）。
+   * 禁忌にならない薬が先。選ぶと、その薬の項目を聞く問診に戻る
+   */
+  readonly candidates: readonly (CandidatePreview & { readonly name: string; readonly classification: string })[];
 }
 
 export function pharmacistView(record: SessionRecord, now: Date): PharmacistView {
@@ -351,5 +390,15 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
     procedureError,
     checkHistory,
     declinedReason: round?.declinedReason ?? null,
+    candidates: reviewing ? candidatesOf(record) : [],
   };
+}
+
+function candidatesOf(record: SessionRecord): PharmacistView["candidates"] {
+  const ids = STOCKED_DRUGS.map((d) => d.id).filter((drugId) => !record.interview.selectedDrugs.includes(drugId));
+  return previewCandidates(record.interview, ids).map((preview) => {
+    const drug = STOCKED_DRUGS.find((d) => d.id === preview.drugId);
+    if (!drug) throw new DomainRuleError("UNKNOWN_DRUG", `取扱薬 ${preview.drugId} が見つかりません`);
+    return { ...preview, name: drug.name, classification: drug.classification };
+  });
 }
