@@ -13,6 +13,7 @@
  * 候補は薬剤師の画面にだけ出す（決まったこと No.16）。
  */
 
+import { DomainRuleError } from "../errors.ts";
 import {
   INGREDIENTS,
   STOCKED_DRUGS,
@@ -71,10 +72,26 @@ const LEVEL_TESTS: Readonly<Record<MatchLevel, (shown: ShownDrug, stocked: Stock
   same_category: (a, b) => a.category === b.category,
 };
 
+/**
+ * 見せられた薬の成分が照合に使える形かを確かめる（CLAUDE.md ルール7・8）。
+ * 成分が1つもない、または成分辞書にない記号があるときは、推測で照合せずに止める。
+ */
+function assertValidShownDrug(shown: ShownDrug): void {
+  if (!Array.isArray(shown.ingredients) || shown.ingredients.length === 0) {
+    throw new DomainRuleError("SHOWN_DRUG_INVALID", "見せられた薬の成分が1つもありません");
+  }
+  for (const id of shown.ingredients) {
+    if (typeof id !== "string" || !Object.hasOwn(INGREDIENTS, id)) {
+      throw new DomainRuleError("SHOWN_DRUG_INVALID", "見せられた薬に、成分辞書にない成分があります");
+    }
+  }
+}
+
 export function matchStockedDrugs(
   shown: ShownDrug,
   stocked: readonly StockedDrug[] = STOCKED_DRUGS,
 ): MatchResult {
+  assertValidShownDrug(shown);
   const needsChiefComplaintCheck = shown.ingredients.length >= 2 || shown.hasUnlistedIngredients;
 
   const exact = stocked.filter((d) => LEVEL_TESTS.same_ingredients(shown, d));

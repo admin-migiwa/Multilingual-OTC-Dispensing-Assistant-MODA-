@@ -6,6 +6,8 @@
  * - 自由に入力された文（処方薬の名前・その他の持病）は判定に使わず、薬剤師の画面に出すだけ。
  */
 
+import { DomainRuleError } from "../errors.ts";
+
 export const SEXES = ["male", "female", "other", "no_answer"] as const;
 export type Sex = (typeof SEXES)[number];
 
@@ -92,6 +94,7 @@ export type InterviewItemId =
   | "Q03"
   | "Q03a"
   | "Q04"
+  | "Q05"
   | "Q06"
   | "Q07"
   | "Q08"
@@ -101,3 +104,61 @@ export type InterviewItemId =
   | "Q12"
   | "Q13"
   | "Q14";
+
+// ---------------------------------------------------------------------------
+// 答えの値の確かめ（CLAUDE.md ルール7・8：決められた形でない値では判定を続けない）
+// ---------------------------------------------------------------------------
+
+type Check = (value: unknown) => boolean;
+
+const oneOf =
+  (choices: readonly string[]): Check =>
+  (v) =>
+    typeof v === "string" && choices.includes(v);
+const listOf =
+  (choices: readonly string[]): Check =>
+  (v) =>
+    Array.isArray(v) && v.every((x) => typeof x === "string" && choices.includes(x));
+const nonNegativeNumber: Check = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
+const isBoolean: Check = (v) => typeof v === "boolean";
+const isString: Check = (v) => typeof v === "string";
+const stringList: Check = (v) => Array.isArray(v) && v.every((x) => typeof x === "string");
+
+const FACT_CHECKS: Readonly<Record<keyof InterviewFacts, { itemId: InterviewItemId; check: Check }>> = {
+  age: { itemId: "Q01", check: nonNegativeNumber },
+  sex: { itemId: "Q02", check: oneOf(SEXES) },
+  pregnancy: { itemId: "Q03", check: oneOf(PREGNANCY_ANSWERS) },
+  dueWithin12Weeks: { itemId: "Q03a", check: oneOf(YES_NO_UNKNOWN) },
+  breastfeeding: { itemId: "Q04", check: oneOf(BREASTFEEDING_ANSWERS) },
+  weightKg: { itemId: "Q05", check: nonNegativeNumber },
+  asthmaHistory: { itemId: "Q06", check: oneOf(YES_NO_UNKNOWN) },
+  conditions: { itemId: "Q07", check: listOf(CONDITIONS) },
+  otherConditionText: { itemId: "Q07", check: isString },
+  drugAllergy: { itemId: "Q08", check: oneOf(YES_NO_UNKNOWN) },
+  currentMedications: { itemId: "Q09", check: listOf(CURRENT_MEDICATIONS) },
+  prescriptionDrugNames: { itemId: "Q09", check: stringList },
+  drivingAfter: { itemId: "Q10", check: isBoolean },
+  alcohol: { itemId: "Q11", check: isBoolean },
+  plannedDays: { itemId: "Q12", check: nonNegativeNumber },
+  softContactLens: { itemId: "Q13", check: isBoolean },
+  applicationSite: { itemId: "Q14", check: oneOf(APPLICATION_SITES) },
+};
+
+/**
+ * 入っている答えが、決められた選択肢・範囲に収まっているかを確かめる。
+ * 外れていたら DomainRuleError("FACT_INVALID") で止める（推測で読み替えない）。
+ * 数値は0以上の有限の数。まだ答えていない項目（値なし）はここでは確かめない。
+ */
+export function assertValidFacts(facts: InterviewFacts): void {
+  for (const [key, value] of Object.entries(facts)) {
+    if (value === undefined) continue;
+    const rule = Object.hasOwn(FACT_CHECKS, key) ? FACT_CHECKS[key as keyof InterviewFacts] : undefined;
+    if (!rule) {
+      throw new DomainRuleError("FACT_INVALID", `問診の答えに知らない項目があります（${key}）`);
+    }
+    if (!rule.check(value)) {
+      // message に答えの中身（健康情報）を入れない（項目 ID だけ）
+      throw new DomainRuleError("FACT_INVALID", `問診の ${rule.itemId} の答えが決められた形ではありません`);
+    }
+  }
+}
