@@ -7,6 +7,7 @@ import {
   SessionServiceError,
   answer,
   chooseDrugs,
+  chooseRoute,
   createSession,
   decideEmergency,
   getSession,
@@ -44,6 +45,13 @@ const basic = {
   drivingAfter: false,
 } as const;
 
+/** 年齢・性別 →「症状から探す」→ 基本の項目、まで答える */
+function answerBasicBySymptom(deps: ServiceDeps, id: string): void {
+  answer(deps, id, { age: 30, sex: "female" });
+  chooseRoute(deps, id, "symptom", "headache");
+  answer(deps, id, basic);
+}
+
 describe("接客を始める", () => {
   it("言語を選ぶと、年齢・性別を聞く状態から始まり、最初に年齢（Q01）を聞く", () => {
     const deps = testDeps();
@@ -68,6 +76,7 @@ describe("1問ずつ答えて、最後の質問まで進める", () => {
     const { id } = createSession(deps, "en");
     assert.equal(patientView(answer(deps, id, { age: 30 })).status, "attributes");
     assert.equal(patientView(answer(deps, id, { sex: "female" })).status, "interview");
+    chooseRoute(deps, id, "symptom", "headache");
     const view = patientView(answer(deps, id, basic));
     assert.equal(view.status, "drug_selection");
     assert.equal(view.basicInterviewComplete, true);
@@ -77,7 +86,7 @@ describe("1問ずつ答えて、最後の質問まで進める", () => {
   it("薬を選ぶと、その薬の項目を聞く問診に戻り、答え終えると薬の選択に戻る", () => {
     const deps = testDeps();
     const { id } = createSession(deps, "en");
-    answer(deps, id, basic);
+    answerBasicBySymptom(deps, id);
     const chosen = patientView(chooseDrugs(deps, id, ["C"]));
     assert.equal(chosen.status, "interview");
     assert.equal(chosen.nextQuestion, "Q11");
@@ -124,6 +133,7 @@ describe("緊急の確認（決まったこと No.38）", () => {
     const deps = testDeps();
     const { id } = createSession(deps, "en");
     answer(deps, id, { age: 30, sex: "female" });
+    chooseRoute(deps, id, "symptom", "headache");
     openEmergency(deps, id, { trigger: "staff" });
     const back = decideEmergency(deps, id, "not_emergency");
     assert.equal(back.snapshot.status, "interview");
@@ -220,7 +230,7 @@ describe("レビュー後の直し（No.13）", () => {
   it("薬を選んだあと、その薬の項目に答える途中でも薬を選び直せる", () => {
     const deps = testDeps();
     const { id } = createSession(deps, "en");
-    answer(deps, id, basic);
+    answerBasicBySymptom(deps, id);
     chooseDrugs(deps, id, ["C"]);
     const view = patientView(chooseDrugs(deps, id, ["A"]));
     assert.deepEqual(view.selectedDrugs, ["A"]);
@@ -239,7 +249,9 @@ describe("レビュー後の直し（No.13）", () => {
   it("訂正した項目と、訂正で消えた項目を、種類だけ履歴に残す", () => {
     const deps = testDeps();
     const { id } = createSession(deps, "en");
-    answer(deps, id, { age: 30, sex: "female", pregnancy: "no", breastfeeding: "no" });
+    answer(deps, id, { age: 30, sex: "female" });
+    chooseRoute(deps, id, "symptom", "headache");
+    answer(deps, id, { pregnancy: "no", breastfeeding: "no" });
     const record = answer(deps, id, { sex: "male" });
     const corrected = record.events.find((e) => e.type === "corrected");
     const cleared = record.events.find((e) => e.type === "answers_cleared");
@@ -258,5 +270,56 @@ describe("ほかの答えも一緒に受け取る（11/6 の判断、J-06）", (
     assert.equal(record.snapshot.status, "interview");
     assert.deepEqual(record.events.find((e) => e.type === "answers_ignored")?.detail, ["Q03"]);
     assert.deepEqual(record.events.find((e) => e.type === "answered")?.detail, ["age", "sex"]);
+  });
+});
+
+describe("問診の流れを選ぶ（11/6 の判断）", () => {
+  it("年齢・性別を答えると、流れを選ぶまで次の質問は出ない", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    const view = patientView(answer(deps, id, { age: 30, sex: "female" }));
+    assert.equal(view.status, "interview");
+    assert.equal(view.route, null);
+    assert.equal(view.nextQuestion, null);
+  });
+
+  it("「ほしい薬がある」を選ぶとすぐに薬の選択に進み、選んだ薬の判定に使う項目だけを聞く", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 30, sex: "female" });
+    const route = patientView(chooseRoute(deps, id, "product"));
+    assert.equal(route.status, "drug_selection");
+    const chosen = patientView(chooseDrugs(deps, id, ["G"]));
+    assert.equal(chosen.status, "interview");
+    assert.equal(chosen.nextQuestion, "Q07");
+    answer(deps, id, { conditions: [] });
+    const done = patientView(answer(deps, id, { softContactLens: false }));
+    assert.equal(done.status, "drug_selection");
+    assert.equal(done.interviewComplete, true);
+  });
+
+  it("「症状から探す」では、入力された症状を記録に残し、履歴には中身を入れない", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 30, sex: "female" });
+    const record = chooseRoute(deps, id, "symptom", "sore throat");
+    assert.equal(record.symptomText, "sore throat");
+    assert.equal(patientView(record).nextQuestion, "Q03");
+    assert.ok(!JSON.stringify(record.events).includes("sore throat"));
+  });
+
+  it("年齢・性別を答える前は、流れを選べない", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    assertError(() => chooseRoute(deps, id, "product"), "INVALID_TRANSITION");
+  });
+
+  it("薬を選んだあとは、流れを選び直せない", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 30, sex: "female" });
+    chooseRoute(deps, id, "product");
+    chooseDrugs(deps, id, ["H"]);
+    assertError(() => chooseRoute(deps, id, "symptom"), "INVALID_TRANSITION");
   });
 });

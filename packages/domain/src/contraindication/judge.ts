@@ -169,6 +169,42 @@ function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
   }
 }
 
+/**
+ * 判定の条件ごとに、読む問診の項目。evaluate() が need() で読む項目と同じにしておくこと
+ * （ずれると、問診が終わったのに判定に必要な答えが足りない、ということが起きる。テストで確かめている）。
+ */
+const ITEMS_READ_BY_CONDITION: Readonly<Record<RuleCondition["kind"], readonly InterviewItemId[]>> = {
+  age_under: ["Q01"],
+  male: ["Q02"],
+  pregnant: ["Q01", "Q02", "Q03"],
+  due_within_12_weeks: ["Q01", "Q02", "Q03", "Q03a"],
+  pregnant_before_12_weeks: ["Q01", "Q02", "Q03", "Q03a"],
+  breastfeeding: ["Q01", "Q02", "Q04"],
+  asthma: ["Q06"],
+  condition: ["Q07"],
+  drug_allergy: ["Q08"],
+  taking: ["Q09"],
+  driving: ["Q10"],
+  alcohol: ["Q11"],
+  planned_days_over: ["Q12"],
+  soft_contact_lens: ["Q13"],
+  application_site: ["Q14"],
+};
+
+/**
+ * その薬の禁忌判定に使う問診の項目（Q01〜Q14）。
+ * 「ほしい薬がある」流れでは、これに入っている項目だけを聞く（11/6 依頼主の判断。interview-items.md）。
+ * 年齢（Q01）・性別（Q02）は、どの薬でも最初に聞くので必ず入れる。
+ */
+export function questionsUsedByDrug(drugId: StockedDrugId): ReadonlySet<InterviewItemId> {
+  const drug = findStockedDrug(drugId);
+  const items = new Set<InterviewItemId>(["Q01", "Q02"]);
+  for (const rule of drug.rules) {
+    for (const item of ITEMS_READ_BY_CONDITION[rule.condition.kind]) items.add(item);
+  }
+  return items;
+}
+
 function toReason(rule: ProductRule, match: Extract<Match, { matched: true }>): JudgmentReason {
   return {
     code: rule.code,

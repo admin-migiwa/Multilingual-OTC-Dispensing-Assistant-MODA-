@@ -6,13 +6,14 @@
  * - ルールで止まったとき（決められた形でない答えなど）は RuleError を投げる。画面は同じ質問をもう一度出す。
  */
 
-import type { InterviewAnswers, QuestionId, SessionStatus, StockedDrugId } from "@moda/domain";
+import type { InterviewAnswers, InterviewRoute, QuestionId, SessionStatus, StockedDrugId } from "@moda/domain";
 import type { LanguageCode } from "@moda/i18n";
 
 export interface PatientView {
   readonly id: string;
   readonly language: LanguageCode;
   readonly status: SessionStatus;
+  readonly route: InterviewRoute | null;
   readonly nextQuestion: QuestionId | null;
   readonly selectedDrugs: readonly StockedDrugId[];
   readonly basicInterviewComplete: boolean;
@@ -62,6 +63,8 @@ export const sessionApi = {
   start: (language: LanguageCode) => call("/api/sessions", { language }),
   get: (id: string) => call(`/api/sessions/${encodeURIComponent(id)}`),
   answer: (id: string, answers: InterviewAnswers) => call(`/api/sessions/${encodeURIComponent(id)}/answers`, { answers }),
+  chooseRoute: (id: string, route: InterviewRoute, symptomText: string | null = null) =>
+    call(`/api/sessions/${encodeURIComponent(id)}/route-choice`, { route, symptomText }),
   chooseDrugs: (id: string, drugIds: readonly StockedDrugId[]) =>
     call(`/api/sessions/${encodeURIComponent(id)}/drugs`, { drugIds }),
   openEmergency: (

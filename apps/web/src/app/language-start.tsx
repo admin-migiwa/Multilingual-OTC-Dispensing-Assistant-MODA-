@@ -21,7 +21,8 @@ import { RuleError, sessionApi, type PatientView } from "./session-api";
  *   （ルール7、docs/backlog.md C-06）。
  */
 
-type Mode = "questions" | "search" | "symptom" | "waiting" | "not_for_sale";
+/** 画面だけで持つ切り替え（流れの選び直し・症状の入力・受診の案内）。どこまで進んだかはサーバーが持つ */
+type Mode = "questions" | "choose" | "symptom" | "not_for_sale";
 
 export function LanguageStart() {
   const [language, setLanguage] = useState<LanguageCode | null>(null);
@@ -164,6 +165,17 @@ export function LanguageStart() {
               setMode("questions");
               void run(() => sessionApi.chooseDrugs(view.id, [id]));
             }}
+            onChooseProduct={() => {
+              if (view === null) return;
+              setMode("questions");
+              void run(() => sessionApi.chooseRoute(view.id, "product"));
+            }}
+            onSymptom={(text: string) => {
+              if (view === null) return;
+              if (checkFreeText(text)) return; // 緊急キーワードに当てはまったら、緊急の確認に切り替わる
+              setMode("questions");
+              void run(() => sessionApi.chooseRoute(view.id, "symptom", text));
+            }}
           />
         </PatientFrame>
       )}
@@ -242,6 +254,8 @@ function PatientBody({
   onMode,
   onAnswer,
   onChooseDrug,
+  onChooseProduct,
+  onSymptom,
   onFreeText,
 }: {
   language: LanguageCode;
@@ -251,6 +265,8 @@ function PatientBody({
   onMode: (mode: Mode) => void;
   onAnswer: (answers: InterviewAnswers) => void;
   onChooseDrug: (id: StockedDrugId) => void;
+  onChooseProduct: () => void;
+  onSymptom: (text: string) => void;
   onFreeText: (text: string) => boolean;
 }) {
   const t = getMessages(language);
@@ -279,8 +295,9 @@ function PatientBody({
     );
   }
 
-  // 選んだ薬の項目まで答え終えた → 薬剤師の確認待ち（T8）
-  if (view.interviewComplete || mode === "waiting") {
+  // 選んだ薬の項目まで答え終えた、または「症状から探す」で基本の項目を答え終えた → 薬剤師の確認待ち（T8）
+  const noDrug = view.selectedDrugs.length === 0;
+  if (view.interviewComplete || (view.route === "symptom" && view.status === "drug_selection" && noDrug)) {
     return (
       <div className="space-y-4 rounded-2xl bg-teal-50 px-5 py-6">
         <p className="text-2xl font-bold">{t.interview.done}</p>
@@ -289,40 +306,35 @@ function PatientBody({
     );
   }
 
-  // 基本の項目を答え終えた → ほしい薬がある／症状から探す
-  if (mode === "search") {
-    return <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={() => onMode("questions")} />;
-  }
+  // 症状から探す：症状を入力（送る前に緊急キーワードを確かめる）→ 基本の項目を1問ずつ
   if (mode === "symptom") {
-    return (
-      <SymptomInput
-        language={language}
-        onSubmit={(text) => {
-          if (onFreeText(text)) return;
-          // 症状から候補を選ぶのは薬剤師（T8）。ハッカソン版では症状の文を記録に残さない（docs/backlog.md S-11）
-          onMode("waiting");
-        }}
-        onBack={() => onMode("questions")}
-      />
-    );
+    return <SymptomInput language={language} onSubmit={onSymptom} onBack={() => onMode("choose")} />;
   }
 
+  // ほしい薬がある：薬を探して選ぶ → その薬の判定に使う項目だけを1問ずつ（11/6 の判断）
+  if (view.route === "product" && noDrug && mode !== "choose") {
+    return <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={() => onMode("choose")} />;
+  }
+
+  // 年齢・性別を答えた → ほしい薬がある／症状から探す
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">{t.start.title}</h1>
       <div className="grid gap-4 sm:grid-cols-2">
         <button
           type="button"
-          onClick={() => onMode("search")}
-          className="flex min-h-28 flex-col items-start justify-center gap-1 rounded-2xl border-2 border-slate-200 px-5 py-4 text-left transition hover:border-teal-600 hover:bg-teal-50"
+          disabled={busy}
+          onClick={onChooseProduct}
+          className="flex min-h-28 flex-col items-start justify-center gap-1 rounded-2xl border-2 border-slate-200 px-5 py-4 text-left transition hover:border-teal-600 hover:bg-teal-50 disabled:opacity-50"
         >
           <span className="text-xl font-semibold">{t.start.haveProduct}</span>
           <span className="text-sm text-slate-600">{t.start.haveProductHint}</span>
         </button>
         <button
           type="button"
+          disabled={busy}
           onClick={() => onMode("symptom")}
-          className="flex min-h-28 flex-col items-start justify-center gap-1 rounded-2xl border-2 border-slate-200 px-5 py-4 text-left transition hover:border-teal-600 hover:bg-teal-50"
+          className="flex min-h-28 flex-col items-start justify-center gap-1 rounded-2xl border-2 border-slate-200 px-5 py-4 text-left transition hover:border-teal-600 hover:bg-teal-50 disabled:opacity-50"
         >
           <span className="text-xl font-semibold">{t.start.findBySymptom}</span>
           <span className="text-sm text-slate-600">{t.start.findBySymptomHint}</span>

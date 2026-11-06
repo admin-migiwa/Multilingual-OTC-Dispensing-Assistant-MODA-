@@ -11,6 +11,7 @@ import {
   DomainRuleError,
   EMERGENCY_RULES,
   applyAnswersWithReport,
+  chooseRoute as chooseInterviewRoute,
   isTerminal,
   isBasicInterviewComplete,
   isInterviewComplete,
@@ -18,6 +19,7 @@ import {
   selectDrugs as selectInterviewDrugs,
   transition,
   type InterviewAnswers,
+  type InterviewRoute,
   type InterviewState,
   type QuestionId,
   type SessionSnapshot,
@@ -83,6 +85,7 @@ export type SessionEventType =
   | "answers_cleared"
   | "answers_ignored"
   | "drugs_selected"
+  | "route_chosen"
   | "status_changed"
   | "emergency_opened"
   | "emergency_follow_up"
@@ -101,6 +104,8 @@ export interface SessionRecord {
   readonly language: LanguageCode;
   readonly snapshot: SessionSnapshot;
   readonly interview: InterviewState;
+  /** 「症状から探す」で入力された症状（薬剤師の画面で候補を選ぶのに使う。ログ・履歴には出さない） */
+  readonly symptomText: string | null;
   readonly emergencies: readonly EmergencyEvent[];
   readonly events: readonly SessionEvent[];
 }
@@ -110,6 +115,8 @@ export interface PatientView {
   readonly id: string;
   readonly language: LanguageCode;
   readonly status: SessionStatus;
+  /** 問診の流れ（ほしい薬がある／症状から探す）。まだ選んでいなければ null */
+  readonly route: InterviewRoute | null;
   /** 次に聞く項目。聞く項目がなければ null */
   readonly nextQuestion: QuestionId | null;
   readonly selectedDrugs: readonly StockedDrugId[];
@@ -190,6 +197,7 @@ export function patientView(record: SessionRecord): PatientView {
     id: record.id,
     language: record.language,
     status,
+    route: record.interview.route ?? null,
     nextQuestion: asking ? nextQuestion(record.interview) : null,
     selectedDrugs: record.interview.selectedDrugs,
     basicInterviewComplete: isBasicInterviewComplete(record.interview),
@@ -209,6 +217,7 @@ export function createSession(deps: ServiceDeps, language: string): SessionRecor
     language,
     snapshot: { status: "language_selection", understandingConfirmed: false },
     interview: { answers: {}, selectedDrugs: [] },
+    symptomText: null,
     emergencies: [],
     events: [{ at, type: "created", detail: [language] }],
   };
@@ -255,6 +264,40 @@ export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers)
   if (ignored.length > 0) newEvents.push(event(deps, "answers_ignored", ignored));
   let next: SessionRecord = { ...record, interview, events: [...record.events, ...newEvents] };
   // 薬の選択のあとに答え直して聞く項目が増えたら、問診に戻る
+  if (next.snapshot.status === "drug_selection" && nextQuestion(next.interview) !== null) {
+    next = moveTo(deps, next, "interview");
+  }
+  next = advance(deps, next);
+  deps.store.set(next);
+  return next;
+}
+
+/**
+ * 問診の流れを選ぶ（11/6 依頼主の判断）。年齢・性別を答えたあと、薬を選ぶ前に選ぶ（選び直しもできる）。
+ * - product：ほしい薬がある → すぐに薬の選択へ（その薬の判定に使う項目だけを、あとで聞く）
+ * - symptom：症状から探す → 基本の項目をすべて聞く。入力された症状は記録に残す（履歴には中身を入れない）
+ */
+export function chooseRoute(
+  deps: ServiceDeps,
+  id: string,
+  route: InterviewRoute,
+  symptomText: string | null = null,
+): SessionRecord {
+  const record = load(deps, id);
+  const status = record.snapshot.status;
+  if ((status !== "interview" && status !== "drug_selection") || record.interview.selectedDrugs.length > 0) {
+    throw new DomainRuleError("INVALID_TRANSITION", "年齢・性別を答えたあと、薬を選ぶ前に流れを選びます");
+  }
+  if (symptomText !== null && (symptomText.trim() === "" || symptomText.length > MAX_TEXT_LENGTH)) {
+    throw new SessionServiceError("INVALID_REQUEST", "症状の入力の形が違います");
+  }
+  const interview = chooseInterviewRoute(record.interview, route);
+  let next: SessionRecord = {
+    ...record,
+    interview,
+    symptomText: route === "symptom" ? symptomText : null,
+    events: [...record.events, event(deps, "route_chosen", [route])],
+  };
   if (next.snapshot.status === "drug_selection" && nextQuestion(next.interview) !== null) {
     next = moveTo(deps, next, "interview");
   }

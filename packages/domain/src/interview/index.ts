@@ -9,12 +9,16 @@ export {
   type AbusePreventionAnswers,
   type PackageChoice,
   type InterviewSettings,
+  type InterviewRoute,
   type AskContext,
 } from "./items.ts";
 export {
   missingQuestions,
   nextQuestion,
   isBasicInterviewComplete,
+  areAttributesComplete,
+  chooseRoute,
+  isAsked,
   isInterviewComplete,
   assertInterviewComplete,
   assertValidAnswers,

@@ -50,6 +50,14 @@ export type QuestionId =
   | "R03"
   | "R04";
 
+/**
+ * 問診の流れ（11/6 依頼主の判断。interview-items.md「聞く順番の考え方」）
+ * - product：ほしい薬がある → 薬を選ぶ → 選んだ薬の判定に使う項目だけを聞く
+ * - symptom：症状から探す → 基本の項目をすべて聞く → 薬剤師が候補を選ぶ
+ * どちらの流れでも、年齢・性別（Q01・Q02）を最初に聞く。流れが決まるまでは、それ以外を聞かない。
+ */
+export type InterviewRoute = "product" | "symptom";
+
 export interface InterviewSettings {
   /** 体重を聞く年齢の上限（未満）（Q05：15歳未満） */
   readonly weightQuestionBelowAge: number;
@@ -68,13 +76,19 @@ export interface AskContext {
   readonly answers: InterviewAnswers;
   /** 選んだ薬（まだ決まっていなければ空） */
   readonly selectedDrugs: readonly StockedDrugId[];
+  /** 問診の流れ（まだ決まっていなければ undefined） */
+  readonly route: InterviewRoute | undefined;
   readonly settings: InterviewSettings;
 }
 
 export interface QuestionDefinition {
   readonly id: QuestionId;
-  /** 基本の項目（全員）か、薬ごとの項目か */
-  readonly stage: "basic" | "drug";
+  /**
+   * attributes：年齢・性別（全員・最初に聞く）
+   * basic：基本の項目（症状から探すときは全員、ほしい薬のときは選んだ薬の判定に使うものだけ）
+   * drug：薬ごとの項目（選んだ薬が決まってから）
+   */
+  readonly stage: "attributes" | "basic" | "drug";
   /** この項目の答えを入れる場所（答えたかどうかの判定に使う） */
   readonly answerKeys: readonly (keyof InterviewAnswers)[];
   /** 聞く条件。false なら聞かない（答えがなくても問診は終えられる） */
@@ -97,9 +111,9 @@ function asksPregnancyQuestions(ctx: AskContext): boolean {
  * 薬ごとの項目は、drugs.md の判定に使う薬を選んだときだけ聞く（interview-items.md の「聞く条件」）。
  */
 export const QUESTIONS: readonly QuestionDefinition[] = [
-  // --- 基本の項目（全員） ---
-  { id: "Q01", stage: "basic", answerKeys: ["age"], askWhen: always },
-  { id: "Q02", stage: "basic", answerKeys: ["sex"], askWhen: always },
+  // --- 年齢・性別（全員）と基本の項目 ---
+  { id: "Q01", stage: "attributes", answerKeys: ["age"], askWhen: always },
+  { id: "Q02", stage: "attributes", answerKeys: ["sex"], askWhen: always },
   { id: "Q03", stage: "basic", answerKeys: ["pregnancy"], askWhen: asksPregnancyQuestions },
   {
     id: "Q03a",
