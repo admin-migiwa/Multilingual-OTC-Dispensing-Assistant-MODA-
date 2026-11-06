@@ -16,6 +16,11 @@ export interface ProcedureDrugInput {
   readonly maxDailyAmount?: number;
 }
 
+export interface DrugSelection {
+  readonly drug: ProcedureDrugInput;
+  readonly quantity: number;
+}
+
 export type PackageSize = "small" | "large";
 
 export interface PackageClassification {
@@ -60,51 +65,67 @@ export function classifyPackage(drug: ProcedureDrugInput, rules: QuantityRules):
 }
 
 export interface QuantitySelectionResult {
-  /** この個数を選んでよいか */
+  /** この組み合わせ（薬と個数の一覧）を選んでよいか */
   readonly allowed: boolean;
-  /** 選べる最大の個数（上限がなければ null。0 ならその包装は選べない） */
-  readonly maxQuantity: number | null;
+  /** 指定濫用防止医薬品の個数の合計（種類が違っても合わせて数える。決定 12） */
+  readonly abusePreventionTotal: number;
+  /** 指定濫用防止医薬品を合わせて選べる最大の個数（上限がなければ null） */
+  readonly maxAbusePreventionTotal: number | null;
+  /** 大容量に当たる指定濫用防止医薬品の ID */
+  readonly largePackageDrugIds: readonly string[];
   /** 表示する注意文の種類（なければ null） */
   readonly notice: QuantityNoticeKind | null;
   /** 理由の確認と記録（R03）が必要か。Q-4 */
   readonly requiresReason: boolean;
-  /** 指定濫用防止医薬品なら包装の判定、そうでなければ null */
-  readonly packageClassification: PackageClassification | null;
 }
 
 /**
- * 薬の選択の時点で、その個数を選んでよいかを判定する（Q-3・Q-4）。
- * 18歳未満の大容量・複数個は、ここで選べなくする（demo-data README の決定 7）。
- * 画面の表示だけに頼らず、承認の前にもサーバー側で同じ判定をかける（procedure.ts）。
+ * 薬の選択の時点で、選んだ薬と個数の組み合わせを選んでよいかを判定する（Q-3・Q-4）。
+ *
+ * - 個数は、指定濫用防止医薬品について**すべての選択を合計して**数える。
+ *   同じ薬を「1個」と「1個」に分けて渡しても、種類の違う指定濫用防止医薬品を1個ずつ選んでも、
+ *   合わせて2個以上なら「複数個」に当たる（11/6 薬剤師の判断、README の決定 12）。
+ * - 18歳未満の大容量・複数個は、ここで選べなくする（決定 7）。
+ *   画面では1つ足すたびに、足した後の一覧全体を渡して確かめる。
+ * - 画面の表示だけに頼らず、承認の前にもサーバー側で同じ判定をかける（procedure.ts）。
  */
 export function checkQuantitySelection(
-  input: { readonly drug: ProcedureDrugInput; readonly quantity: number; readonly patientAge: number },
+  input: { readonly selections: readonly DrugSelection[]; readonly patientAge: number },
   rules: QuantityRules,
 ): QuantitySelectionResult {
-  assertValidQuantity(input.quantity);
   assertValidAge(input.patientAge);
 
-  if (!input.drug.categories.includes("abuse_prevention")) {
-    return { allowed: true, maxQuantity: null, notice: null, requiresReason: false, packageClassification: null };
+  let abusePreventionTotal = 0;
+  const largePackageDrugIds: string[] = [];
+  for (const { drug, quantity } of input.selections) {
+    assertValidQuantity(quantity);
+    if (!drug.categories.includes("abuse_prevention")) continue;
+    abusePreventionTotal += quantity;
+    if (classifyPackage(drug, rules).size === "large" && !largePackageDrugIds.includes(drug.id)) {
+      largePackageDrugIds.push(drug.id);
+    }
   }
 
-  const packageClassification = classifyPackage(input.drug, rules);
   const isMinor = input.patientAge < rules.minorAgeBelow;
-
   if (isMinor) {
-    if (packageClassification.size === "large") {
-      return { allowed: false, maxQuantity: 0, notice: "minor_large_package", requiresReason: false, packageClassification };
-    }
-    const allowed = input.quantity <= rules.minorMaxQuantity;
+    const hasLarge = largePackageDrugIds.length > 0;
+    const tooMany = abusePreventionTotal > rules.minorMaxQuantity;
     return {
-      allowed,
-      maxQuantity: rules.minorMaxQuantity,
-      notice: allowed ? null : "minor_multiple_packages",
+      allowed: !hasLarge && !tooMany,
+      abusePreventionTotal,
+      maxAbusePreventionTotal: rules.minorMaxQuantity,
+      largePackageDrugIds,
+      notice: hasLarge ? "minor_large_package" : tooMany ? "minor_multiple_packages" : null,
       requiresReason: false,
-      packageClassification,
     };
   }
 
-  const requiresReason = packageClassification.size === "large" || input.quantity > 1;
-  return { allowed: true, maxQuantity: null, notice: null, requiresReason, packageClassification };
+  return {
+    allowed: true,
+    abusePreventionTotal,
+    maxAbusePreventionTotal: null,
+    largePackageDrugIds,
+    notice: null,
+    requiresReason: largePackageDrugIds.length > 0 || abusePreventionTotal > 1,
+  };
 }

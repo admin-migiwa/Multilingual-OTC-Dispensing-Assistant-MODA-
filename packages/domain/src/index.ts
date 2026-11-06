@@ -23,6 +23,7 @@ export {
   canProceedToCheckout,
   assertApprovalAllowed,
   assertCheckoutAllowed,
+  proceedToCheckout,
   type SalesCategory,
   type StepGate,
   type StepCondition,

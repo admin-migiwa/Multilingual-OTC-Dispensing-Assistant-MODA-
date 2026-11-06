@@ -1,11 +1,7 @@
 import { DomainRuleError } from "../errors.ts";
+import { transition, type SessionSnapshot } from "../session/state.ts";
 import { selectProcedureVersion, type SalesProcedureVersion, type StepGate } from "./data.ts";
-import { assertValidAge, checkQuantitySelection, type ProcedureDrugInput } from "./quantity.ts";
-
-export interface DrugSelection {
-  readonly drug: ProcedureDrugInput;
-  readonly quantity: number;
-}
+import { assertValidAge, checkQuantitySelection, type DrugSelection } from "./quantity.ts";
 
 export interface RequiredStep {
   readonly id: string;
@@ -23,11 +19,14 @@ export interface RequiredProcedure {
   readonly steps: readonly RequiredStep[];
 }
 
+type CompletedStepIds = ReadonlySet<string> | readonly string[];
+
 /**
  * 選んだ薬の区分の組み合わせから、必要な手順をすべて合わせた一覧を作る。
  * 同じ手順が複数の区分で必要なときは1つにまとめる。
  *
- * - date（YYYY-MM-DD）に有効な版の手順を使う。
+ * - date は日本時間の YYYY-MM-DD（selectProcedureVersion の説明を参照）。その日に有効な版の手順を使う。
+ * - 指定濫用防止医薬品の個数は、すべての選択を合計して判定する（決定 12）。
  * - 18歳未満の大容量・複数個のように、選べない組み合わせが渡されたらエラーで止める
  *   （画面で選べなくしていても、サーバー側でもう一度確かめる）。
  */
@@ -44,18 +43,25 @@ export function buildRequiredProcedure(
   }
   assertValidAge(input.patientAge);
 
-  const collected = new Map<string, { ruleIds: Set<string>; drugIds: Set<string> }>();
-
-  for (const { drug, quantity } of input.selections) {
+  for (const { drug } of input.selections) {
     if (drug.categories.length === 0) {
       throw new DomainRuleError("INVALID_DRUG_DATA", `薬 ${drug.id} の区分がありません`);
     }
-    const quantityCheck = checkQuantitySelection({ drug, quantity, patientAge: input.patientAge }, version.quantityRules);
-    if (!quantityCheck.allowed) {
-      throw new DomainRuleError("QUANTITY_NOT_ALLOWED", `薬 ${drug.id} はこの年齢・個数では販売できません`);
-    }
-    const isMinor = input.patientAge < version.quantityRules.minorAgeBelow;
+  }
 
+  // 個数は一覧全体で判定する（同じ薬を分けて渡しても、別の薬でも合計する）
+  const quantityCheck = checkQuantitySelection(
+    { selections: input.selections, patientAge: input.patientAge },
+    version.quantityRules,
+  );
+  if (!quantityCheck.allowed) {
+    throw new DomainRuleError("QUANTITY_NOT_ALLOWED", "この年齢・個数・包装の組み合わせでは販売できません");
+  }
+  const isMinor = input.patientAge < version.quantityRules.minorAgeBelow;
+
+  const collected = new Map<string, { ruleIds: Set<string>; drugIds: Set<string> }>();
+
+  for (const { drug } of input.selections) {
     for (const category of drug.categories) {
       const rule = version.categoryRules.find((r) => r.category === category);
       if (!rule) {
@@ -94,7 +100,7 @@ export function buildRequiredProcedure(
  */
 export function getMissingSteps(
   procedure: RequiredProcedure,
-  completedStepIds: ReadonlySet<string> | readonly string[],
+  completedStepIds: CompletedStepIds,
   until: StepGate,
 ): readonly RequiredStep[] {
   const done = new Set(completedStepIds);
@@ -105,15 +111,12 @@ export function getMissingSteps(
 }
 
 /** 承認してよいか（承認の前に必要な手順がすべて終わっているか） */
-export function canApprove(procedure: RequiredProcedure, completedStepIds: ReadonlySet<string> | readonly string[]): boolean {
+export function canApprove(procedure: RequiredProcedure, completedStepIds: CompletedStepIds): boolean {
   return getMissingSteps(procedure, completedStepIds, "before_approval").length === 0;
 }
 
 /** 会計案内に進んでよいか（すべての手順が終わっているか） */
-export function canProceedToCheckout(
-  procedure: RequiredProcedure,
-  completedStepIds: ReadonlySet<string> | readonly string[],
-): boolean {
+export function canProceedToCheckout(procedure: RequiredProcedure, completedStepIds: CompletedStepIds): boolean {
   return getMissingSteps(procedure, completedStepIds, "before_checkout").length === 0;
 }
 
@@ -121,10 +124,7 @@ export function canProceedToCheckout(
  * 承認の API は、PIN の確認とあわせて必ずこれを呼ぶ。
  * 未完了の手順が1つでもあれば DomainRuleError を投げる。
  */
-export function assertApprovalAllowed(
-  procedure: RequiredProcedure,
-  completedStepIds: ReadonlySet<string> | readonly string[],
-): void {
+export function assertApprovalAllowed(procedure: RequiredProcedure, completedStepIds: CompletedStepIds): void {
   const missing = getMissingSteps(procedure, completedStepIds, "before_approval");
   if (missing.length > 0) {
     throw new DomainRuleError(
@@ -135,13 +135,11 @@ export function assertApprovalAllowed(
 }
 
 /**
- * 会計案内に進む API は、assertActionAllowed とあわせて必ずこれを呼ぶ。
- * 理解の確認・法定項目の記録・薬剤師の前での服用の確認なども含め、未完了があれば止める。
+ * 理解の確認・法定項目の記録・書面を渡す・薬剤師の前での服用の確認なども含め、
+ * 未完了の手順があれば DomainRuleError を投げる。
+ * ふつうは直接呼ばず、proceedToCheckout を使う。
  */
-export function assertCheckoutAllowed(
-  procedure: RequiredProcedure,
-  completedStepIds: ReadonlySet<string> | readonly string[],
-): void {
+export function assertCheckoutAllowed(procedure: RequiredProcedure, completedStepIds: CompletedStepIds): void {
   const missing = getMissingSteps(procedure, completedStepIds, "before_checkout");
   if (missing.length > 0) {
     throw new DomainRuleError(
@@ -149,4 +147,25 @@ export function assertCheckoutAllowed(
       `会計案内の前に必要な手順が終わっていません：${missing.map((s) => s.label).join("、")}`,
     );
   }
+}
+
+/**
+ * 服薬指導（counseling）から会計案内（checkout）へ進める。会計案内へ進む API は、必ずこれを使う。
+ *
+ * 1. 必要な手順がすべて済んでいるかを assertCheckoutAllowed で確かめる
+ * 2. そのうえで state.ts の transition で状態を進める（順番の確認と understandingConfirmed の確認）
+ *
+ * 理解の確認の記録について：いまは「済んだ手順の understanding_check」と
+ * 「SessionSnapshot の understandingConfirmed」の2か所に分かれている。
+ * **正とするのは、販売記録に版を足して残す「済んだ手順」（completedStepIds）の側**。
+ * understandingConfirmed はそこから作る写しとして扱い、ここでは両方がそろわないと進めない。
+ * 1か所にまとめる作り替えは T9 で行う。
+ */
+export function proceedToCheckout(
+  session: SessionSnapshot,
+  procedure: RequiredProcedure,
+  completedStepIds: CompletedStepIds,
+): SessionSnapshot {
+  assertCheckoutAllowed(procedure, completedStepIds);
+  return transition(session, "checkout");
 }

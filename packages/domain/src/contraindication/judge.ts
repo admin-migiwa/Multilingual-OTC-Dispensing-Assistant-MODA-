@@ -19,7 +19,7 @@ import {
   type StockedDrug,
   type StockedDrugId,
 } from "./data.ts";
-import type { InterviewFacts, InterviewItemId } from "./facts.ts";
+import { assertValidFacts, type InterviewFacts, type InterviewItemId } from "./facts.ts";
 
 export type Verdict = "contraindicated" | "caution" | "ok";
 
@@ -40,10 +40,26 @@ export type DrugJudgment = {
   reasons: readonly JudgmentReason[];
 };
 
-type Match = { matched: false } | { matched: true; uncertain: boolean; itemIds: InterviewItemId[] };
+/**
+ * uncertainLabel は「わからない」「かもしれない」の答えで当てはまったときの理由の文
+ * （contraindication-tests.md の「理由として出す内容」。例：「ぜんそく歴が不明」）。
+ */
+type Match =
+  | { matched: false }
+  | { matched: true; itemIds: InterviewItemId[]; uncertainLabel: string | null };
 
 const NO_MATCH: Match = { matched: false };
-const hit = (itemIds: InterviewItemId[], uncertain = false): Match => ({ matched: true, uncertain, itemIds });
+const hit = (itemIds: InterviewItemId[]): Match => ({ matched: true, itemIds, uncertainLabel: null });
+const uncertainHit = (itemIds: InterviewItemId[], uncertainLabel: string): Match => ({
+  matched: true,
+  itemIds,
+  uncertainLabel,
+});
+
+const LABEL_MAYBE_PREGNANT = "妊娠の可能性";
+const LABEL_MAYBE_PREGNANT_DUE_UNKNOWN = "妊娠の可能性（出産予定日まで12週以内かがわからない）";
+const LABEL_DUE_UNKNOWN = "出産予定日が不明";
+const LABEL_ASTHMA_UNKNOWN = "ぜんそく歴が不明";
 
 /** 判定に使う答えを取り出す。まだ確認していなければエラーで止める。 */
 function need<K extends keyof InterviewFacts>(
@@ -87,18 +103,18 @@ function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
     case "pregnant": {
       const state = pregnancyState(facts);
       if (state === "pregnant") return hit(["Q03"]);
-      if (state === "maybe") return hit(["Q03"], true);
+      if (state === "maybe") return uncertainHit(["Q03"], LABEL_MAYBE_PREGNANT);
       return NO_MATCH;
     }
 
     case "due_within_12_weeks": {
       const state = pregnancyState(facts);
       // 妊娠しているかもしれない人には Q03a を聞けないので、12週以内かどうかもわからない
-      if (state === "maybe") return hit(["Q03"], true);
+      if (state === "maybe") return uncertainHit(["Q03"], LABEL_MAYBE_PREGNANT_DUE_UNKNOWN);
       if (state !== "pregnant") return NO_MATCH;
       const due = need(facts, "dueWithin12Weeks", "Q03a");
       if (due === "yes") return hit(["Q03", "Q03a"]);
-      if (due === "unknown") return hit(["Q03", "Q03a"], true);
+      if (due === "unknown") return uncertainHit(["Q03", "Q03a"], LABEL_DUE_UNKNOWN);
       return NO_MATCH;
     }
 
@@ -116,7 +132,7 @@ function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
     case "asthma": {
       const answer = need(facts, "asthmaHistory", "Q06");
       if (answer === "yes") return hit(["Q06"]);
-      if (answer === "unknown") return hit(["Q06"], true);
+      if (answer === "unknown") return uncertainHit(["Q06"], LABEL_ASTHMA_UNKNOWN);
       return NO_MATCH;
     }
 
@@ -158,10 +174,10 @@ function toReason(rule: ProductRule, match: Extract<Match, { matched: true }>): 
     code: rule.code,
     // 「わからない」の答えでも、禁忌の項目なら禁忌のまま（注意の項目なら注意のまま）
     verdict: rule.verdict,
-    label: rule.label,
+    label: match.uncertainLabel ?? rule.label,
     itemIds: match.itemIds,
     basis: rule.basis,
-    uncertain: match.uncertain,
+    uncertain: match.uncertainLabel !== null,
   };
 }
 
@@ -173,6 +189,7 @@ export function findStockedDrug(drugId: StockedDrugId): StockedDrug {
 
 /** 1つの薬について、禁忌・注意・問題なしと、その理由を返す。 */
 export function judgeDrug(drugId: StockedDrugId, facts: InterviewFacts): DrugJudgment {
+  assertValidFacts(facts);
   const drug = findStockedDrug(drugId);
   const reasons: JudgmentReason[] = [];
   for (const rule of drug.rules) {
@@ -209,6 +226,7 @@ export function rankCandidates(drugIds: readonly StockedDrugId[], facts: Intervi
  * 表がない薬は null。服用しない年齢の行は dose が null。
  */
 export function doseForAge(drugId: StockedDrugId, age: number): DoseByAge | null {
+  assertValidFacts({ age });
   const table = findStockedDrug(drugId).doseByAge;
   if (!table) return null;
   const row = table.find(

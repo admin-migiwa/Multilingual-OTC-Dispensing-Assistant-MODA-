@@ -80,7 +80,20 @@ export interface SalesProcedureVersion {
 
 const STEPS_2026_05_01: readonly ProcedureStepDefinition[] = [
   // P01〜P03
-  { id: "written_information", label: "書面での情報提供（翻訳版の説明書＋原文）", gate: "before_approval", condition: "always" },
+  // 書面は「準備（承認の前）」と「渡す（承認の後・会計案内の前）」に分ける（11/6 薬剤師の判断、README の決定 13）。
+  // 印刷は承認の後にしかできない（assertActionAllowed("print")）ため、渡すのは承認の後になる。
+  {
+    id: "written_information_prepared",
+    label: "書面の準備（翻訳版の説明書＋原文の内容を薬剤師が確認する）",
+    gate: "before_approval",
+    condition: "always",
+  },
+  {
+    id: "written_information_handed",
+    label: "書面を渡す（翻訳版の説明書＋原文を印刷して渡す）",
+    gate: "before_checkout",
+    condition: "always",
+  },
   { id: "understanding_check", label: "理解の確認", gate: "before_checkout", condition: "always" },
   { id: "legal_record", label: "法定項目の記録", gate: "before_checkout", condition: "always" },
   // P03
@@ -90,14 +103,30 @@ const STEPS_2026_05_01: readonly ProcedureStepDefinition[] = [
   { id: "abuse_other_store_purchase", label: "他店での購入状況の確認（R01）", gate: "before_approval", condition: "always" },
   { id: "abuse_purpose", label: "使用目的の確認（R04）", gate: "before_approval", condition: "always" },
   { id: "abuse_reason", label: "大容量・複数個が必要な理由の確認と記録（R03）", gate: "before_approval", condition: "large_or_multiple" },
-  { id: "abuse_written_information", label: "濫用の危険についての書面での情報提供", gate: "before_approval", condition: "always" },
+  {
+    id: "abuse_written_information_prepared",
+    label: "濫用の危険についての書面の準備（内容を薬剤師が確認する）",
+    gate: "before_approval",
+    condition: "always",
+  },
+  {
+    id: "abuse_written_information_handed",
+    label: "濫用の危険についての書面を渡す（印刷して渡す）",
+    gate: "before_checkout",
+    condition: "always",
+  },
   { id: "minor_name_sheet", label: "別紙で氏名を確認し、別紙番号を入力（18歳未満）", gate: "before_approval", condition: "under_18" },
   // P05〜P07
   { id: "contraindication_check", label: "禁忌の確認", gate: "before_approval", condition: "always" },
   { id: "consultation_notice", label: "相談を促す表示", gate: "before_approval", condition: "always" },
 ];
 
-const REQUIRES_GUIDANCE_STEPS = ["written_information", "understanding_check", "legal_record"] as const;
+const REQUIRES_GUIDANCE_STEPS = [
+  "written_information_prepared",
+  "written_information_handed",
+  "understanding_check",
+  "legal_record",
+] as const;
 
 const CATEGORY_RULES_2026_05_01: readonly CategoryRule[] = [
   { ruleId: "P01", category: "requires_guidance", stepIds: REQUIRES_GUIDANCE_STEPS },
@@ -114,7 +143,8 @@ const CATEGORY_RULES_2026_05_01: readonly CategoryRule[] = [
       "abuse_other_store_purchase",
       "abuse_purpose",
       "abuse_reason",
-      "abuse_written_information",
+      "abuse_written_information_prepared",
+      "abuse_written_information_handed",
       "minor_name_sheet",
     ],
   },
@@ -144,19 +174,33 @@ export const SALES_PROCEDURE_VERSIONS: readonly SalesProcedureVersion[] = [
   },
 ];
 
-const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** YYYY-MM-DD の形で、暦にある日付か（2026-13-45 や 2026-02-30 は不可） */
+function isValidCalendarDate(date: string): boolean {
+  const match = ISO_DATE.exec(date);
+  if (!match) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const utc = new Date(Date.UTC(year, month - 1, day));
+  return utc.getUTCFullYear() === year && utc.getUTCMonth() === month - 1 && utc.getUTCDate() === day;
+}
 
 /**
- * 指定した日（YYYY-MM-DD）に有効な版を選ぶ。
- * 時差で日付がずれないよう、Date ではなく日付の文字列で比べる。
- * 有効な版がないときは、推測で古い版や新しい版を使わずにエラーで止める。
+ * 指定した日に有効な版を選ぶ。
+ *
+ * date は**日本時間（店頭の日付）**の YYYY-MM-DD を渡す。呼び出し側で、販売する時点の
+ * 日本時間の日付に直してから渡すこと（UTC の日付を渡すと、朝9時前は前日の扱いになる）。
+ * ここでは時差で日付がずれないよう、Date ではなく日付の文字列で比べる。
+ * 暦にない日付や、有効な版がないときは、推測で別の版を使わずにエラーで止める。
  */
 export function selectProcedureVersion(
   date: string,
   versions: readonly SalesProcedureVersion[] = SALES_PROCEDURE_VERSIONS,
 ): SalesProcedureVersion {
-  if (!ISO_DATE.test(date)) {
-    throw new DomainRuleError("INVALID_DATE", `日付は YYYY-MM-DD の形で渡してください（${date}）`);
+  if (!isValidCalendarDate(date)) {
+    throw new DomainRuleError("INVALID_DATE", `日付は暦にある YYYY-MM-DD の形で渡してください（${date}）`);
   }
   let selected: SalesProcedureVersion | undefined;
   for (const version of versions) {

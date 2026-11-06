@@ -15,6 +15,7 @@ export {
   classifyPackage,
   checkQuantitySelection,
   type ProcedureDrugInput,
+  type DrugSelection,
   type PackageSize,
   type PackageClassification,
   type QuantitySelectionResult,
@@ -26,7 +27,7 @@ export {
   canProceedToCheckout,
   assertApprovalAllowed,
   assertCheckoutAllowed,
-  type DrugSelection,
+  proceedToCheckout,
   type RequiredStep,
   type RequiredProcedure,
 } from "./procedure.ts";
