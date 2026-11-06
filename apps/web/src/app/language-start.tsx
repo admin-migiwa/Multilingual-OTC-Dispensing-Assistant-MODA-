@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { STOCKED_DRUGS, detectEmergency, type InterviewAnswers, type StockedDrugId } from "@moda/domain";
 import { LANGUAGES, getMessages, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
@@ -79,6 +79,19 @@ export function LanguageStart() {
       setBusy(false);
     }
   }
+
+  // 薬剤師の確認画面（/pharmacist/[id]）から戻ったときは、住所の ?session= の接客を読み直して続ける（T8a）
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("session");
+    if (!id) return;
+    void run(async () => {
+      const latest = await sessionApi.get(id);
+      setLanguage(latest.language);
+      if (latest.status === "emergency_review") setEmergency({ kind: "staff" });
+      if (latest.status === "emergency_ended") setSessionLost(true);
+      return latest;
+    });
+  }, []);
 
   function chooseLanguage(code: LanguageCode) {
     setLanguage(code);
@@ -330,15 +343,20 @@ function PatientBody({
 }) {
   const t = getMessages(language);
 
-  if (mode === "not_for_sale") {
+  // 「販売しない」で終えた（薬剤師の確認画面で選んだ。受診案内の画面は T11）
+  if (mode === "not_for_sale" || view?.status === "declined") {
     return <p className="rounded-2xl bg-slate-50 px-5 py-6 text-2xl leading-relaxed">{t.pharmacist.notForSale}</p>;
   }
   if (view === null) {
     return <p className="text-center text-lg text-slate-500">…</p>;
   }
 
-  // 「ほしい薬がある」で薬を選んだあと：問診の途中でも薬を選び直せる（サーバーの chooseDrugs が受け付ける）
-  const canReselect = view.route === "product" && view.selectedDrugs.length > 0 && !view.interviewComplete;
+  // 「ほしい薬がある」で薬を選んだあと：問診の途中でも、薬剤師の確認から「戻る」で薬の選択に戻ったときも、
+  // 薬を選び直せる（サーバーの chooseDrugs が受け付ける）
+  const canReselect =
+    view.route === "product" &&
+    view.selectedDrugs.length > 0 &&
+    (!view.interviewComplete || view.status === "drug_selection");
   if (mode === "reselect" && canReselect) {
     return <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={() => onMode("questions")} />;
   }
@@ -370,13 +388,32 @@ function PatientBody({
     );
   }
 
-  // 選んだ薬の項目まで答え終えた、または「症状から探す」で基本の項目を答え終えた → 薬剤師の確認待ち（T8）
+  // 選んだ薬の項目まで答え終えた、または「症状から探す」で基本の項目を答え終えた → 薬剤師の確認待ち
   const noDrug = view.selectedDrugs.length === 0;
-  if (view.interviewComplete || (view.route === "symptom" && view.status === "drug_selection" && noDrug)) {
+  const waitingStatus = view.status === "drug_selection" || view.status === "pharmacist_review";
+  if (view.interviewComplete || (view.route === "symptom" && waitingStatus && noDrug)) {
     return (
       <div className="space-y-4 rounded-2xl bg-teal-50 px-5 py-6">
         <p className="text-2xl font-bold">{t.interview.done}</p>
         <p className="text-lg">{t.pharmacist.waiting}</p>
+        {/* 薬剤師用（日本語・小さく）。いまは同じ iPad で開くので、仮にここに置く（T8a） */}
+        <a
+          lang="ja"
+          href={`/pharmacist/${encodeURIComponent(view.id)}`}
+          className="inline-block rounded-lg border border-teal-400 bg-white px-3 py-1.5 text-xs font-semibold text-teal-900 hover:bg-teal-100"
+        >
+          薬剤師用：確認の画面を開く
+        </a>
+        {canReselect ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onMode("reselect")}
+            className="block rounded-2xl border-2 border-slate-300 bg-white px-5 py-3 text-lg font-semibold hover:bg-slate-50 disabled:opacity-50"
+          >
+            {t.start.changeDrug}
+          </button>
+        ) : null}
       </div>
     );
   }
