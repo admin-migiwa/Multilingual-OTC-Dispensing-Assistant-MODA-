@@ -192,56 +192,52 @@ export async function translate(
   const targetLanguage: LanguageCode = fromPatient ? "ja" : patientLanguage;
   const age = record.interview.answers.age;
 
-  // 端末と同じキーワード照合をサーバーでも行う（AI が止まっても、キーワードに当たれば緊急の確認を開くため）
+  // 端末と同じキーワード照合をサーバーでも行い、当たれば AI を待たずにすぐ問診を止める（ルール2。AI が止まっていても働く）
   const keywordIds = fromPatient
     ? detectEmergency(text, { language: patientLanguage, age }).hits.map((hit) => hit.id)
     : [];
+  let opened = keywordIds.length > 0 && openEmergencyIfNeeded(deps, id, "keyword", keywordIds, text);
 
   let translation: string;
   let aiIds: string[] = [];
-  let backTranslation: string;
-  try {
-    if (fromPatient) {
-      const answer = parseOrThrow(
-        patientTranslationSchema,
-        await deps.ai.generateJson({
-          task: "translate",
-          system: patientSystemPrompt(sourceLanguage),
-          content: [{ type: "text", text }],
-          schema: PATIENT_TRANSLATION_JSON_SCHEMA,
-        }),
-      );
-      translation = answer.translation;
-      aiIds = forAge(answer.emergencyRuleIds, age);
-    } else {
-      translation = parseOrThrow(
-        plainTranslationSchema,
-        await deps.ai.generateJson({
-          task: "translate",
-          system: staffSystemPrompt(targetLanguage),
-          content: [{ type: "text", text }],
-          schema: PLAIN_TRANSLATION_JSON_SCHEMA,
-        }),
-      ).translation;
-    }
-    backTranslation = parseOrThrow(
+  if (fromPatient) {
+    const answer = parseOrThrow(
+      patientTranslationSchema,
+      await deps.ai.generateJson({
+        task: "translate",
+        system: patientSystemPrompt(sourceLanguage),
+        content: [{ type: "text", text }],
+        schema: PATIENT_TRANSLATION_JSON_SCHEMA,
+      }),
+    );
+    translation = answer.translation;
+    aiIds = forAge(answer.emergencyRuleIds, age);
+  } else {
+    translation = parseOrThrow(
       plainTranslationSchema,
       await deps.ai.generateJson({
-        task: "back_translate",
-        system: backTranslationSystemPrompt(targetLanguage, sourceLanguage),
-        content: [{ type: "text", text: translation }],
+        task: "translate",
+        system: staffSystemPrompt(targetLanguage),
+        content: [{ type: "text", text }],
         schema: PLAIN_TRANSLATION_JSON_SCHEMA,
       }),
     ).translation;
-  } catch (error: unknown) {
-    // AI が失敗しても、キーワードに当たっていれば問診を止めてから、エラーで返す（ルール2・7）
-    if (keywordIds.length > 0) openEmergencyIfNeeded(deps, id, "keyword", keywordIds, text);
-    throw error;
   }
 
   const ruleIds = EMERGENCY_RULE_IDS.filter((ruleId) => aiIds.includes(ruleId) || keywordIds.includes(ruleId));
-  const opened =
-    ruleIds.length > 0 && openEmergencyIfNeeded(deps, id, aiIds.length > 0 ? "ai" : "keyword", ruleIds, text);
+  // AI の緊急フラグは、訳し戻しを待たずにすぐ問診を止める（訳し戻しが失敗しても止めたままにする）。
+  // キーワードですでに開いていれば開き直さない（AI だけが足した項目は、画面に出すだけ。docs/backlog.md S-13）
+  if (aiIds.length > 0 && !opened) opened = openEmergencyIfNeeded(deps, id, "ai", ruleIds, text);
+
+  const backTranslation = parseOrThrow(
+    plainTranslationSchema,
+    await deps.ai.generateJson({
+      task: "back_translate",
+      system: backTranslationSystemPrompt(targetLanguage, sourceLanguage),
+      content: [{ type: "text", text: translation }],
+      schema: PLAIN_TRANSLATION_JSON_SCHEMA,
+    }),
+  ).translation;
 
   return {
     direction: input.direction,

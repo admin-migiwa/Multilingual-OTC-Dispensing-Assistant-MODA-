@@ -191,6 +191,44 @@ describe("AI の緊急フラグ（docs/backlog.md S-02、spec.md 決まったこ
     assert.equal(getSession(deps, id).snapshot.status, "emergency_review");
   });
 
+  it("キーワードに当たったら、AI の答えを待たずに問診を止める（AI を呼ぶ時点で、もう緊急の確認中）", async () => {
+    let statusWhenAiCalled: string | undefined;
+    const box: { deps?: TranslationDeps; id: string } = { id: "" };
+    const ai = fakeAi((request) => {
+      if (box.deps && statusWhenAiCalled === undefined) statusWhenAiCalled = getSession(box.deps, box.id).snapshot.status;
+      return request.task === "back_translate" ? { translation: "戻し" } : { translation: "訳", emergencyRuleIds: [] };
+    });
+    const deps = testDeps(ai);
+    box.deps = deps;
+    const id = startInterview(deps);
+    box.id = id;
+    await translate(deps, id, { direction: "to_ja", text: "I have chest pain." });
+    assert.equal(statusWhenAiCalled, "emergency_review");
+  });
+
+  it("AI が緊急の項目を付けたあと、訳し戻しが失敗しても、問診は止めたままにする", async () => {
+    const deps = testDeps(
+      fakeAi((request) => {
+        if (request.task === "back_translate") throw new AiError("AI_UNAVAILABLE", "通信できません");
+        return { translation: "訳", emergencyRuleIds: ["EA12"] };
+      }),
+    );
+    const id = startInterview(deps);
+    await assertRejects(translate(deps, id, { direction: "to_ja", text: "Something is pressing on me." }), "AI_UNAVAILABLE");
+    const record = getSession(deps, id);
+    assert.equal(record.snapshot.status, "emergency_review");
+    assert.equal(record.emergencies[0]?.trigger, "ai");
+  });
+
+  it("キーワードと AI の両方が当てはまったときは、きっかけをキーワードとして記録する（確実な照合を根拠に残す）", async () => {
+    const deps = testDeps(simpleAi(["EA12"]));
+    const id = startInterview(deps);
+    const result = await translate(deps, id, { direction: "to_ja", text: "I have chest pain." });
+    assert.equal(result.emergency.opened, true);
+    assert.equal(getSession(deps, id).emergencies[0]?.trigger, "keyword");
+    assert.equal(getSession(deps, id).emergencies.length, 1);
+  });
+
   it("すでに緊急の確認中なら開き直さず、当てはまった項目だけを返す（薬剤師がチャットで様子をたずねている最中）", async () => {
     const deps = testDeps(simpleAi(["EA12"]));
     const id = startInterview(deps);
