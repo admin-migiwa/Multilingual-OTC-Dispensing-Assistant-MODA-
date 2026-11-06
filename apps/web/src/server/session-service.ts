@@ -281,6 +281,18 @@ function packageAnswerAllowed(interview: InterviewState, rules: QuantityRules): 
 }
 
 /**
+ * 18歳未満で、R02 にどの包装も選べない薬の組み合わせ（例：B と E を一緒に。種類が違っても合わせて数える。決定12）なら止める。
+ * 問診に戻っても R02 に答えられないため、薬を選ぶ時点で止める（M-12）
+ */
+export function assertSomePackageChoice(deps: ServiceDeps, interview: InterviewState): void {
+  const age = interview.answers.age;
+  if (!interview.selectedDrugs.includes("E") || age === undefined) return;
+  if (packageChoiceOptions(interview.selectedDrugs, age, quantityRulesAt(deps.now())).allowed.length === 0) {
+    throw new DomainRuleError("QUANTITY_NOT_ALLOWED", "この年齢では、この薬の組み合わせは販売できません");
+  }
+}
+
+/**
  * 記録にある R02 の答えが、年齢の訂正や薬の選び直しで選べなくなったら、その答え（と、それで聞いた R03）を消して聞き直す。
  * 消したことは種類だけを履歴に残す（中身は残さない）。呼んだあとに、次の質問があれば問診に戻すこと。
  */
@@ -430,6 +442,7 @@ export function chooseDrugs(deps: ServiceDeps, id: string, drugIds: readonly Sto
     throw new SessionServiceError("INVALID_REQUEST", "薬が選ばれていません");
   }
   const interview = selectInterviewDrugs(record.interview, drugIds);
+  assertSomePackageChoice(deps, interview);
   let next: SessionRecord = {
     ...record,
     interview,

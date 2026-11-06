@@ -95,7 +95,7 @@ export const vi: Messages = {
         text: "Bạn muốn mua bao nhiêu?",
         options: { smallOne: "1 hộp nhỏ", largeOne: "1 hộp lớn", multiple: "Từ 2 hộp trở lên" },
         // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
-        minorLargePackage: "Chúng tôi không thể bán gói dung tích lớn cho người dưới {age} tuổi.",
+        minorLargePackage: "Chúng tôi không thể bán hộp cỡ lớn cho người dưới {age} tuổi.",
         minorMultiplePackages: "Người dưới {age} tuổi chỉ được mua tối đa {max} hộp.",
       },
       R03: { text: "Vui lòng cho biết lý do bạn cần hộp lớn hoặc từ 2 hộp trở lên." },

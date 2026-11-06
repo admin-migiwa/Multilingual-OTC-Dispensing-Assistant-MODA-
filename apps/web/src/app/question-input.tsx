@@ -537,6 +537,11 @@ function PackageQuestion({
           ]}
         />
         {notices}
+        {options !== null && options.allowed.length === 0 ? (
+          <p lang="ja" className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-900">
+            薬剤師用：この年齢では、選んだ薬の組み合わせで選べる包装がありません。薬を選び直してください。
+          </p>
+        ) : null}
       </>
     );
   }

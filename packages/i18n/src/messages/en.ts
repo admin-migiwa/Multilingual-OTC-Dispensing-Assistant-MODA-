@@ -96,7 +96,7 @@ export const en: Messages = {
         options: { smallOne: "One small box", largeOne: "One large box", multiple: "Two or more" },
         // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
         minorLargePackage: "We cannot sell large packages to people under {age}.",
-        minorMultiplePackages: "People under {age} can buy up to {max}.",
+        minorMultiplePackages: "People under {age} can buy up to {max} box.",
       },
       R03: { text: "Please tell us why you need a large box or two or more." },
       R04: { text: "What symptoms will you use it for?" },

@@ -96,7 +96,7 @@ export const fr: Messages = {
         options: { smallOne: "Une petite boîte", largeOne: "Une grande boîte", multiple: "Deux ou plus" },
         // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
         minorLargePackage: "Nous ne pouvons pas vendre de grands conditionnements aux moins de {age} ans.",
-        minorMultiplePackages: "Les moins de {age} ans peuvent en acheter {max} au maximum.",
+        minorMultiplePackages: "Les moins de {age} ans peuvent acheter {max} boîte au maximum.",
       },
       R03: { text: "Dites-nous pourquoi vous avez besoin d'une grande boîte ou de deux ou plus." },
       R04: { text: "Pour quels symptômes allez-vous l'utiliser ?" },

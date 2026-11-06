@@ -26,7 +26,6 @@ import {
   isInterviewComplete,
   judgeDrugs,
   nextQuestion,
-  packageChoiceOptions,
   previewCandidates,
   selectCandidateDrugs,
   type CandidatePreview,
@@ -47,8 +46,8 @@ import type { LanguageCode } from "@moda/i18n";
 import { japanDate } from "./japan-date.ts";
 import {
   SessionServiceError,
+  assertSomePackageChoice,
   enforcePackageLimit,
-  quantityRulesAt,
   event,
   load,
   moveTo,
@@ -242,12 +241,7 @@ export function chooseCandidateDrugs(deps: ServiceDeps, id: string, drugIds: rea
   const { index, round } = currentRound(record);
   const interview = selectCandidateDrugs(record.interview, [...new Set(drugIds)]);
   // 18歳未満で、R02 にどの包装も選べない組み合わせ（例：B と E を一緒に）は選ばせない。問診に戻っても答えられないため（M-12）
-  const age = interview.answers.age;
-  if (interview.selectedDrugs.includes("E") && age !== undefined) {
-    if (packageChoiceOptions(interview.selectedDrugs, age, quantityRulesAt(deps.now())).allowed.length === 0) {
-      throw new DomainRuleError("QUANTITY_NOT_ALLOWED", "この年齢では、この薬の組み合わせは販売できません");
-    }
-  }
+  assertSomePackageChoice(deps, interview);
   const at = deps.now().toISOString();
   const closed = withRound(record, index, { ...round, closedAt: at, candidateDrugIds: interview.selectedDrugs });
   let next = moveTo(deps, closed, "drug_selection");

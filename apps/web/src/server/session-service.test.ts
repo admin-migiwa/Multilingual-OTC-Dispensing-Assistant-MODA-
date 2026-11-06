@@ -487,6 +487,23 @@ describe("R02 の時点の個数・包装の制限（M-12）", () => {
     assert.equal(record.events.some((e) => e.type === "answers_cleared" && e.detail.includes("R02")), true);
   });
 
+  it("S11：17歳で小箱1個と答えたあと年齢を30歳に直しても、R02 の答えは消えない", () => {
+    const deps = testDeps();
+    const id = toR02(deps, 17);
+    answer(deps, id, { packageChoice: "small_one" });
+    assert.equal(answer(deps, id, { age: 30 }).interview.answers.packageChoice, "small_one");
+  });
+
+  it("決定12・S10：17歳が B と E を一緒に選ぼうとすると止まる（R02 にどの包装も選べないため）", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 17, sex: "female" });
+    chooseRoute(deps, id, "product");
+    const before = getSession(deps, id);
+    assertError(() => chooseDrugs(deps, id, ["B", "E"]), "QUANTITY_NOT_ALLOWED");
+    assert.equal(getSession(deps, id), before);
+  });
+
   it("S06：30歳の R02 では、どれも選べて注意文は出さない", () => {
     const deps = testDeps();
     const id = toR02(deps, 30);
