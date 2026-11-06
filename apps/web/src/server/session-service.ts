@@ -1,0 +1,328 @@
+/**
+ * 接客1件ごとの記録と、その進め方（サーバー側）。
+ *
+ * - ハッカソン版はデータベースを使わず、サーバーのメモリに置く。サーバーを止めると消える（docs/backlog.md S-03）。
+ * - 次に聞く項目・状態の進め方・答えの確かめは、すべて packages/domain のルールで行う（CLAUDE.md 絶対に守るルール3）。
+ * - 記録の履歴（events）は足すだけで、書き換えない（ルール6の考え方）。
+ * - 問診の答えや入力された文をログに出さない（ルール9）。エラーの文にも項目 ID しか入れない。
+ */
+
+import {
+  DomainRuleError,
+  applyAnswers,
+  isBasicInterviewComplete,
+  isInterviewComplete,
+  nextQuestion,
+  selectDrugs as selectInterviewDrugs,
+  transition,
+  type InterviewAnswers,
+  type InterviewState,
+  type QuestionId,
+  type SessionSnapshot,
+  type SessionStatus,
+  type StockedDrugId,
+} from "@moda/domain";
+import { isSupportedLanguage, type LanguageCode } from "@moda/i18n";
+
+/** セッションが見つからないなど、ルール以外の理由で処理できないとき */
+export type SessionServiceErrorCode = "SESSION_NOT_FOUND" | "UNSUPPORTED_LANGUAGE" | "INVALID_REQUEST";
+
+export class SessionServiceError extends Error {
+  readonly code: SessionServiceErrorCode;
+
+  constructor(code: SessionServiceErrorCode, message: string) {
+    super(message);
+    this.code = code;
+    this.name = "SessionServiceError";
+  }
+}
+
+/** 緊急の確認のきっかけ（spec.md 決まったこと No.38：キーワードの検知か、薬剤師が手動で開いたか） */
+export type EmergencyTrigger = "keyword" | "staff";
+
+/** 緊急の確認画面で集めたもの（追加の質問 EF01〜EF09、つらさの数字 ES01、観察の印） */
+export interface EmergencyFollowUp {
+  readonly answers: Readonly<Record<string, string>>;
+  readonly scale: number | null;
+  readonly observedRuleIds: readonly string[];
+}
+
+export type EmergencyDecision = "show_119" | "not_emergency";
+
+/** 緊急の出来事。問診の記録に紐づけて残す（docs/backlog.md C-04） */
+export interface EmergencyEvent {
+  readonly openedAt: string;
+  readonly trigger: EmergencyTrigger;
+  /** 当てはまった緊急症状の表の ID（EA01 など）。手動で開いたときは空 */
+  readonly matchedRuleIds: readonly string[];
+  /** 検知のもとになった患者さんの入力（薬剤師が根拠を確認するため。ログには出さない） */
+  readonly inputText: string | null;
+  /** 確認に入る前の状態 */
+  readonly returnTo: SessionStatus;
+  readonly followUp: EmergencyFollowUp | null;
+  readonly decision: EmergencyDecision | null;
+  readonly decidedAt: string | null;
+}
+
+/** 何が起きたかの履歴。中身（答えや入力）は入れず、種類と項目 ID だけを残す */
+export type SessionEventType =
+  | "created"
+  | "answered"
+  | "drugs_selected"
+  | "status_changed"
+  | "emergency_opened"
+  | "emergency_follow_up"
+  | "emergency_decided";
+
+export interface SessionEvent {
+  readonly at: string;
+  readonly type: SessionEventType;
+  /** 答えた項目 ID、選んだ薬の記号、変わった後の状態など（健康情報の中身は入れない） */
+  readonly detail: readonly string[];
+}
+
+export interface SessionRecord {
+  readonly id: string;
+  readonly createdAt: string;
+  readonly language: LanguageCode;
+  readonly snapshot: SessionSnapshot;
+  readonly interview: InterviewState;
+  readonly emergencies: readonly EmergencyEvent[];
+  readonly events: readonly SessionEvent[];
+}
+
+/** 患者さんの画面に返す内容（答えの中身は返さない） */
+export interface PatientView {
+  readonly id: string;
+  readonly language: LanguageCode;
+  readonly status: SessionStatus;
+  /** 次に聞く項目。聞く項目がなければ null */
+  readonly nextQuestion: QuestionId | null;
+  readonly selectedDrugs: readonly StockedDrugId[];
+  /** 基本の項目を答え終えたか（薬の選択に進めるか） */
+  readonly basicInterviewComplete: boolean;
+  /** 選んだ薬の項目まで答え終えたか */
+  readonly interviewComplete: boolean;
+}
+
+export interface SessionStore {
+  get(id: string): SessionRecord | undefined;
+  set(record: SessionRecord): void;
+}
+
+/** サーバーのメモリに置く入れ物。開発サーバーの再読み込みで消えないよう globalThis に置く */
+export function memoryStore(): SessionStore {
+  const holder = globalThis as unknown as { __modaSessions?: Map<string, SessionRecord> };
+  holder.__modaSessions ??= new Map();
+  const map = holder.__modaSessions;
+  return { get: (id) => map.get(id), set: (record) => void map.set(record.id, record) };
+}
+
+export interface ServiceDeps {
+  readonly store: SessionStore;
+  readonly now: () => Date;
+  readonly newId: () => string;
+}
+
+export function defaultDeps(): ServiceDeps {
+  return { store: memoryStore(), now: () => new Date(), newId: () => crypto.randomUUID() };
+}
+
+// ---------------------------------------------------------------------------
+
+function load(deps: ServiceDeps, id: string): SessionRecord {
+  const record = deps.store.get(id);
+  if (!record) throw new SessionServiceError("SESSION_NOT_FOUND", "接客の記録が見つかりません");
+  return record;
+}
+
+function event(deps: ServiceDeps, type: SessionEventType, detail: readonly string[] = []): SessionEvent {
+  return { at: deps.now().toISOString(), type, detail };
+}
+
+/** 状態を進め、履歴に残す */
+function moveTo(deps: ServiceDeps, record: SessionRecord, to: SessionStatus): SessionRecord {
+  const snapshot = transition(record.snapshot, to);
+  return { ...record, snapshot, events: [...record.events, event(deps, "status_changed", [to])] };
+}
+
+/**
+ * 問診の進み具合に合わせて状態を進める。
+ * - 年齢・性別（Q01・Q02）を答えたら「問診」へ
+ * - 基本の項目を答え終えたら「薬の選択」へ
+ * - 薬を選んで、その薬の項目まで答え終えたら「薬の選択」へ戻る（薬剤師の確認は T8）
+ */
+function advance(deps: ServiceDeps, record: SessionRecord): SessionRecord {
+  let current = record;
+  const { answers } = current.interview;
+  if (current.snapshot.status === "attributes" && answers.age !== undefined && answers.sex !== undefined) {
+    current = moveTo(deps, current, "interview");
+  }
+  if (current.snapshot.status === "interview") {
+    const done =
+      current.interview.selectedDrugs.length === 0
+        ? isBasicInterviewComplete(current.interview)
+        : isInterviewComplete(current.interview);
+    if (done) current = moveTo(deps, current, "drug_selection");
+  }
+  return current;
+}
+
+export function patientView(record: SessionRecord): PatientView {
+  const status = record.snapshot.status;
+  // 問診を進めてよい状態のときだけ、次に聞く項目を返す（緊急の確認中などに質問を出さないため）
+  const asking = status === "attributes" || status === "interview";
+  return {
+    id: record.id,
+    language: record.language,
+    status,
+    nextQuestion: asking ? nextQuestion(record.interview) : null,
+    selectedDrugs: record.interview.selectedDrugs,
+    basicInterviewComplete: isBasicInterviewComplete(record.interview),
+    interviewComplete: isInterviewComplete(record.interview),
+  };
+}
+
+/** 言語を選んで接客を始める。言語選択はここで済んだことになり、年齢・性別を聞く状態から始める */
+export function createSession(deps: ServiceDeps, language: string): SessionRecord {
+  if (!isSupportedLanguage(language)) {
+    throw new SessionServiceError("UNSUPPORTED_LANGUAGE", "対応していない言語です");
+  }
+  const at = deps.now().toISOString();
+  const base: SessionRecord = {
+    id: deps.newId(),
+    createdAt: at,
+    language,
+    snapshot: { status: "language_selection", understandingConfirmed: false },
+    interview: { answers: {}, selectedDrugs: [] },
+    emergencies: [],
+    events: [{ at, type: "created", detail: [language] }],
+  };
+  const record = moveTo(deps, base, "attributes");
+  deps.store.set(record);
+  return record;
+}
+
+export function getSession(deps: ServiceDeps, id: string): SessionRecord {
+  return load(deps, id);
+}
+
+/**
+ * 問診の答えを受け取る。決められた形でない答えや、聞かない項目への答えは DomainRuleError で止まり、
+ * 記録は変わらない（呼び出す側は同じ質問をもう一度出す）。
+ */
+export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers): SessionRecord {
+  const record = load(deps, id);
+  const status = record.snapshot.status;
+  if (status !== "attributes" && status !== "interview" && status !== "drug_selection") {
+    throw new DomainRuleError("INVALID_TRANSITION", `${status} の状態では問診の答えを受け取れません`);
+  }
+  const interview = applyAnswers(record.interview, answers);
+  const answered = Object.keys(answers).filter((key) => answers[key as keyof InterviewAnswers] !== undefined);
+  let next: SessionRecord = { ...record, interview, events: [...record.events, event(deps, "answered", answered)] };
+  // 薬の選択のあとに答え直して聞く項目が増えたら、問診に戻る
+  if (next.snapshot.status === "drug_selection" && nextQuestion(next.interview) !== null) {
+    next = moveTo(deps, next, "interview");
+  }
+  next = advance(deps, next);
+  deps.store.set(next);
+  return next;
+}
+
+/** 薬を選ぶ（希望の薬・候補の薬）。選んだ薬の項目が残っていれば問診に戻る */
+export function chooseDrugs(deps: ServiceDeps, id: string, drugIds: readonly StockedDrugId[]): SessionRecord {
+  const record = load(deps, id);
+  if (record.snapshot.status !== "drug_selection") {
+    throw new DomainRuleError("INVALID_TRANSITION", "基本の問診を答え終えてから薬を選びます");
+  }
+  if (drugIds.length === 0) {
+    throw new SessionServiceError("INVALID_REQUEST", "薬が選ばれていません");
+  }
+  const interview = selectInterviewDrugs(record.interview, drugIds);
+  let next: SessionRecord = {
+    ...record,
+    interview,
+    events: [...record.events, event(deps, "drugs_selected", interview.selectedDrugs)],
+  };
+  if (nextQuestion(next.interview) !== null) next = moveTo(deps, next, "interview");
+  deps.store.set(next);
+  return next;
+}
+
+// ---------------------------------------------------------------------------
+// 緊急の確認（spec.md 決まったこと No.38）
+// ---------------------------------------------------------------------------
+
+function openEmergencyOf(record: SessionRecord): { index: number; event: EmergencyEvent } {
+  const index = record.emergencies.findIndex((e) => e.decision === null);
+  const found = record.emergencies[index];
+  if (record.snapshot.status !== "emergency_review" || index < 0 || !found) {
+    throw new DomainRuleError("INVALID_TRANSITION", "緊急の確認中ではありません");
+  }
+  return { index, event: found };
+}
+
+/** 緊急の確認を開く（問診をすぐに止める）。キーワードの検知でも、薬剤師が手動で開いてもよい */
+export function openEmergency(
+  deps: ServiceDeps,
+  id: string,
+  input: { trigger: EmergencyTrigger; matchedRuleIds?: readonly string[]; inputText?: string | null },
+): SessionRecord {
+  const record = load(deps, id);
+  const returnTo = record.snapshot.status;
+  const moved = moveTo(deps, record, "emergency_review");
+  const emergency: EmergencyEvent = {
+    openedAt: deps.now().toISOString(),
+    trigger: input.trigger,
+    matchedRuleIds: [...(input.matchedRuleIds ?? [])],
+    inputText: input.inputText ?? null,
+    returnTo,
+    followUp: null,
+    decision: null,
+    decidedAt: null,
+  };
+  const next: SessionRecord = {
+    ...moved,
+    emergencies: [...moved.emergencies, emergency],
+    events: [...moved.events, event(deps, "emergency_opened", [input.trigger, ...emergency.matchedRuleIds])],
+  };
+  deps.store.set(next);
+  return next;
+}
+
+/** 緊急の確認画面で集めた追加の質問の答え・つらさの数字・観察の印を残す（確認中は何度でも上書きできる） */
+export function recordEmergencyFollowUp(deps: ServiceDeps, id: string, followUp: EmergencyFollowUp): SessionRecord {
+  const record = load(deps, id);
+  const { index, event: open } = openEmergencyOf(record);
+  if (followUp.scale !== null && !(Number.isInteger(followUp.scale) && followUp.scale >= 0 && followUp.scale <= 10)) {
+    throw new SessionServiceError("INVALID_REQUEST", "つらさの数字は0〜10で入れてください");
+  }
+  const emergencies = record.emergencies.map((e, i) => (i === index ? { ...open, followUp } : e));
+  const next: SessionRecord = {
+    ...record,
+    emergencies,
+    events: [...record.events, event(deps, "emergency_follow_up", Object.keys(followUp.answers))],
+  };
+  deps.store.set(next);
+  return next;
+}
+
+/**
+ * 薬剤師の判断を残す。
+ * - 「119番の案内を出す」→ 緊急終了
+ * - 「緊急ではない」→ 確認に入る前の状態に戻る
+ */
+export function decideEmergency(deps: ServiceDeps, id: string, decision: EmergencyDecision): SessionRecord {
+  const record = load(deps, id);
+  const { index, event: open } = openEmergencyOf(record);
+  const at = deps.now().toISOString();
+  const decided: EmergencyEvent = { ...open, decision, decidedAt: at };
+  const withDecision: SessionRecord = {
+    ...record,
+    emergencies: record.emergencies.map((e, i) => (i === index ? decided : e)),
+    events: [...record.events, event(deps, "emergency_decided", [decision])],
+  };
+  const next = moveTo(deps, withDecision, decision === "show_119" ? "emergency_ended" : open.returnTo);
+  deps.store.set(next);
+  return next;
+}
