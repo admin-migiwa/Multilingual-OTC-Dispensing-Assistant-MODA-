@@ -75,7 +75,7 @@
 | V-01 | 緊急案内の外部窓口（JNTO の Japan Visitor Hotline、在日の方向けの窓口）の番号と対応言語を公式サイトで確かめる（emergency.md の EN04・EN05） | 保留 | [demo-data/README.md](demo-data/README.md) |
 | V-02 | 緊急症状の表を、消防庁の資料の最新版（令和7年12月発行）と見比べる | 保留 | [demo-data/README.md](demo-data/README.md) |
 | V-03 | テスト表にない行（drugs.md にあってテストがないもの、7日分・18歳ちょうどの境目など）を表に足すか | 保留 | No.8・No.9 のレビュー |
-| V-04 | 自作の架空パッケージ画像5枚（docs/demo-data/photos）を本物の AI で読ませ、4枚以上で正しい候補が出るかを確かめる（`pnpm eval:photos`。API キーを入れてから） | 予定 | T12 |
+| V-04 | 自作の架空パッケージ画像5枚（docs/demo-data/photos）を本物の AI で読ませ、4枚以上で正しい候補が出るかを確かめる（`pnpm eval:photos`。API キーを入れてから） | 済み（11/7 本物の AI で 5枚中5枚、正しい薬がいちばん上に出た。合格は4枚以上） | T12 |
 
 ## 5. 小さな直し・片付け
 
