@@ -71,6 +71,25 @@ describe("定型文（9言語）", () => {
       assert.match(emergency.childLine, /#8000/, lang.code);
     }
   });
+
+  it("訪日外国人向けの窓口（emergency.md の EN04：JNTO の Japan Visitor Hotline）の番号が、どの言語でも同じ", () => {
+    for (const lang of LANGUAGES) {
+      const { visitorHotline } = getMessages(lang.code).emergency;
+      assert.match(visitorHotline, /050-3816-2787/, lang.code);
+      assert.match(visitorHotline, /Japan Visitor Hotline/, lang.code);
+      assert.match(visitorHotline, /JNTO/, lang.code);
+    }
+  });
+
+  it("参考になるページ（emergency.md の EP01〜EP03）の説明が、どの言語でも出どころの機関の名前つきでそろっている", () => {
+    for (const lang of LANGUAGES) {
+      const emergency = getMessages(lang.code).emergency;
+      assert.ok(emergency.infoPagesTitle.length > 0, lang.code);
+      assert.ok(emergency.ambulanceGuidePage.length > 0, lang.code);
+      assert.match(emergency.visitorHotlinePage, /JNTO/, lang.code);
+      assert.match(emergency.residentConsultationPage, /CLAIR/, lang.code);
+    }
+  });
 });
 
 describe("訳の確認状態", () => {

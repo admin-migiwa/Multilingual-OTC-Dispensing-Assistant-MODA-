@@ -112,6 +112,11 @@ export const ja = {
     staffHelp: "スタッフがすぐにお手伝いします。この画面をスタッフに見せてください。",
     consultLine: "救急車を呼ぶか迷うときは、救急相談窓口（#7119 など。地域によって番号が違います）に相談できます。",
     childLine: "子どもの休日・夜間の相談は #8000 です。",
+    visitorHotline: "旅行で日本に来た方は、日本政府観光局（JNTO）の「Japan Visitor Hotline」050-3816-2787 に相談できます（24時間・年中無休。英語・中国語・韓国語。病気やけがなどの非常時の支援）。",
+    infoPagesTitle: "参考になるページ",
+    ambulanceGuidePage: "救急車利用マニュアル（総務省消防庁。日本語のページ。英語・中国語・韓国語の PDF があります）",
+    visitorHotlinePage: "Japan Visitor Hotline の案内（日本政府観光局 JNTO。日本語のページ）",
+    residentConsultationPage: "日本に住んでいる方へ：多言語生活相談窓口の一覧（自治体国際化協会 CLAIR。日本語のページ。英語のページへの案内があります）",
   },
   emergencyFollowUp: {
     intro: "薬剤師からの質問です。あてはまるものを選んでください。",

@@ -108,6 +108,11 @@ export const es: Messages = {
     staffHelp: "Nuestro personal le ayudará de inmediato. Muestre esta pantalla a un miembro del personal.",
     consultLine: "Si no está seguro de llamar a una ambulancia, puede consultar una línea de urgencias (#7119, etc.; el número cambia según la zona).",
     childLine: "Para consultas sobre niños en días festivos o por la noche, llame al #8000.",
+    visitorHotline: "Si está de visita en Japón, puede llamar a la \"Japan Visitor Hotline\" de la Organización Nacional de Turismo de Japón (JNTO) al 050-3816-2787 (24 horas, todos los días; inglés, chino y coreano; ayuda en emergencias como enfermedades o lesiones).",
+    infoPagesTitle: "Páginas web de referencia",
+    ambulanceGuidePage: "Guía para usar la ambulancia (Agencia de Gestión de Incendios y Desastres; página en japonés con PDF en inglés, chino y coreano)",
+    visitorHotlinePage: "Información sobre la Japan Visitor Hotline (Organización Nacional de Turismo de Japón, JNTO; página en japonés)",
+    residentConsultationPage: "Si vive en Japón: lista de centros de consulta multilingüe (CLAIR, Consejo de Autoridades Locales para las Relaciones Internacionales; página en japonés con enlace a una página en inglés)",
   },
   emergencyFollowUp: {
     intro: "Son preguntas del farmacéutico. Elija la respuesta que corresponda.",
