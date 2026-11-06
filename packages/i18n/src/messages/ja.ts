@@ -18,6 +18,8 @@ export const ja = {
     redo: "前の答えをやり直す",
     emergencyButton: "具合が急に悪くなった",
     aiTranslationNotice: "この文は AI が翻訳したものです（まだ人が確認していません）。",
+    networkError: "通信が止まりました。スタッフがすぐにお手伝いします。",
+    retry: "もう一度試す",
   },
   languageSelect: {
     title: "言語を選んでください",
@@ -29,6 +31,11 @@ export const ja = {
     haveProductHint: "商品名を入れる、またはスマホの画面や商品を撮影します",
     findBySymptom: "症状から探す",
     findBySymptomHint: "体の具合を、1つずつ質問します",
+    searchPlaceholder: "商品名を入れてください（スマホの画面の名前でも大丈夫です）",
+    noMatch: "見つかりませんでした。スマホの画面をスタッフに見せてください。",
+    symptomPrompt: "どんな症状ですか？",
+    chooseDrug: "この薬にする",
+    changeDrug: "別の薬を選び直す",
   },
   photoConsent: {
     title: "写真について",

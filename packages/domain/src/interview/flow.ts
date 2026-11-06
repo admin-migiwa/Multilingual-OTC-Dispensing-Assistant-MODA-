@@ -9,7 +9,7 @@
 import { DomainRuleError } from "../errors.ts";
 import { assertValidFacts, type InterviewFacts } from "../contraindication/facts.ts";
 import type { StockedDrugId } from "../contraindication/data.ts";
-import { findStockedDrug } from "../contraindication/judge.ts";
+import { findStockedDrug, questionsUsedByDrug } from "../contraindication/judge.ts";
 import {
   DEFAULT_INTERVIEW_SETTINGS,
   type AbusePreventionAnswers,
@@ -18,6 +18,7 @@ import {
   findQuestion,
   type AskContext,
   type InterviewAnswers,
+  type InterviewRoute,
   type InterviewSettings,
   type QuestionDefinition,
   type QuestionId,
@@ -26,10 +27,34 @@ import {
 export interface InterviewState {
   readonly answers: InterviewAnswers;
   readonly selectedDrugs: readonly StockedDrugId[];
+  /** 問診の流れ（ほしい薬がある／症状から探す）。決まるまでは年齢・性別だけを聞く */
+  readonly route?: InterviewRoute;
 }
 
 function contextOf(state: InterviewState, settings: InterviewSettings): AskContext {
-  return { answers: state.answers, selectedDrugs: state.selectedDrugs, settings };
+  return { answers: state.answers, selectedDrugs: state.selectedDrugs, route: state.route, settings };
+}
+
+/**
+ * その項目を、いま聞く必要があるか。
+ * - 年齢・性別と薬ごとの項目：それぞれの聞く条件のとおり
+ * - 基本の項目：症状から探すときは聞く条件のとおり（全員）。ほしい薬のときは、選んだ薬の禁忌判定に使う項目だけ
+ *   （体重 Q05 は用量の確認に使うので、15歳未満には聞く。いま飲んでいる薬 Q09 は、薬を選んだあとに必ず聞く）。
+ *   流れが決まるまでは聞かない
+ */
+export function isAsked(question: QuestionDefinition, ctx: AskContext): boolean {
+  if (!question.askWhen(ctx)) return false;
+  if (question.stage !== "basic") return true;
+  if (ctx.route === "symptom") return true;
+  if (ctx.route === "product") {
+    if (question.id === "Q05") return true;
+    // いま飲んでいる薬（Q09）は、選んだ薬の判定に使わなくても、薬を選んだ人には必ず聞く
+    // （在日の方の処方薬を薬剤師が見て飲み合わせを判断するため。判定には使わない。
+    //   11/6 依頼主の判断。docs/demo-data/contraindication-tests.md K39）
+    if (question.id === "Q09") return ctx.selectedDrugs.length > 0;
+    return ctx.selectedDrugs.some((drug) => (questionsUsedByDrug(drug) as ReadonlySet<string>).has(question.id));
+  }
+  return false;
 }
 
 function isAnswered(question: QuestionDefinition, answers: InterviewAnswers): boolean {
@@ -51,7 +76,7 @@ export function missingQuestions(
     if (stage !== undefined && question.stage !== stage) continue;
     // 聞く条件は、それより前の答えで決まる（例：Q03 は Q01・Q02 の答えが出るまで「聞かない」と判定される）。
     // Q01・Q02 は必ず聞くので、先に答えがそろうまで問診は終わらない
-    if (!question.askWhen(ctx)) continue;
+    if (!isAsked(question, ctx)) continue;
     if (!isAnswered(question, state.answers)) result.push(question.id);
   }
   return result;
@@ -59,24 +84,41 @@ export function missingQuestions(
 
 /**
  * 次に聞く項目。聞く項目がもうなければ null。
- * 基本の項目をすべて聞き終えるまで、薬ごとの項目は聞かない。
+ * 年齢・性別 → 基本の項目 → 薬ごとの項目 の順に聞く。
  */
 export function nextQuestion(
   state: InterviewState,
   settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
 ): QuestionId | null {
+  const attributes = missingQuestions(state, settings, "attributes");
+  if (attributes.length > 0) return attributes[0] ?? null;
   const basic = missingQuestions(state, settings, "basic");
   if (basic.length > 0) return basic[0] ?? null;
   const drug = missingQuestions(state, settings, "drug");
   return drug[0] ?? null;
 }
 
-/** 基本の項目をすべて答え終えたか（薬の選択に進めるか） */
+/** 年齢・性別を答え終えたか（問診の流れを選べるか） */
+export function areAttributesComplete(
+  state: InterviewState,
+  settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
+): boolean {
+  return missingQuestions(state, settings, "attributes").length === 0;
+}
+
+/**
+ * 薬の選択に進めるか。流れが決まっていて、年齢・性別と、いま聞く基本の項目を答え終えていること
+ * （ほしい薬の流れでは、薬を選ぶ前に聞く基本の項目はないので、年齢・性別を答えれば進める）。
+ */
 export function isBasicInterviewComplete(
   state: InterviewState,
   settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
 ): boolean {
-  return missingQuestions(state, settings, "basic").length === 0;
+  return (
+    state.route !== undefined &&
+    missingQuestions(state, settings, "attributes").length === 0 &&
+    missingQuestions(state, settings, "basic").length === 0
+  );
 }
 
 /**
@@ -87,7 +129,7 @@ export function isInterviewComplete(
   state: InterviewState,
   settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
 ): boolean {
-  return state.selectedDrugs.length > 0 && missingQuestions(state, settings).length === 0;
+  return state.route !== undefined && state.selectedDrugs.length > 0 && missingQuestions(state, settings).length === 0;
 }
 
 /** 問診が終わっていなければ止める（薬剤師の確認に進む前などに呼ぶ） */
@@ -95,6 +137,9 @@ export function assertInterviewComplete(
   state: InterviewState,
   settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
 ): void {
+  if (state.route === undefined) {
+    throw new DomainRuleError("ROUTE_NOT_CHOSEN", "問診の流れ（ほしい薬／症状から）が決まっていないので、問診を終えられません");
+  }
   if (state.selectedDrugs.length === 0) {
     throw new DomainRuleError("NO_DRUG_SELECTED", "薬が選ばれていないので、問診を終えられません");
   }
@@ -144,11 +189,11 @@ function dropAnswersNoLongerAsked(state: InterviewState, settings: InterviewSett
   let answers: InterviewAnswers = { ...state.answers };
   // 前の項目の変化が後ろの項目の条件に効くので、変化がなくなるまでくり返す
   for (let round = 0; round < QUESTIONS.length; round += 1) {
-    const ctx: AskContext = { answers, selectedDrugs: state.selectedDrugs, settings };
+    const ctx: AskContext = { answers, selectedDrugs: state.selectedDrugs, route: state.route, settings };
     let changed = false;
     for (const question of QUESTIONS) {
-      if (question.askWhen(ctx)) continue;
-      for (const key of question.answerKeys) {
+      if (isAsked(question, ctx)) continue;
+      for (const key of [...question.answerKeys, ...(question.optionalKeys ?? [])]) {
         if (answers[key] !== undefined) {
           answers = { ...answers };
           delete answers[key];
@@ -197,7 +242,15 @@ export function applyAnswersWithReport(
   newAnswers: InterviewAnswers,
   settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
 ): ApplyAnswersResult {
-  const merged: InterviewAnswers = { ...state.answers, ...newAnswers };
+  const merged: InterviewAnswers = { ...state.answers };
+  // 項目に答え直したら、その項目に付いてくる答え（「その他」の文・薬の名前）も前のものを消す。
+  // 新しい答えに含まれていなければ残さない（古い文が新しい答えと一緒に記録に残らないように）
+  for (const question of QUESTIONS) {
+    if (!question.optionalKeys) continue;
+    if (!question.answerKeys.some((key) => newAnswers[key] !== undefined)) continue;
+    for (const key of question.optionalKeys) delete merged[key];
+  }
+  Object.assign(merged, newAnswers);
   // 先に「聞く必要がなくなった答え」と「聞かない項目への答え」を消してから形を確かめる。
   // 例：R02 を「複数個・3個」から「小箱1個」に直したとき、古い個数が残って形の誤りにならないように
   const next: InterviewState = { ...state, answers: dropAnswersNoLongerAsked({ ...state, answers: merged }, settings) };
@@ -206,11 +259,30 @@ export function applyAnswersWithReport(
   const ignored = new Set<QuestionId>();
   for (const key of Object.keys(newAnswers) as (keyof InterviewAnswers)[]) {
     if (newAnswers[key] !== undefined && next.answers[key] === undefined) {
-      const owner = QUESTIONS.find((q) => q.answerKeys.includes(key));
+      const owner = QUESTIONS.find((q) => q.answerKeys.includes(key) || (q.optionalKeys ?? []).includes(key));
       if (owner) ignored.add(owner.id);
     }
   }
   return { state: next, ignored: [...ignored] };
+}
+
+/**
+ * 問診の流れを選ぶ（ほしい薬がある／症状から探す）。年齢・性別を答えてから選ぶ。
+ * 選び直しもできる（聞く必要がなくなった答えは消す）。
+ */
+export function chooseRoute(
+  state: InterviewState,
+  route: InterviewRoute,
+  settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
+): InterviewState {
+  if (route !== "product" && route !== "symptom") {
+    throw new DomainRuleError("INVALID_ROUTE", "問診の流れの形が違います");
+  }
+  if (!areAttributesComplete(state, settings)) {
+    throw new DomainRuleError("ATTRIBUTES_INCOMPLETE", "年齢と性別を答えてから、問診の流れを選びます");
+  }
+  const next: InterviewState = { ...state, route };
+  return { ...next, answers: dropAnswersNoLongerAsked(next, settings) };
 }
 
 /** 選んだ薬を変える。聞く必要がなくなった薬ごとの項目の答えは消す。取扱薬にない記号は止める */

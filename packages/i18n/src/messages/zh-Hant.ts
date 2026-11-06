@@ -14,6 +14,8 @@ export const zhHant: Messages = {
     redo: "重新回答上一題",
     emergencyButton: "突然感到非常不舒服",
     aiTranslationNotice: "本文由 AI 翻譯（尚未經過人工確認）。",
+    networkError: "網路連線已中斷。工作人員會馬上為您提供協助。",
+    retry: "重試",
   },
   languageSelect: {
     title: "請選擇語言",
@@ -25,6 +27,11 @@ export const zhHant: Messages = {
     haveProductHint: "輸入商品名稱，或拍攝手機畫面或商品",
     findBySymptom: "依症狀找藥",
     findBySymptomHint: "我們會逐一詢問您的身體狀況",
+    searchPlaceholder: "請輸入商品名稱（手機畫面上的名稱也可以）",
+    noMatch: "沒有找到。請把手機畫面給工作人員看。",
+    symptomPrompt: "您有什麼症狀？",
+    chooseDrug: "選擇這個藥",
+    changeDrug: "重新選擇其他藥",
   },
   photoConsent: {
     title: "關於照片",
