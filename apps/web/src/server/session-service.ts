@@ -10,7 +10,7 @@
 import {
   DomainRuleError,
   EMERGENCY_RULES,
-  applyAnswers,
+  applyAnswersWithReport,
   isTerminal,
   isBasicInterviewComplete,
   isInterviewComplete,
@@ -81,6 +81,7 @@ export type SessionEventType =
   | "answered"
   | "corrected"
   | "answers_cleared"
+  | "answers_ignored"
   | "drugs_selected"
   | "status_changed"
   | "emergency_opened"
@@ -239,9 +240,10 @@ export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers)
     }
   }
   const before = record.interview.answers;
-  const interview = applyAnswers(record.interview, answers);
+  const { state: interview, ignored } = applyAnswersWithReport(record.interview, answers);
   const keys = Object.keys(answers) as (keyof InterviewAnswers)[];
-  const answered = keys.filter((key) => answers[key] !== undefined);
+  // 聞かない項目への答え（捨てたもの）は「答えた」に入れない
+  const answered = keys.filter((key) => answers[key] !== undefined && interview.answers[key] !== undefined);
   // 訂正した項目と、訂正で聞く必要がなくなって消えた項目を、種類だけ履歴に残す（中身は残さない）
   const corrected = answered.filter((key) => before[key] !== undefined && JSON.stringify(before[key]) !== JSON.stringify(answers[key]));
   const cleared = (Object.keys(before) as (keyof InterviewAnswers)[]).filter(
@@ -250,6 +252,7 @@ export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers)
   const newEvents = [event(deps, "answered", answered)];
   if (corrected.length > 0) newEvents.push(event(deps, "corrected", corrected));
   if (cleared.length > 0) newEvents.push(event(deps, "answers_cleared", cleared));
+  if (ignored.length > 0) newEvents.push(event(deps, "answers_ignored", ignored));
   let next: SessionRecord = { ...record, interview, events: [...record.events, ...newEvents] };
   // 薬の選択のあとに答え直して聞く項目が増えたら、問診に戻る
   if (next.snapshot.status === "drug_selection" && nextQuestion(next.interview) !== null) {

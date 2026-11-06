@@ -247,3 +247,16 @@ describe("レビュー後の直し（No.13）", () => {
     assert.deepEqual([...(cleared?.detail ?? [])].sort(), ["breastfeeding", "pregnancy"]);
   });
 });
+
+describe("ほかの答えも一緒に受け取る（11/6 の判断、J-06）", () => {
+  it("男性が妊娠についても答えたら、妊娠の答えは捨て、年齢と性別は受け取って、捨てた項目を履歴に残す", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    const record = answer(deps, id, { age: 30, sex: "male", pregnancy: "not_applicable" });
+    assert.equal(record.interview.answers.sex, "male");
+    assert.equal(record.interview.answers.pregnancy, undefined);
+    assert.equal(record.snapshot.status, "interview");
+    assert.deepEqual(record.events.find((e) => e.type === "answers_ignored")?.detail, ["Q03"]);
+    assert.deepEqual(record.events.find((e) => e.type === "answered")?.detail, ["age", "sex"]);
+  });
+});
