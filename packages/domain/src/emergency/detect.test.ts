@@ -30,7 +30,7 @@ describe("辞書の形：emergency.md の ☑ の行がそろっている", () =
     }
   });
 
-  it("EA24（いつもと違う・様子がおかしい）はキーワードで拾わない（緊急ボタンと薬剤師の判断）", () => {
+  it("EA24（いつもと違う・様子がおかしい）はキーワードで拾わない（薬剤師が手動で「緊急の確認を開く」）", () => {
     const ea24 = EMERGENCY_RULES.find((rule) => rule.id === "EA24");
     assert.ok(ea24);
     for (const language of EMERGENCY_KEYWORD_LANGUAGES) {
@@ -173,8 +173,9 @@ describe("こどもの項目（EC01〜EC08）は15歳以下のときだけ使う
     assert.equal(detectEmergency("嘔吐が止まらない", { language: "ja", age: 30 }).isEmergency, false);
   });
 
-  it("年齢がまだわからないときは、こどもの項目は使わない", () => {
-    assert.equal(detectEmergency("くちびるが紫", { language: "ja" }).isEmergency, false);
+  it("年齢がまだわからないときは、こどもの項目も使う（11/6 薬剤師の判断：見落とすほうが危険）", () => {
+    assert.ok(hitIds("くちびるが紫", "ja").includes("EC01"));
+    assert.ok(hitIds("嘔吐が止まらない", "ja").includes("EC05"));
   });
 
   it("こどもでも、おとなの項目（胸が痛い）は使う", () => {
@@ -197,6 +198,36 @@ describe("こどもの項目（EC01〜EC08）は15歳以下のときだけ使う
 
   it("英語でも、5歳で「purple lips」は EC01 として緊急になる", () => {
     assert.ok(hitIds("His lips are purple", "en", 5).includes("EC01"));
+  });
+});
+
+describe("書き方の違いをそろえて照合する（表の ☑ のキーワードを別の書き方にしたもの）", () => {
+  it("ひらがなで書いた「息がくるしい」は EA11（息苦しい）として緊急になる", () => {
+    assert.ok(hitIds("息がくるしい", "ja").includes("EA11"));
+  });
+
+  it("ひらがなで書いた「いきができない」は EA11（息ができない）として緊急になる", () => {
+    assert.ok(hitIds("いきができない", "ja").includes("EA11"));
+  });
+
+  it("カタカナで書いた「クチビルが紫」は、年齢がわからないとき EC01（くちびるが紫）として緊急になる", () => {
+    assert.ok(hitIds("クチビルが紫", "ja").includes("EC01"));
+  });
+
+  it("カタカナで書いた「ケイレン」「ゼイゼイ」もひらがなと同じに扱う", () => {
+    assert.ok(hitIds("ケイレンしている", "ja").includes("EA21"));
+    assert.ok(hitIds("ゼイゼイしている", "ja", 5).includes("EC02"));
+  });
+
+  it("ベトナム語は声調記号を付けずに書いても検知する（đ は d とみなす）", () => {
+    assert.ok(hitIds("Toi bi dau nguc", "vi").includes("EA12"));
+    assert.ok(hitIds("toi kho tho", "vi").includes("EA11"));
+  });
+
+  it("英語のアポストロフィが抜けても（cant）、離して書いても（can not）検知する", () => {
+    assert.ok(hitIds("I cant breathe", "en").includes("EA11"));
+    assert.ok(hitIds("I can not breathe", "en").includes("EA11"));
+    assert.ok(hitIds("I cannot breathe", "en").includes("EA11"));
   });
 });
 

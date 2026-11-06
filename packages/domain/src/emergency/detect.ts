@@ -12,7 +12,7 @@ export const CHILD_MAX_AGE = 15;
 export interface EmergencyDetectionOptions {
   /** 患者さんが選んだ言語のコード（packages/i18n の LANGUAGES と同じ文字列） */
   readonly language: string;
-  /** 年齢。わかっていて15歳以下のときだけ、こどもの項目も使う */
+  /** 年齢。15歳以下のときと、まだわからないときは、こどもの項目も使う（16歳以上なら使わない） */
   readonly age?: number | undefined;
 }
 
@@ -36,8 +36,19 @@ export interface EmergencyDetectionResult {
 /** 空白で語を区切らない言語。照合のときは空白をすべて取り除く。 */
 const NO_SPACE_LANGUAGES: ReadonlySet<EmergencyKeywordLanguage> = new Set(["ja", "zh-Hans", "zh-Hant", "ko"]);
 
-/** アクセント記号の有無を区別せずに照合する言語（é と e を同じとみなす） */
-const ACCENT_FOLD_LANGUAGES: ReadonlySet<EmergencyKeywordLanguage> = new Set(["es", "pt", "fr"]);
+/**
+ * アクセント記号・声調記号の有無を区別せずに照合する言語（é と e、ộ と o を同じとみなす）。
+ * ベトナム語は、声調記号を付けずに入力されても拾うため（đ は d とみなす）。
+ */
+const ACCENT_FOLD_LANGUAGES: ReadonlySet<EmergencyKeywordLanguage> = new Set(["es", "pt", "fr", "vi"]);
+
+/** アポストロフィの有無を区別しない言語（can't と cant、n'arrive と narrive を同じとみなす） */
+const APOSTROPHE_FOLD_LANGUAGES: ReadonlySet<EmergencyKeywordLanguage> = new Set(["en", "es", "pt", "fr", "vi"]);
+
+/** カタカナをひらがなに変える（「クチビル」と「くちびる」を同じとみなす） */
+function katakanaToHiragana(text: string): string {
+  return text.replace(/[ァ-ヶ]/g, (ch) => String.fromCharCode(ch.charCodeAt(0) - 0x60));
+}
 
 function isKeywordLanguage(code: string): code is EmergencyKeywordLanguage {
   return (EMERGENCY_KEYWORD_LANGUAGES as readonly string[]).includes(code);
@@ -59,8 +70,18 @@ function normalizeBase(text: string): string {
 
 function normalizeFor(text: string, language: EmergencyKeywordLanguage): string {
   let result = normalizeBase(text);
+  if (language === "ja") {
+    result = katakanaToHiragana(result);
+  }
   if (ACCENT_FOLD_LANGUAGES.has(language)) {
-    result = result.normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC");
+    result = result.normalize("NFD").replace(/\p{M}/gu, "").normalize("NFC").replace(/đ/g, "d");
+  }
+  if (APOSTROPHE_FOLD_LANGUAGES.has(language)) {
+    result = result.replace(/'/g, "");
+  }
+  if (language === "en") {
+    // 「can not」「cannot」「can't」「cant」を同じとみなす
+    result = result.replace(/\bcan\s*not\b/g, "cant");
   }
   if (NO_SPACE_LANGUAGES.has(language)) {
     return result.replace(/\s+/g, "");
@@ -100,9 +121,15 @@ function findKeyword(
   return null;
 }
 
+/**
+ * こどもの項目を使うか。15歳以下のときに加えて、年齢がまだわからないときも使う
+ * （11/6 薬剤師の判断：見落とすほうが危険。emergency.md「こども（15歳以下）」）。
+ * 16歳以上とわかっているときだけ使わない。
+ */
 function appliesToAge(rule: EmergencyRule, age: number | undefined): boolean {
   if (rule.audience === "adult") return true;
-  return age !== undefined && Number.isFinite(age) && age >= 0 && age <= CHILD_MAX_AGE;
+  if (age === undefined || !Number.isFinite(age) || age < 0) return true;
+  return age <= CHILD_MAX_AGE;
 }
 
 /**

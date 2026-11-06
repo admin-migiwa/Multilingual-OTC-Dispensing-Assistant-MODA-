@@ -12,8 +12,9 @@ import { EmergencyGuide, type EmergencyTrigger } from "./emergency-guide";
  * 言語選択と、最初の案内（T3：言語を切り替えると文が変わることの確認用）。
  * 「ほしい薬がある」「症状から探す」から先の画面は T7 で作る。まだボタンを押しても先に進まない。
  *
- * T6：「具合が急に悪くなった」ボタンと、確認用の入力欄（緊急キーワードの判定）から、
- * 薬剤師の確認 → 119番の案内 に切り替わる。
+ * T6：薬剤師用の小さな「緊急の確認を開く」（どの画面にも右上に出す）と、確認用の入力欄（緊急キーワードの判定）から、
+ * 薬剤師の確認 → 119番の案内 に切り替わる（spec.md 決まったこと No.38、11/6 の役割分担）。
+ * 患者さん向けの大きな緊急ボタンは置かない（見てわかる人・言葉にできない人は、薬剤師が手動で開く）。
  * 判定と案内の表示は、この端末（ブラウザ）の中だけで行い、サーバーへの通信を使わない（絶対に守るルール2）。
  */
 export function LanguageStart() {
@@ -26,6 +27,62 @@ export function LanguageStart() {
    */
   const [followUp, setFollowUp] = useState<FollowUpState>(EMPTY_FOLLOW_UP);
 
+  if (emergency !== null) {
+    return (
+      <EmergencyGuide
+        language={selected}
+        onLanguageChange={setSelected}
+        trigger={emergency}
+        followUp={followUp}
+        onFollowUpChange={setFollowUp}
+        onReturn={() => setEmergency(null)}
+      />
+    );
+  }
+
+  return (
+    <>
+      <StaffEmergencyButton onOpen={() => setEmergency({ kind: "staff" })} />
+      <PatientScreen
+        selected={selected}
+        onSelect={setSelected}
+        followUp={followUp}
+        onEmergency={setEmergency}
+      />
+    </>
+  );
+}
+
+/**
+ * 薬剤師用の「緊急の確認を開く」（日本語・小さく右上）。患者さんのどの画面にも出す。
+ * 見てわかる緊急・言葉にできない人・通信が止まったときに、薬剤師が手動で緊急の確認を開く。
+ */
+function StaffEmergencyButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      lang="ja"
+      onClick={onOpen}
+      className="fixed right-3 top-3 z-10 rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
+    >
+      薬剤師用：緊急の確認を開く
+    </button>
+  );
+}
+
+function PatientScreen({
+  selected,
+  onSelect,
+  followUp,
+  onEmergency,
+}: {
+  selected: LanguageCode | null;
+  onSelect: (language: LanguageCode | null) => void;
+  followUp: FollowUpState;
+  onEmergency: (trigger: EmergencyTrigger) => void;
+}) {
+  const setSelected = onSelect;
+  const setEmergency = onEmergency;
   if (selected === null) {
     return (
       <>
@@ -55,18 +112,6 @@ export function LanguageStart() {
     );
   }
 
-  if (emergency !== null) {
-    return (
-      <EmergencyGuide
-        language={selected}
-        trigger={emergency}
-        followUp={followUp}
-        onFollowUpChange={setFollowUp}
-        onReturn={() => setEmergency(null)}
-      />
-    );
-  }
-
   const t = getMessages(selected);
 
   return (
@@ -93,14 +138,6 @@ export function LanguageStart() {
           <span className="text-sm text-slate-600">{t.start.findBySymptomHint}</span>
         </button>
       </div>
-
-      <button
-        type="button"
-        onClick={() => setEmergency({ kind: "button" })}
-        className="w-full rounded-2xl bg-red-700 px-5 py-4 text-xl font-bold text-white transition hover:bg-red-800"
-      >
-        {t.common.emergencyButton}
-      </button>
 
       {hasFollowUpRecord(followUp) ? (
         <p lang="ja" className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
@@ -172,7 +209,7 @@ function EmergencyCheckBox({
         />
       </label>
       <label className="block space-y-1">
-        <span className="text-sm text-slate-600">年齢（わかれば。15歳以下ならこどもの項目も判定します）</span>
+        <span className="text-sm text-slate-600">年齢（わかれば。15歳以下か空欄なら、こどもの項目も判定します）</span>
         <input
           type="number"
           inputMode="numeric"

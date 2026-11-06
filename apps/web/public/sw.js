@@ -6,8 +6,11 @@
  * - 画面（HTML）と、画面のプログラム・見た目のファイル（/_next/static/）だけを保存する。
  * - API（/api/）は保存しない。患者さんの入力や健康情報はここを通らない（GET の画面だけを扱う）。
  * - 画面は「まず通信、だめなら保存したもの」。/_next/static/ は中身が変わらないので「保存したものを優先」。
+ * - 保存の名前にビルドごとの番号を入れる（登録のときに /sw.js?v=番号 で渡す）。新しいビルドが入ると
+ *   古い保存は消すので、たまらない。
  */
-const CACHE_NAME = "moda-shell-v1";
+const BUILD_ID = new URL(self.location.href).searchParams.get("v") || "dev";
+const CACHE_NAME = `moda-shell-${BUILD_ID}`;
 const START_URL = "/";
 
 self.addEventListener("install", (event) => {
@@ -74,6 +77,11 @@ async function networkFirst(request) {
     if (response.ok && isCacheable(new URL(request.url))) {
       const cache = await caches.open(CACHE_NAME);
       await cache.put(request, response.clone());
+    }
+    if (!response.ok && request.mode === "navigate") {
+      // サーバーが止まりかけてエラー（502・503 など）を返したときも、保存した画面を出す
+      const cached = (await caches.match(request)) ?? (await caches.match(START_URL));
+      if (cached) return cached;
     }
     return response;
   } catch {

@@ -5,17 +5,27 @@ import { useEffect } from "react";
 /**
  * Service Worker（public/sw.js）を登録して、画面を端末に保持する（緊急案内をオフラインでも出すため）。
  *
- * 開発サーバー（pnpm dev）では、古い画面が残って確認しにくくなるため登録しない。
+ * 開発サーバー（pnpm dev）では、古い画面が残って確認しにくくなるため登録せず、以前に登録されたものも外す。
  * 本番用ビルド（pnpm build → pnpm start、または公開先）でだけ動く。
+ * 登録のときにビルドごとの番号（next.config.ts の MODA_BUILD_ID）を渡し、古い保存がたまらないようにする。
  */
 export function ServiceWorkerRegister() {
   useEffect(() => {
-    if (process.env.NODE_ENV !== "production") return;
     if (!("serviceWorker" in navigator)) return;
+    if (process.env.NODE_ENV !== "production") {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then((registrations) => Promise.all(registrations.map((registration) => registration.unregister())))
+        .catch((error: unknown) => {
+          console.error("以前の Service Worker を外せませんでした", error);
+        });
+      return;
+    }
 
     let cancelled = false;
+    const buildId = process.env.MODA_BUILD_ID ?? "unknown";
     navigator.serviceWorker
-      .register("/sw.js")
+      .register(`/sw.js?v=${encodeURIComponent(buildId)}`)
       .then(() => navigator.serviceWorker.ready)
       .then((registration) => {
         if (cancelled) return;

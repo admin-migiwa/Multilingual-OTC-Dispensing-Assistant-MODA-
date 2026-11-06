@@ -3,6 +3,7 @@
  *
  * - 日本語（ja）は emergency.md の「キーワード（日本語の例）」と、その書き方の違い（漢字・ひらがな、
  *   「痛い／痛む」など語尾の違い）だけを入れている。表にない症状は足さない。
+ *   カタカナは照合のときにひらがなとみなすので、ここには書かない。
  * - 日本語以外の8言語は、日本語のキーワードを AI で訳したもの（**AI の訳・未確認**）。
  *   人が確認するまでは EMERGENCY_KEYWORD_TRANSLATION で "ai_unreviewed" としておく。
  * - 見落とさないことを優先する（言い過ぎで止まった場合は、薬剤師がその場で問診に戻せる）。
@@ -228,7 +229,7 @@ export const EMERGENCY_RULES: readonly EmergencyRule[] = [
     audience: "adult",
     labelJa: "急な息切れ、呼吸困難",
     keywords: {
-      ja: ["息ができない", "息が出来ない", "息苦し", "息が苦し", "呼吸が苦し", "呼吸困難"],
+      ja: ["息ができない", "息が出来ない", "いきができない", "息苦し", "息ぐるし", "いきぐるし", "息が苦し", "息がくるし", "いきがくるし", "呼吸が苦し", "呼吸がくるし", "こきゅうがくるし", "呼吸困難"],
       en: ["can't breathe", "cannot breathe", "short of breath", "shortness of breath", "difficulty breathing", "hard to breathe", "trouble breathing"],
       "zh-Hans": ["喘不过气", "无法呼吸", "呼吸困难", "呼吸急促", "透不过气"],
       "zh-Hant": ["喘不過氣", "無法呼吸", "呼吸困難", "呼吸急促", "透不過氣"],
@@ -244,7 +245,7 @@ export const EMERGENCY_RULES: readonly EmergencyRule[] = [
     audience: "adult",
     labelJa: "胸の中央が締め付けられる・圧迫されるような痛みが2〜3分続く",
     keywords: {
-      ja: ["胸が締め付け", "胸がしめつけ", "胸が圧迫", "胸が痛", "胸がいた", "むねがいた", "むねが痛", "胸の痛", "胸痛"],
+      ja: ["胸が締め付け", "胸がしめつけ", "胸が締めつけ", "むねがしめつけ", "胸が圧迫", "むねが圧迫", "胸が痛", "胸がいた", "むねがいた", "むねが痛", "胸の痛", "むねの痛", "むねのいた", "胸痛"],
       en: ["chest pain", "chest hurts", "pain in my chest", "pain in the chest", "chest is tight", "chest tightness", "tight chest", "chest feels tight", "pressure in my chest", "chest pressure"],
       "zh-Hans": ["胸痛", "胸疼", "胸口痛", "胸口疼", "胸部疼痛", "胸闷", "胸口发紧", "胸口压迫"],
       "zh-Hant": ["胸痛", "胸疼", "胸口痛", "胸口疼", "胸部疼痛", "胸悶", "胸口發緊", "胸口壓迫"],
@@ -292,7 +293,7 @@ export const EMERGENCY_RULES: readonly EmergencyRule[] = [
     audience: "adult",
     labelJa: "血を吐く（吐血・喀血）",
     keywords: {
-      ja: ["血を吐", "吐血", "喀血"],
+      ja: ["血を吐", "血をはい", "血をはく", "ちをはい", "ちをはく", "吐血", "喀血"],
       en: ["vomited blood", "vomiting blood", "threw up blood", "coughing up blood", "coughed up blood"],
       "zh-Hans": ["吐血", "呕血", "咯血"],
       "zh-Hant": ["吐血", "嘔血", "咯血"],
@@ -340,7 +341,7 @@ export const EMERGENCY_RULES: readonly EmergencyRule[] = [
     audience: "adult",
     labelJa: "意識がない、またはおかしい（もうろう）／ぐったりしている",
     keywords: {
-      ja: ["意識がない", "意識が無い", "意識がおかしい", "もうろう", "朦朧", "ぐったり", "返事がない"],
+      ja: ["意識がない", "意識が無い", "いしきがない", "意識がおかしい", "いしきがおかしい", "もうろう", "朦朧", "ぐったり", "返事がない", "へんじがない"],
       en: ["unconscious", "not conscious", "passed out", "unresponsive", "not responding", "dazed"],
       "zh-Hans": ["没有意识", "失去意识", "昏迷", "意识模糊", "神志不清", "没反应", "瘫软"],
       "zh-Hant": ["沒有意識", "失去意識", "昏迷", "意識模糊", "神志不清", "沒反應", "癱軟"],
@@ -435,7 +436,7 @@ export const EMERGENCY_RULES: readonly EmergencyRule[] = [
     id: "EA24",
     audience: "adult",
     labelJa: "いつもと違う場合、様子がおかしい場合",
-    // emergency.md：キーワードでは拾わず、緊急ボタンと薬剤師の判断で対応する
+    // emergency.md：キーワードでは拾わず、薬剤師が手動で「緊急の確認を開く」で対応する
     keywords: NONE,
   },
 
