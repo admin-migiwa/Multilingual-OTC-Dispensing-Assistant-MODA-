@@ -7,8 +7,10 @@ import { LANGUAGES, getMessages, isSupportedLanguage, needsAiTranslationNotice, 
 
 import { EMPTY_FOLLOW_UP, type FollowUpState } from "./emergency-follow-up";
 import { EmergencyGuide, type EmergencyTrigger } from "./emergency-guide";
+import { ProductFinder } from "./product-finder";
 import { QuestionInput } from "./question-input";
 import { RuleError, sessionApi, type PatientView } from "./session-api";
+import { TranslationChat, type ChatEmergency } from "./translation-chat";
 
 /**
  * 患者さんの画面（T7c）：言語選択 → 年齢・性別 → 1問ずつの問診 → ほしい薬／症状から探す → その薬の問診 → 薬剤師の確認待ち。
@@ -165,6 +167,17 @@ export function LanguageStart() {
         inputText: trigger.kind === "keyword" ? trigger.text : null,
       })
       .catch(() => setRecordFailed(true));
+  }
+
+  /**
+   * 翻訳のチャットが緊急を知らせたとき（backlog C-09）。画面を緊急の確認に切り替えるだけにする。
+   * サーバーは翻訳の処理の中で緊急の確認を開いている（開き済みのところに /emergency を呼ぶと INVALID_TRANSITION になる）ので、ここでは呼ばない。
+   * kind "keyword" は、通信がなくても出すための端末の中の知らせ（記録できていなければ、判断のときに「記録に残せていません」を出す）
+   */
+  function onChatEmergency(found: ChatEmergency) {
+    setEmergency(found.kind === "keyword" ? { kind: "keyword", text: found.text, hits: found.hits } : { kind: "staff" });
+    setRecordFailed(false);
+    show119Recorded.current = false;
   }
 
   /** 自由に入力された文に緊急キーワードがあれば、緊急の確認に切り替えて true を返す */
@@ -324,6 +337,7 @@ export function LanguageStart() {
               setMode("questions");
               void run(() => sessionApi.chooseRoute(view.id, "product"));
             }}
+            onChatEmergency={onChatEmergency}
             onSymptom={(text: string) => {
               if (view === null) return;
               if (checkFreeText(text)) return; // 緊急キーワードに当てはまったら、緊急の確認に切り替わる
@@ -401,6 +415,71 @@ function PatientFrame({ language, children }: { language: LanguageCode; children
 }
 
 function PatientBody({
+  language,
+  view,
+  mode,
+  busy,
+  onMode,
+  onAnswer,
+  onChooseDrug,
+  onChooseProduct,
+  onSymptom,
+  onFreeText,
+  onChatEmergency,
+}: {
+  language: LanguageCode;
+  view: PatientView | null;
+  mode: Mode;
+  busy: boolean;
+  onMode: (mode: Mode) => void;
+  onAnswer: (answers: InterviewAnswers) => void;
+  onChooseDrug: (id: StockedDrugId) => void;
+  onChooseProduct: () => void;
+  onSymptom: (text: string) => void;
+  onFreeText: (text: string) => boolean;
+  onChatEmergency: (found: ChatEmergency) => void;
+}) {
+  const body = (
+    <PatientBodyMain
+      language={language}
+      view={view}
+      mode={mode}
+      busy={busy}
+      onMode={onMode}
+      onAnswer={onAnswer}
+      onChooseDrug={onChooseDrug}
+      onChooseProduct={onChooseProduct}
+      onSymptom={onSymptom}
+      onFreeText={onFreeText}
+    />
+  );
+  // 翻訳のチャット（患者さんと薬剤師が一緒に使う。日本語の見出し・たたんでおく。backlog C-09）。
+  // 接客が始まっていて、終わっていないときだけ出す
+  const chatOpen = view !== null && mode !== "not_for_sale" && !["completed", "declined", "emergency_ended", "emergency_review"].includes(view.status);
+  if (!chatOpen) return body;
+  return (
+    <>
+      {body}
+      <details lang="ja" className="rounded-2xl border border-slate-200 p-3">
+        <summary className="cursor-pointer text-sm font-semibold text-slate-700">
+          翻訳のチャットを開く（薬剤師と一緒に使う）
+        </summary>
+        <div className="mt-3">
+          <TranslationChat
+            sessionId={view.id}
+            language={language}
+            age={view.age ?? undefined}
+            emergencyCleared={view.emergencyCleared}
+            emergencyReviewOpen={view.status === "emergency_review"}
+            onEmergency={onChatEmergency}
+          />
+        </div>
+      </details>
+    </>
+  );
+}
+
+function PatientBodyMain({
   language,
   view,
   mode,
@@ -558,11 +637,45 @@ function DrugSearch({
 }) {
   const t = getMessages(language);
   const [query, setQuery] = useState("");
+  /** 写真・商品名の候補から選ばれた薬（薬剤師の確認を待っている。backlog C-10） */
+  const [pending, setPending] = useState<StockedDrugId | null>(null);
+  const pendingDrug = pending === null ? undefined : STOCKED_DRUGS.find((drug) => drug.id === pending);
   const q = normalizeName(query);
   const matches = q === "" ? STOCKED_DRUGS : STOCKED_DRUGS.filter((drug) => normalizeName(drug.name).includes(q));
   return (
     <div className="space-y-6">
       <h1 className="text-3xl font-bold">{t.start.haveProduct}</h1>
+      {/*
+        写真・商品名から候補を出す（T12。backlog C-10）。候補のボタンは薬剤師が押すもの（spec.md 決まったこと No.22・CLAUDE.md ルール10）なので、
+        選んだらすぐには進めず、薬剤師用の日本語の確認をはさむ。取扱薬でない候補は選べない
+      */}
+      <ProductFinder
+        language={language}
+        onChoose={(drugId) => {
+          const stocked = STOCKED_DRUGS.find((drug) => drug.id === drugId);
+          if (stocked) setPending(stocked.id);
+        }}
+      />
+      {pendingDrug ? (
+        <div lang="ja" className="space-y-3 rounded-2xl border-2 border-teal-500 bg-teal-50 p-4">
+          <p className="font-semibold">
+            薬剤師用：候補「{pendingDrug.name}」で問診を進めますか？（箱やスマホの画面の名前と見比べて、薬剤師が確かめてから押してください）
+          </p>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onChoose(pendingDrug.id)}
+              className="rounded-xl bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
+            >
+              薬剤師が確かめた：この薬で進める
+            </button>
+            <button type="button" onClick={() => setPending(null)} className="rounded-xl border-2 border-slate-300 bg-white px-4 py-2">
+              やめる
+            </button>
+          </div>
+        </div>
+      ) : null}
       <input
         type="search"
         value={query}

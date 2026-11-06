@@ -324,6 +324,8 @@ export interface PharmacistView {
    * 候補の薬・代わりの薬（いま選んでいない取扱薬）の、いまの答えでの仮の判定（薬剤師の確認中だけ。backlog C-03）。
    * 禁忌にならない薬が先。選ぶと、その薬の項目を聞く問診に戻る
    */
+  /** 薬剤師が一度でも「緊急ではない」と判断したか（翻訳のチャットに渡す。patientView と同じ。CLAUDE.md ルール2の例外） */
+  readonly emergencyCleared: boolean;
   readonly candidates: readonly (CandidatePreview & { readonly name: string; readonly classification: string })[];
 }
 
@@ -394,6 +396,7 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
     procedureError,
     checkHistory,
     declinedReason: round?.declinedReason ?? null,
+    emergencyCleared: record.emergencies.some((e) => e.decision === "not_emergency"),
     candidates: reviewing ? candidatesOf(record) : [],
   };
 }
