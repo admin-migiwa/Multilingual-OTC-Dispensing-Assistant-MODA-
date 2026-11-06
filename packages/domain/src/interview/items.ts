@@ -6,7 +6,8 @@
  * - 年齢・性別（Q01・Q02）を最初に聞く（11/6 依頼主の判断。docs/backlog.md C-05）。
  */
 
-import { PREGNANCY_QUESTION_MIN_AGE, type InterviewFacts } from "../contraindication/facts.ts";
+import type { InterviewFacts } from "../contraindication/facts.ts";
+import { asksPregnancyQuestions as asksPregnancyQuestionsFor } from "../contraindication/judge.ts";
 import type { StockedDrugId } from "../contraindication/data.ts";
 
 /** 指定濫用防止医薬品を選んだときの追加の問診（R01〜R04）の答え */
@@ -64,7 +65,7 @@ export interface InterviewSettings {
 }
 
 /**
- * 妊娠・授乳を聞く最低年齢は、禁忌判定と同じ値（PREGNANCY_QUESTION_MIN_AGE）を使い、ここでは変えられない。
+ * 妊娠・授乳を聞く最低年齢は、禁忌判定と同じ値（PREGNANCY_QUESTION_MIN_AGE）と同じ関数（asksPregnancyQuestions）を使い、ここでは変えられない。
  * 問診と判定で基準がずれると、判定に必要な答えを聞かないまま問診が終わってしまうため。
  */
 export const DEFAULT_INTERVIEW_SETTINGS: InterviewSettings = {
@@ -104,11 +105,13 @@ const always = (): boolean => true;
 const selected = (...ids: StockedDrugId[]) => (ctx: AskContext): boolean =>
   ctx.selectedDrugs.some((id) => ids.includes(id));
 
-/** 妊娠・授乳を聞く対象か：性別が男性以外、かつ12歳以上（Q03・Q04。禁忌判定と同じ基準） */
+/**
+ * 妊娠・授乳を聞く対象か：性別が男性以外、かつ12歳以上。選んだ薬に A があるときは年齢を問わない
+ * （Q03・Q04。禁忌判定と同じ関数を使う。11/6 薬剤師の判断。backlog J-01・C-11）
+ */
 function asksPregnancyQuestions(ctx: AskContext): boolean {
-  const { sex, age } = ctx.answers;
-  if (sex === undefined || age === undefined) return false; // Q01・Q02 を先に聞くので、ここには来ない
-  return sex !== "male" && age >= PREGNANCY_QUESTION_MIN_AGE;
+  // 年齢・性別（Q01・Q02）を先に聞くので、まだなら聞かない
+  return asksPregnancyQuestionsFor(ctx.answers.sex, ctx.answers.age, ctx.selectedDrugs);
 }
 
 /**

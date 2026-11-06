@@ -75,24 +75,47 @@ function need<K extends keyof InterviewFacts>(
   return value as NonNullable<InterviewFacts[K]>;
 }
 
-/** 妊娠・授乳を聞く対象か（男性と12歳未満には聞かない。interview-items.md Q03・Q04） */
-function asksPregnancyAndBreastfeeding(facts: InterviewFacts): boolean {
+/**
+ * 妊娠・授乳（Q03・Q04）を聞く対象か（interview-items.md Q03・Q04）。
+ * 男性には聞かない。12歳未満にも聞かないが、選んだ薬に pregnancyQuestionsAtAnyAge の薬（A）があるときは年齢を問わない。
+ * 問診（どの項目を聞くか。選んだ薬ぜんぶを渡す）と禁忌判定（その薬で答えが要るか。その薬だけを渡す）の両方がこの関数を使う。
+ * 2か所で基準をずらさないこと。判定では、ほかの薬のために聞いた答えも使う（usesPregnancyAnswer。K47）。
+ */
+export function asksPregnancyQuestions(
+  sex: InterviewFacts["sex"],
+  age: InterviewFacts["age"],
+  drugIds: readonly StockedDrugId[],
+): boolean {
+  if (sex === undefined || age === undefined) return false;
+  if (sex === "male") return false;
+  return age >= PREGNANCY_QUESTION_MIN_AGE || drugIds.some((id) => findStockedDrug(id).pregnancyQuestionsAtAnyAge === true);
+}
+
+/**
+ * この薬の判定で、妊娠（key = "pregnancy"）・授乳（key = "breastfeeding"）の答えを使うか（年齢・性別がまだなら止める）。
+ * - この薬だけで聞く対象なら、答えが要る（なければ need() で止める）。
+ * - 12歳未満で、この薬だけなら聞かない場合でも、一緒に選んだ A のために聞いた答えが記録にあれば使う
+ *   （11/6 依頼主＝薬剤師の判断。contraindication-tests.md K47。例：A と J を選んだ11歳の妊娠の答えを J の注意にも使う）。
+ */
+function usesPregnancyAnswer(facts: InterviewFacts, drug: StockedDrug, key: "pregnancy" | "breastfeeding"): boolean {
   const sex = need(facts, "sex", "Q02");
   const age = need(facts, "age", "Q01");
-  return sex !== "male" && age >= PREGNANCY_QUESTION_MIN_AGE;
+  if (sex === "male") return false;
+  if (asksPregnancyQuestions(sex, age, [drug.id])) return true;
+  return facts[key] !== undefined && facts[key] !== null;
 }
 
 type PregnancyState = "pregnant" | "maybe" | "not_pregnant";
 
-function pregnancyState(facts: InterviewFacts): PregnancyState {
-  if (!asksPregnancyAndBreastfeeding(facts)) return "not_pregnant";
+function pregnancyState(facts: InterviewFacts, drug: StockedDrug): PregnancyState {
+  if (!usesPregnancyAnswer(facts, drug, "pregnancy")) return "not_pregnant";
   const answer = need(facts, "pregnancy", "Q03");
   if (answer === "pregnant") return "pregnant";
   if (answer === "maybe") return "maybe";
   return "not_pregnant";
 }
 
-function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
+function evaluate(condition: RuleCondition, facts: InterviewFacts, drug: StockedDrug): Match {
   switch (condition.kind) {
     case "age_under":
       return need(facts, "age", "Q01") < condition.years ? hit(["Q01"]) : NO_MATCH;
@@ -101,14 +124,14 @@ function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
       return need(facts, "sex", "Q02") === "male" ? hit(["Q02"]) : NO_MATCH;
 
     case "pregnant": {
-      const state = pregnancyState(facts);
+      const state = pregnancyState(facts, drug);
       if (state === "pregnant") return hit(["Q03"]);
       if (state === "maybe") return uncertainHit(["Q03"], LABEL_MAYBE_PREGNANT);
       return NO_MATCH;
     }
 
     case "due_within_12_weeks": {
-      const state = pregnancyState(facts);
+      const state = pregnancyState(facts, drug);
       // 妊娠しているかもしれない人には Q03a を聞けないので、12週以内かどうかもわからない
       if (state === "maybe") return uncertainHit(["Q03"], LABEL_MAYBE_PREGNANT_DUE_UNKNOWN);
       if (state !== "pregnant") return NO_MATCH;
@@ -119,13 +142,13 @@ function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
     }
 
     case "pregnant_before_12_weeks": {
-      if (pregnancyState(facts) !== "pregnant") return NO_MATCH;
+      if (pregnancyState(facts, drug) !== "pregnant") return NO_MATCH;
       const due = need(facts, "dueWithin12Weeks", "Q03a");
       return due === "no" ? hit(["Q03", "Q03a"]) : NO_MATCH;
     }
 
     case "breastfeeding": {
-      if (!asksPregnancyAndBreastfeeding(facts)) return NO_MATCH;
+      if (!usesPregnancyAnswer(facts, drug, "breastfeeding")) return NO_MATCH;
       return need(facts, "breastfeeding", "Q04") === "yes" ? hit(["Q04"]) : NO_MATCH;
     }
 
@@ -229,7 +252,7 @@ export function judgeDrug(drugId: StockedDrugId, facts: InterviewFacts): DrugJud
   const drug = findStockedDrug(drugId);
   const reasons: JudgmentReason[] = [];
   for (const rule of drug.rules) {
-    const match = evaluate(rule.condition, facts);
+    const match = evaluate(rule.condition, facts, drug);
     if (match.matched) reasons.push(toReason(rule, match));
   }
   const verdict: Verdict = reasons.some((r) => r.verdict === "contraindicated")
