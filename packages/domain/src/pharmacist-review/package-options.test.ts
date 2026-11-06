@@ -35,14 +35,14 @@ describe("R02 の時点の個数・包装の制限（M-12）", () => {
     assert.equal(checkPackageAnswer(["E"], { packageChoice: "multiple", multipleCount: 3 }, 30, rules).allowed, true);
   });
 
-  it("S09・S10・S11：17歳の R02 では小箱1個だけを選べ、注意文を2つとも出す", () => {
+  it("S09・S10・S11：17歳の R02 では小箱1個だけを選べ、大箱には「大容量」、2つ以上には「1個まで」の注意文を出す", () => {
     assert.deepEqual(packageChoiceOptions(["E"], 17, rules), {
       allowed: ["small_one"],
-      notices: ["minor_large_package", "minor_multiple_packages"],
+      noticeByChoice: { large_one: "minor_large_package", multiple: "minor_multiple_packages" },
     });
   });
 
   it("S06〜S08：30歳の R02 では、どれも選べて注意文は出さない", () => {
-    assert.deepEqual(packageChoiceOptions(["E"], 30, rules), { allowed: ["small_one", "large_one", "multiple"], notices: [] });
+    assert.deepEqual(packageChoiceOptions(["E"], 30, rules), { allowed: ["small_one", "large_one", "multiple"], noticeByChoice: {} });
   });
 });

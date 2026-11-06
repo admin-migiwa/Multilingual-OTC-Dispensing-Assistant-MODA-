@@ -17,6 +17,7 @@ import {
   missingQuestions,
   nextQuestion,
   selectDrugs,
+  keptQuestionsFromPastDrugs,
   chooseRoute,
   factsForJudgment,
   abusePreventionAnswers,
@@ -375,11 +376,23 @@ describe("答えの受け取り方（聞かない・聞き直すときの決ま�
     assert.equal(corrected.answers.dueWithin12Weeks, undefined);
   });
 
-  it("薬を選び直して聞く必要がなくなった項目の答えは残さない", () => {
+  // 11/7 依頼主の判断（backlog C-17）で、前は「消す」だったのを「残す」に変えた
+  it("薬を選び直しても、前に選んでいた薬のために聞いた答えは残し、次に聞くのはいまの薬の項目だけ", () => {
     const withC = withAnswers({ ...basicOk, alcohol: true }, ["C"]);
     const toG = selectDrugs(withC, ["G"]);
-    assert.equal(toG.answers.alcohol, undefined);
+    assert.equal(toG.answers.alcohol, true);
+    assert.deepEqual(toG.pastDrugs, ["C"]);
     assert.deepEqual(missingQuestions(toG), ["Q13"]);
+    assert.deepEqual(keptQuestionsFromPastDrugs(toG), ["Q11"]);
+  });
+
+  it("前に選んでいた薬のために聞いた答えでも、答えの訂正でどの薬でも聞かなくなったら消す（男性に直すと妊娠・授乳の答えを消す）", () => {
+    const withA = withAnswers({ ...basicOk }, ["A"]);
+    const toJ = selectDrugs(withA, ["J"]);
+    assert.equal(toJ.answers.pregnancy, "no");
+    const male = applyAnswers(toJ, { sex: "male" });
+    assert.equal(male.answers.pregnancy, undefined);
+    assert.equal(male.answers.breastfeeding, undefined);
   });
 });
 

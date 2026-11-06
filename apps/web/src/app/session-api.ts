@@ -33,7 +33,8 @@ export interface PatientView {
   /** 次の質問が R02 のときだけ：選べる選択肢と注意文（18歳未満の大容量・複数個。年齢・個数は販売手順の版のデータの値。backlog M-12） */
   readonly packageOptions: {
     readonly allowed: readonly PackageChoice[];
-    readonly notices: readonly QuantityNoticeKind[];
+    /** 選べない選択肢ごとの注意文の種類（押そうとしたときに出す） */
+    readonly noticeByChoice: Readonly<Partial<Record<PackageChoice, QuantityNoticeKind>>>;
     readonly minorAgeBelow: number;
     readonly minorMaxQuantity: number;
   } | null;

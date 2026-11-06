@@ -419,8 +419,23 @@ function ReviewBody({
                 </td>
               </tr>
             ))}
+            {view.keptQuestionIds.map((id) => (
+              <tr key={`kept-${id}`} className="border-t border-slate-100 bg-slate-50 align-top">
+                <td className="w-14 py-2 text-sm text-slate-500">{id}</td>
+                <td className="w-72 py-2 pr-3">
+                  {QUESTION_LABELS[id]}
+                  <span className="block text-xs text-slate-500">前に選んだ薬のために聞いた答え（判定に使います）</span>
+                </td>
+                <td className="py-2 font-semibold">
+                  <AnswerText id={id} answers={view.answers} />
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
+        {view.pastDrugNames.length > 0 ? (
+          <p className="text-sm text-slate-600">前に選んでいた薬：{view.pastDrugNames.join("、")}（選び直しで外れました）</p>
+        ) : null}
       </Section>
 
       <Section title="選んだ薬と禁忌の判定">

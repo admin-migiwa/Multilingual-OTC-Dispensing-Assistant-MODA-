@@ -2,7 +2,13 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 
-import { INTEGER_ANSWER_RANGES, type InterviewAnswers, type QuestionId } from "@moda/domain";
+import {
+  INTEGER_ANSWER_RANGES,
+  type InterviewAnswers,
+  type PackageChoice,
+  type QuantityNoticeKind,
+  type QuestionId,
+} from "@moda/domain";
 import { getMessages, type LanguageCode } from "@moda/i18n";
 
 import type { PatientView } from "./session-api";
@@ -15,7 +21,8 @@ import type { PatientView } from "./session-api";
  * - 自由に入力する欄（薬の名前・理由・目的）は、送る前に緊急キーワードを確かめる（onFreeText）。
  */
 
-type Choice = { readonly label: string; readonly answers: InterviewAnswers; readonly disabled?: boolean };
+/** muted：押せるが、選べないことを薄い色で示す（押すと注意文を出す。R02） */
+type Choice = { readonly label: string; readonly answers: InterviewAnswers; readonly disabled?: boolean; readonly muted?: boolean };
 
 /** R02 で選べる選択肢と注意文（サーバーの PatientView.packageOptions。18歳未満の大容量・複数個。backlog M-12） */
 export type PackageOptions = PatientView["packageOptions"];
@@ -246,7 +253,7 @@ function ChoiceQuestion({
               type="button"
               disabled={busy || choice.disabled === true}
               onClick={() => onSubmit(choice.answers)}
-              className={`${choiceClass} disabled:opacity-40`}
+              className={`${choiceClass} disabled:opacity-40 ${choice.muted === true ? "opacity-40" : ""}`}
             >
               {choice.label}
             </button>
@@ -508,18 +515,12 @@ function PackageQuestion({
   const t = getMessages(language);
   const r02 = t.interview.questions.R02;
   const o = r02.options;
-  // 選べない選択肢は押せなくする（サーバーでも止める）。選べるかが分からないとき（options が null）は、押せるままにしてサーバーに任せる
-  const blocked = (choice: "small_one" | "large_one" | "multiple"): boolean => options !== null && !options.allowed.includes(choice);
+  // 選べない選択肢は薄く出し、押そうとしたときに、その選択肢の注意文を出して先に進めない（11/7 依頼主の判断。サーバーでも止める）。
+  // 選べるかが分からないとき（options が null）は、そのまま送ってサーバーに任せる
+  const blocked = (choice: PackageChoice): boolean => options !== null && !options.allowed.includes(choice);
   const fill = (text: string): string =>
     options === null ? text : text.replace("{age}", String(options.minorAgeBelow)).replace("{max}", String(options.minorMaxQuantity));
-  const notices =
-    options === null || options.notices.length === 0 ? null : (
-      <ul className="space-y-2 rounded-xl bg-amber-50 px-4 py-3 text-lg text-amber-900">
-        {options.notices.map((notice) => (
-          <li key={notice}>{fill(notice === "minor_large_package" ? r02.minorLargePackage : r02.minorMultiplePackages)}</li>
-        ))}
-      </ul>
-    );
+  const [shown, setShown] = useState<QuantityNoticeKind | null>(null);
   const [multiple, setMultiple] = useState(false);
   const [count, setCount] = useState("2");
   const parsed = Number(count);
@@ -529,14 +530,26 @@ function PackageQuestion({
         <ChoiceQuestion
           text={r02.text}
           busy={busy}
-          onSubmit={(answers) => (answers.packageChoice === "multiple" ? setMultiple(true) : onSubmit(answers))}
+          onSubmit={(answers) => {
+            const choice = answers.packageChoice;
+            if (choice !== undefined && blocked(choice)) {
+              setShown(options?.noticeByChoice[choice] ?? null);
+              return;
+            }
+            if (choice === "multiple") setMultiple(true);
+            else onSubmit(answers);
+          }}
           choices={[
-            { label: o.smallOne, answers: { packageChoice: "small_one" }, disabled: blocked("small_one") },
-            { label: o.largeOne, answers: { packageChoice: "large_one" }, disabled: blocked("large_one") },
-            { label: o.multiple, answers: { packageChoice: "multiple" }, disabled: blocked("multiple") },
+            { label: o.smallOne, answers: { packageChoice: "small_one" }, muted: blocked("small_one") },
+            { label: o.largeOne, answers: { packageChoice: "large_one" }, muted: blocked("large_one") },
+            { label: o.multiple, answers: { packageChoice: "multiple" }, muted: blocked("multiple") },
           ]}
         />
-        {notices}
+        {shown !== null ? (
+          <p role="alert" className="rounded-xl bg-amber-50 px-4 py-3 text-lg text-amber-900">
+            {fill(shown === "minor_large_package" ? r02.minorLargePackage : r02.minorMultiplePackages)}
+          </p>
+        ) : null}
         {options !== null && options.allowed.length === 0 ? (
           <p lang="ja" className="rounded-xl border border-red-300 bg-white px-4 py-2 text-sm font-semibold text-red-900">
             薬剤師用：この年齢では、選んだ薬の組み合わせで選べる包装がありません。薬を選び直してください。

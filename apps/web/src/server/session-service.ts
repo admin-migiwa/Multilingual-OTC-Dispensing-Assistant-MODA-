@@ -162,7 +162,7 @@ export interface PatientView {
    */
   readonly packageOptions: {
     readonly allowed: readonly PackageChoice[];
-    readonly notices: readonly QuantityNoticeKind[];
+    readonly noticeByChoice: Readonly<Partial<Record<PackageChoice, QuantityNoticeKind>>>;
     readonly minorAgeBelow: number;
     readonly minorMaxQuantity: number;
   } | null;

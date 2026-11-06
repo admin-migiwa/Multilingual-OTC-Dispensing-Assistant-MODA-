@@ -449,12 +449,12 @@ describe("R02 の時点の個数・包装の制限（M-12）", () => {
     return id;
   }
 
-  it("S09・S10・S11：17歳の R02 では小箱1個だけが選べ、注意文を2つ出す（年齢・個数は版のデータの値）", () => {
+  it("S09・S10・S11：17歳の R02 では小箱1個だけが選べ、選べない選択肢ごとの注意文を返す（年齢・個数は版のデータの値）", () => {
     const deps = testDeps();
     const id = toR02(deps, 17);
     assert.deepEqual(patientView(getSession(deps, id)).packageOptions, {
       allowed: ["small_one"],
-      notices: ["minor_large_package", "minor_multiple_packages"],
+      noticeByChoice: { large_one: "minor_large_package", multiple: "minor_multiple_packages" },
       minorAgeBelow: 18,
       minorMaxQuantity: 1,
     });
@@ -507,6 +507,6 @@ describe("R02 の時点の個数・包装の制限（M-12）", () => {
   it("S06：30歳の R02 では、どれも選べて注意文は出さない", () => {
     const deps = testDeps();
     const id = toR02(deps, 30);
-    assert.deepEqual(patientView(getSession(deps, id)).packageOptions?.notices, []);
+    assert.deepEqual(patientView(getSession(deps, id)).packageOptions?.noticeByChoice, {});
   });
 });

@@ -29,6 +29,17 @@ export interface InterviewState {
   readonly selectedDrugs: readonly StockedDrugId[];
   /** 問診の流れ（ほしい薬がある／症状から探す）。決まるまでは年齢・性別だけを聞く */
   readonly route?: InterviewRoute;
+  /**
+   * 前に選んでいて、選び直しで外れた薬（11/7 依頼主の判断。backlog C-17）。
+   * その薬のために聞いた答えは、選び直しても消さずに残し、判定に使い続ける（例：A のために聞いた妊娠の答えを、J だけに選び直したあとも J の判定に使う。K47 の考え方）。
+   * 次に聞く項目は、いま選んでいる薬だけで決める（外れた薬の項目を聞き直さない）
+   */
+  readonly pastDrugs?: readonly StockedDrugId[];
+}
+
+/** いま選んでいる薬と、前に選んでいた薬（答えを残すかを決めるときに使う） */
+function drugsWithPast(state: InterviewState): StockedDrugId[] {
+  return [...new Set([...state.selectedDrugs, ...(state.pastDrugs ?? [])])];
 }
 
 function contextOf(state: InterviewState, settings: InterviewSettings): AskContext {
@@ -188,9 +199,12 @@ export function assertValidAnswers(answers: InterviewAnswers): void {
  */
 function dropAnswersNoLongerAsked(state: InterviewState, settings: InterviewSettings): InterviewAnswers {
   let answers: InterviewAnswers = { ...state.answers };
+  // 前に選んでいた薬のために聞いた答えは、薬を選び直しても消さない（11/7 依頼主の判断。C-17）。
+  // 答えの訂正（例：性別を男性に直した）で、どの薬でも聞かなくなった答えは消す
+  const drugs = drugsWithPast(state);
   // 前の項目の変化が後ろの項目の条件に効くので、変化がなくなるまでくり返す
   for (let round = 0; round < QUESTIONS.length; round += 1) {
-    const ctx: AskContext = { answers, selectedDrugs: state.selectedDrugs, route: state.route, settings };
+    const ctx: AskContext = { answers, selectedDrugs: drugs, route: state.route, settings };
     let changed = false;
     for (const question of QUESTIONS) {
       if (isAsked(question, ctx)) continue;
@@ -293,7 +307,10 @@ export function selectDrugs(
   settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
 ): InterviewState {
   for (const id of drugs) findStockedDrug(id); // 取扱薬にない記号なら UNKNOWN_DRUG で止まる
-  const next: InterviewState = { ...state, selectedDrugs: [...new Set(drugs)] };
+  const selected = [...new Set(drugs)];
+  // 外れた薬を「前に選んでいた薬」に足す（また選んだ薬は外す）
+  const pastDrugs = drugsWithPast(state).filter((id) => !selected.includes(id));
+  const next: InterviewState = { ...state, selectedDrugs: selected, pastDrugs };
   return { ...next, answers: dropAnswersNoLongerAsked(next, settings) };
 }
 
@@ -318,6 +335,21 @@ export function abusePreventionAnswers(state: InterviewState): AbusePreventionAn
   if (reasonText !== undefined) result.reasonText = reasonText;
   if (purposeText !== undefined) result.purposeText = purposeText;
   return result;
+}
+
+/**
+ * 前に選んでいた薬のために聞いて残っている答えの項目（いま選んでいる薬では聞かない項目。聞く順番）。
+ * 薬剤師の画面で「前に選んだ薬のために聞いた答え（判定に使う）」として出すため（C-17）
+ */
+export function keptQuestionsFromPastDrugs(
+  state: InterviewState,
+  settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
+): QuestionId[] {
+  const now = contextOf(state, settings);
+  const past: AskContext = { ...now, selectedDrugs: drugsWithPast(state) };
+  return QUESTIONS.filter((q) => !isAsked(q, now) && isAsked(q, past) && q.answerKeys.some((k) => state.answers[k] !== undefined)).map(
+    (q) => q.id,
+  );
 }
 
 export { findQuestion };

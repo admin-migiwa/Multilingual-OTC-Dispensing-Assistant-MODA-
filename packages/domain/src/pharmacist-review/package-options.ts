@@ -17,8 +17,8 @@ import { saleSelectionsFor } from "./review.ts";
 export interface PackageChoiceOptions {
   /** 選べる R02 の選択肢（PACKAGE_CHOICES の順） */
   readonly allowed: readonly PackageChoice[];
-  /** 出す注意文の種類（選べない選択肢があるときだけ。重ねない） */
-  readonly notices: readonly QuantityNoticeKind[];
+  /** 選べない選択肢ごとの注意文の種類。患者さんがその選択肢を押そうとしたときに出す（11/7 依頼主の判断） */
+  readonly noticeByChoice: Readonly<Partial<Record<PackageChoice, QuantityNoticeKind>>>;
 }
 
 /** R02 の答え（包装と個数）が、選んだ薬・年齢で選べるか。選べなければ注意文の種類を返す */
@@ -42,12 +42,12 @@ export function packageChoiceOptions(
   rules: QuantityRules,
 ): PackageChoiceOptions {
   const allowed: PackageChoice[] = [];
-  const notices: QuantityNoticeKind[] = [];
+  const noticeByChoice: Partial<Record<PackageChoice, QuantityNoticeKind>> = {};
   for (const choice of PACKAGE_CHOICES) {
     const abuse: AbusePreventionAnswers = choice === "multiple" ? { packageChoice: choice, multipleCount: 2 } : { packageChoice: choice };
     const checked = checkPackageAnswer(drugIds, abuse, patientAge, rules);
     if (checked.allowed) allowed.push(choice);
-    else if (checked.notice !== null && !notices.includes(checked.notice)) notices.push(checked.notice);
+    else if (checked.notice !== null) noticeByChoice[choice] = checked.notice;
   }
-  return { allowed, notices };
+  return { allowed, noticeByChoice };
 }
