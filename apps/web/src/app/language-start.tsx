@@ -46,8 +46,13 @@ export function LanguageStart() {
   const show119Recorded = useRef(false);
   /** 「119番の案内を出す」の記録の通信（取り消しは、この記録が終わってから行う） */
   const show119Pending = useRef<Promise<void>>(Promise.resolve());
-  /** 住所の ?session= から読み直している接客（読み直しが済む前に緊急の確認から戻ったとき、新しい接客を始めないため） */
+  /** 住所の ?session= から読み直している接客（読み直しが済むまでは、新しい接客を始めずにこの接客を読み直す） */
   const restoringId = useRef<string | null>(null);
+  /**
+   * 薬剤師の確認画面から緊急の確認を開いたときの、後ろで動く記録の処理。緊急の確認を記録できたら、その接客の内容になる
+   * （記録できなければ null）。薬剤師の判断は、この記録が終わってから残す（記録の順番を守るため）
+   */
+  const pendingOpen = useRef<Promise<PatientView | null> | null>(null);
 
   /** サーバーを呼び、結果で画面を進める。通信が止まったら「通信が止まりました」の画面にする */
   async function run(action: () => Promise<PatientView>): Promise<void> {
@@ -82,17 +87,27 @@ export function LanguageStart() {
     }
   }
 
+  /** 読み直した接客の言語と年齢を画面に戻す（年齢は、緊急キーワードの確認で子どもの項目を使うかを決める） */
+  function restoreBasics(latest: PatientView) {
+    setLanguage(latest.language);
+    age.current = latest.age ?? undefined;
+  }
+
+  /** 読み直した接客を、状態に合わせて画面に出す（緊急を確認中なら緊急の確認、119番の案内で終わっていれば「終わっています」） */
+  function applyRestored(latest: PatientView): PatientView {
+    restoreBasics(latest);
+    restoringId.current = null;
+    if (latest.status === "emergency_review") setEmergency({ kind: "staff" });
+    if (latest.status === "emergency_ended") setSessionLost(true);
+    return latest;
+  }
+
   // 薬剤師の確認画面（/pharmacist/[id]）から戻ったときは、住所の ?session= の接客を読み直して続ける（T8a）
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const id = params.get("session");
     if (!id) return;
     restoringId.current = id;
-    const restore = (latest: PatientView) => {
-      setLanguage(latest.language);
-      // 緊急キーワードの確認で子どもの項目を使うかを、読み直した年齢で決め直す
-      age.current = latest.age ?? undefined;
-    };
 
     if (params.get("emergency") === "staff") {
       // 薬剤師の確認画面の「緊急の確認を開く」から来た（CLAUDE.md ルール2）。通信を待たずに、すぐに緊急の確認を出す。
@@ -103,26 +118,24 @@ export function LanguageStart() {
       setRecordFailed(false);
       show119Recorded.current = false;
       window.history.replaceState(null, "", `/?session=${encodeURIComponent(id)}`);
-      void (async () => {
+      pendingOpen.current = (async () => {
         try {
           const latest = await sessionApi.get(id);
-          restore(latest);
-          setView(latest.status === "emergency_review" ? latest : await sessionApi.openEmergency(id, { trigger: "staff" }));
+          restoreBasics(latest);
+          const opened = latest.status === "emergency_review" ? latest : await sessionApi.openEmergency(id, { trigger: "staff" });
+          setView(opened);
+          restoringId.current = null;
+          return opened;
         } catch {
           // 記録に残せなかった（通信が止まっている、接客が終わっているなど）。案内はこのまま出せる
           setRecordFailed(true);
+          return null;
         }
       })();
       return;
     }
 
-    void run(async () => {
-      const latest = await sessionApi.get(id);
-      restore(latest);
-      if (latest.status === "emergency_review") setEmergency({ kind: "staff" });
-      if (latest.status === "emergency_ended") setSessionLost(true);
-      return latest;
-    });
+    void run(async () => applyRestored(await sessionApi.get(id)));
   }, []);
 
   function chooseLanguage(code: LanguageCode) {
@@ -159,13 +172,15 @@ export function LanguageStart() {
 
   /** 薬剤師の判断を記録に残す（追加の答えを先に残す） */
   async function recordDecision(decision: "show_119" | "not_emergency"): Promise<PatientView | null> {
-    if (view === null) return null;
+    // 薬剤師の確認画面から開いて、まだ画面に接客がないときは、緊急の確認の記録が終わるのを待って、その接客に残す
+    const id = view?.id ?? (await pendingOpen.current)?.id ?? null;
+    if (id === null) return null;
     const answers: Record<string, string> = {};
     for (const [key, value] of Object.entries(followUp.answers)) {
       if (typeof value === "string") answers[key] = value;
     }
-    await sessionApi.recordFollowUp(view.id, { answers, scale: followUp.scale, observedRuleIds: [...followUp.observed] });
-    return sessionApi.decideEmergency(view.id, decision);
+    await sessionApi.recordFollowUp(id, { answers, scale: followUp.scale, observedRuleIds: [...followUp.observed] });
+    return sessionApi.decideEmergency(id, decision);
   }
 
   if (emergency !== null) {
@@ -210,10 +225,16 @@ export function LanguageStart() {
             setEmergency(null);
             setFollowUp(EMPTY_FOLLOW_UP);
             if (view === null) {
-              // 薬剤師の確認画面から来て、接客を読み直せていないときは、新しい接客を始めずにもう一度読み直す
+              // 薬剤師の確認画面から来て、まだ画面に接客がないときは、新しい接客を始めない。
+              // 緊急の確認の記録が終わるのを待ち、記録できていれば「緊急ではない」を残す。記録できていなければ読み直す
+              // （読み直して緊急を確認中なら、もう一度緊急の確認を出す。安全側）
               const restoring = restoringId.current;
               if (restoring !== null) {
-                void run(() => sessionApi.get(restoring));
+                void run(async () => {
+                  const opened = await pendingOpen.current;
+                  const decided = opened === null ? null : await recordDecision("not_emergency");
+                  return applyRestored(decided ?? (await sessionApi.get(restoring)));
+                });
                 return;
               }
               // 言語を選ぶ前に開いて、確認の画面で言語を選んだときは、ここから接客を始める
@@ -239,6 +260,8 @@ export function LanguageStart() {
           onRestart={() => {
             setSessionLost(false);
             setView(null);
+            restoringId.current = null;
+            pendingOpen.current = null;
             setMode("questions");
             setLanguage(null);
           }}
@@ -251,7 +274,12 @@ export function LanguageStart() {
             setNetworkDown(false);
             setMode("not_for_sale");
           }}
-          onRetry={() => void run(() => (view === null ? sessionApi.start(language) : sessionApi.get(view.id)))}
+          onRetry={() => {
+            const restoring = restoringId.current;
+            // 住所の ?session= の接客を読み直せていないときは、新しい接客を始めずに、その接客を読み直す
+            if (view === null && restoring !== null) void run(async () => applyRestored(await sessionApi.get(restoring)));
+            else void run(() => (view === null ? sessionApi.start(language) : sessionApi.get(view.id)));
+          }}
         />
       ) : (
         <PatientFrame language={language}>
