@@ -122,6 +122,38 @@ describe("妊娠・授乳（Q03・Q04）を聞く条件", () => {
     assert.ok(!asked.includes("Q04"));
   });
 
+  it("12歳未満でも、選んだ薬に A があるときは妊娠（Q03）・授乳（Q04）を聞く（11/6 薬剤師の判断。backlog J-01）", () => {
+    const state: InterviewState = { answers: { age: 11, sex: "female" }, selectedDrugs: ["A"], route: "product" };
+    const asked = walk(state, (id) => answerOf[id]);
+    assert.ok(asked.includes("Q03"));
+    assert.ok(asked.includes("Q04"));
+  });
+
+  it("12歳未満で A 以外の薬を選んだときは、妊娠（Q03）・授乳（Q04）を聞かない", () => {
+    const state: InterviewState = { answers: { age: 11, sex: "female" }, selectedDrugs: ["J"], route: "product" };
+    const asked = walk(state, (id) => answerOf[id]);
+    assert.ok(!asked.includes("Q03"));
+    assert.ok(!asked.includes("Q04"));
+  });
+
+  it("12歳未満の男性には、A を選んでも妊娠（Q03）・授乳（Q04）を聞かない", () => {
+    const state: InterviewState = { answers: { age: 11, sex: "male" }, selectedDrugs: ["A"], route: "product" };
+    const asked = walk(state, (id) => answerOf[id]);
+    assert.ok(!asked.includes("Q03"));
+    assert.ok(!asked.includes("Q04"));
+  });
+
+  it("K45：11歳女性が A を選び、妊娠を「かもしれない」と答えると、問診を終えたあとの判定で A は禁忌になる", () => {
+    const start: InterviewState = { answers: { age: 11, sex: "female" }, selectedDrugs: ["A"], route: "product" };
+    let state = start;
+    for (let i = 0; i < 30; i += 1) {
+      const id = nextQuestion(state);
+      if (id === null) break;
+      state = applyAnswers(state, id === "Q03" ? { pregnancy: "maybe" } : answerOf[id]);
+    }
+    assert.equal(judgeDrug("A", factsForJudgment(state)).verdict, "contraindicated");
+  });
+
   it("男性への妊娠の答えは記録に残さない（サーバー側で除外する）", () => {
     const male = withAnswers({ age: 30, sex: "male" });
     const result = applyAnswersWithReport(male, { pregnancy: "no" });

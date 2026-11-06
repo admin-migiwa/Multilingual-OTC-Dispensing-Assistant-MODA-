@@ -125,6 +125,15 @@ describe("禁忌判定：妊娠（Q03・Q03a）", () => {
     expectReason(r, { code: "PREGNANT", item: "Q03", uncertain: true, label: "妊娠の可能性" });
   });
 
+  it("K45 11歳女性で妊娠しているかもしれない人に A は禁忌（A は12歳未満でも妊娠を確かめる。妊娠の可能性）", () => {
+    const r = expectVerdict("A", patient({ age: 11, pregnancy: "maybe" }), "contraindicated");
+    expectReason(r, { code: "PREGNANT", item: "Q03", uncertain: true, label: "妊娠の可能性" });
+  });
+
+  it("K46 11歳女性で妊娠していない人に A は問題なし（K45 と対になる行）", () => {
+    expectVerdict("A", patient({ age: 11, pregnancy: "no" }), "ok");
+  });
+
   it("K43 妊娠しているかもしれない人に C は禁忌（出産予定日まで12週以内かがわからない）", () => {
     const r = expectVerdict("C", patient({ pregnancy: "maybe" }), "contraindicated");
     expectReason(r, { code: "DUE_WITHIN_12_WEEKS", item: "Q03", uncertain: true, flag: "nsaid", label: "妊娠の可能性（出産予定日まで12週以内かがわからない）" });

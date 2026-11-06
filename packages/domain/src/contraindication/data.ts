@@ -208,6 +208,11 @@ export type StockedDrug = {
   minAge: number | null;
   /** 年齢別の用法・用量の表（ある薬だけ） */
   doseByAge?: readonly DoseByAge[];
+  /**
+   * この薬を選んだときは、12歳未満でも妊娠（Q03）・授乳（Q04）を聞き、判定に使う（ある薬だけ）。
+   * interview-items.md の Q03・Q04「選んだ薬に A があるときは年齢を問わない」（11/6 薬剤師の判断。backlog J-01・C-11）
+   */
+  pregnancyQuestionsAtAnyAge?: true;
   rules: readonly ProductRule[];
 };
 
@@ -299,6 +304,7 @@ export const STOCKED_DRUGS: readonly StockedDrug[] = [
     usage: "1回1錠を1回だけ。薬剤師の前で服用",
     packages: "1錠",
     minAge: null,
+    pregnancyQuestionsAtAnyAge: true,
     rules: [
       {
         code: "PREGNANT",
