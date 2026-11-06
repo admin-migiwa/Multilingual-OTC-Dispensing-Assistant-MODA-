@@ -350,20 +350,42 @@ describe("119番の案内の取り消しと、確認済みの接客（11/6 依�
     return id;
   }
 
-  it("「119番の案内を出す」を押し間違いとして取り消すと、確認の前の問診に戻り、もとの判断は記録に残る", () => {
+  it("「119番の案内を出す」を押し間違いとして取り消すと、問診には戻らず、押す前の薬剤師の確認に戻る。もとの判断は記録に残る", () => {
+    const deps = testDeps();
+    const id = startInterview(deps);
+    openEmergency(deps, id, { trigger: "keyword", matchedRuleIds: ["EA12"], inputText: "chest pain" });
+    decideEmergency(deps, id, "show_119");
+    const back = cancelEmergency119(deps, id);
+    assert.equal(back.snapshot.status, "emergency_review");
+    assert.equal(patientView(back).nextQuestion, null); // 問診は止まったまま
+    assert.equal(back.emergencies[0]?.decision, "show_119");
+    assert.notEqual(back.emergencies[0]?.cancelledAt, null);
+    // 確認をやり直すため、同じ根拠で判断前の緊急の記録が足される
+    assert.equal(back.emergencies[1]?.decision, null);
+    assert.equal(back.emergencies[1]?.inputText, "chest pain");
+    assert.deepEqual(back.emergencies[1]?.matchedRuleIds, ["EA12"]);
+    assert.ok(back.events.some((e) => e.type === "emergency_cancelled"));
+  });
+
+  it("取り消したあと、薬剤師が「緊急ではない」を選べば問診に戻り、もう一度「119番の案内を出す」も選べる", () => {
     const deps = testDeps();
     const id = startInterview(deps);
     openEmergency(deps, id, { trigger: "staff" });
     decideEmergency(deps, id, "show_119");
-    const back = cancelEmergency119(deps, id);
+    cancelEmergency119(deps, id);
+    const back = decideEmergency(deps, id, "not_emergency");
     assert.equal(back.snapshot.status, "interview");
     assert.equal(patientView(back).nextQuestion, "Q03");
-    assert.equal(back.emergencies[0]?.decision, "show_119");
-    assert.notEqual(back.emergencies[0]?.cancelledAt, null);
-    assert.ok(back.events.some((e) => e.type === "emergency_cancelled"));
+
+    const deps2 = testDeps();
+    const id2 = startInterview(deps2);
+    openEmergency(deps2, id2, { trigger: "staff" });
+    decideEmergency(deps2, id2, "show_119");
+    cancelEmergency119(deps2, id2);
+    assert.equal(decideEmergency(deps2, id2, "show_119").snapshot.status, "emergency_ended");
   });
 
-  it("119番の案内は二度は取り消せない", () => {
+  it("同じ「119番の案内」は二度は取り消せない", () => {
     const deps = testDeps();
     const id = startInterview(deps);
     openEmergency(deps, id, { trigger: "staff" });
@@ -389,11 +411,11 @@ describe("119番の案内の取り消しと、確認済みの接客（11/6 依�
     assert.equal(patientView(decideEmergency(deps, id, "not_emergency")).emergencyCleared, true);
   });
 
-  it("119番の案内を取り消したときも、確認済みの印が付く", () => {
+  it("119番の案内を押し間違いで取り消しただけでは、確認済みの印は付かない（「緊急ではない」の判断ではないため）", () => {
     const deps = testDeps();
     const id = startInterview(deps);
     openEmergency(deps, id, { trigger: "staff" });
     assert.equal(patientView(decideEmergency(deps, id, "show_119")).emergencyCleared, false);
-    assert.equal(patientView(cancelEmergency119(deps, id)).emergencyCleared, true);
+    assert.equal(patientView(cancelEmergency119(deps, id)).emergencyCleared, false);
   });
 });

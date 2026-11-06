@@ -38,6 +38,7 @@ export function EmergencyGuide({
   onFollowUpChange,
   onReturn,
   onShowGuide,
+  onCancelGuide,
 }: {
   /** 患者さんの言語。言語を選ぶ前に開いたときは null */
   language: LanguageCode | null;
@@ -49,7 +50,13 @@ export function EmergencyGuide({
   onReturn: () => void;
   /** 薬剤師が「119番の案内を出す」を選んだとき（記録に残すため）。表示はこの呼び出しの成否にかかわらず切り替える */
   onShowGuide?: () => void;
+  /**
+   * 薬剤師が「119番の案内」を押し間違えて取り消すとき（11/6 依頼主の判断）。
+   * true を返したら、119番を押す前の確認の画面に戻す。false（取り消しを記録できなかった）なら案内のままにする
+   */
+  onCancelGuide?: () => Promise<boolean>;
 }) {
+  const [cancelFailed, setCancelFailed] = useState(false);
   const [step, setStep] = useState<"confirm" | "guide">("confirm");
 
   const aiNotice =
@@ -195,12 +202,22 @@ export function EmergencyGuide({
 
       <div lang="ja" className="space-y-3 rounded-2xl border-2 border-slate-300 p-5">
         <p className="text-base">{jaEmergency.call119}</p>
+        {cancelFailed ? (
+          <p className="text-sm text-slate-700">取り消しを記録できませんでした。通信を確かめて、もう一度押してください。</p>
+        ) : null}
         <button
           type="button"
-          onClick={() => setStep("confirm")}
+          onClick={() => {
+            // 押し間違い：取り消して、119番を押す前の薬剤師の確認に戻す（問診には戻らない。「緊急ではない」の判断ではない）
+            const cancel = onCancelGuide ?? (() => Promise.resolve(true));
+            void cancel().then((ok) => {
+              setCancelFailed(!ok);
+              if (ok) setStep("confirm");
+            });
+          }}
           className="rounded-xl border-2 border-slate-400 px-4 py-2 text-base font-semibold hover:bg-slate-100"
         >
-          薬剤師の確認に戻る
+          押し間違い：119番の案内を取り消して、確認に戻る
         </button>
       </div>
     </section>

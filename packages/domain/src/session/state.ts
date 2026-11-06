@@ -112,10 +112,11 @@ export function transition(current: SessionSnapshot, to: SessionStatus): Session
 }
 
 /**
- * 119番の案内を出した（緊急終了）あとに、薬剤師が押し間違いとして取り消し、緊急の確認に入る前の状態に戻す
- * （11/6 依頼主の判断）。
+ * 「119番の案内を出す」を薬剤師が押し間違えたときに取り消し、押す前の「緊急を確認中」に戻す（11/6 依頼主の判断）。
+ * 押し間違いは「緊急ではない」という判断ではないので、問診には戻さず、薬剤師の確認の画面に戻す。
  * - 終了した状態から抜けられるのは、この関数で緊急終了から戻るときだけ（完了・販売しないは戻せない）。
- * - 戻れるのは、緊急の確認に入る前の状態（呼び出す側が記録から渡す）。終了・緊急の状態には戻れない。
+ * - returnTo は、緊急の確認に入る前の状態（呼び出す側が記録から渡す）。あとで「緊急ではない」を選ぶとそこに戻る。
+ *   終了・緊急の状態は渡せない。
  * - 取り消したことと、もとの「119番の案内を出す」の判断は、呼び出す側が記録に足して残す（上書きしない）。
  */
 export function cancelEmergencyEnd(current: SessionSnapshot, returnTo: SessionStatus): SessionSnapshot {
@@ -123,9 +124,9 @@ export function cancelEmergencyEnd(current: SessionSnapshot, returnTo: SessionSt
     throw new DomainRuleError("INVALID_TRANSITION", "119番の案内を取り消せるのは、緊急終了のときだけです");
   }
   if (isTerminal(returnTo) || returnTo === "emergency_review") {
-    throw new DomainRuleError("INVALID_TRANSITION", `取り消したあとに ${returnTo} へは戻れません`);
+    throw new DomainRuleError("INVALID_TRANSITION", `緊急の確認のあとに ${returnTo} へは戻れません`);
   }
-  return withoutReturn({ ...current, status: returnTo });
+  return { ...current, status: "emergency_review", emergencyReturnTo: returnTo };
 }
 
 function withoutReturn(snapshot: SessionSnapshot): SessionSnapshot {

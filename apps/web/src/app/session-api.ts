@@ -18,7 +18,7 @@ export interface PatientView {
   readonly selectedDrugs: readonly StockedDrugId[];
   readonly basicInterviewComplete: boolean;
   readonly interviewComplete: boolean;
-  /** 薬剤師が一度でも「緊急ではない」と判断した（119番の案内を取り消した）か。true なら緊急キーワードで自動に切り替えない */
+  /** 薬剤師が一度でも「緊急ではない」と判断したか（119番の押し間違いの取り消しは含めない）。true なら緊急キーワードで自動に切り替えない */
   readonly emergencyCleared: boolean;
 }
 

@@ -129,7 +129,7 @@ export interface PatientView {
   /** 選んだ薬の項目まで答え終えたか */
   readonly interviewComplete: boolean;
   /**
-   * この接客で、薬剤師が一度でも緊急の確認をして「緊急ではない」と判断した（または119番の案内を取り消した）か。
+   * この接客で、薬剤師が一度でも緊急の確認をして「緊急ではない」と判断したか（119番の案内の押し間違いの取り消しは含めない）。
    * true なら、画面は以降の入力で緊急キーワードによる自動の切り替えをしない。薬剤師は手動で緊急の確認を開ける
    * （11/6 依頼主の判断。CLAUDE.md 絶対に守るルール2・spec.md 決まったこと No.38 の例外）
    */
@@ -212,7 +212,7 @@ export function patientView(record: SessionRecord): PatientView {
     selectedDrugs: record.interview.selectedDrugs,
     basicInterviewComplete: isBasicInterviewComplete(record.interview),
     interviewComplete: isInterviewComplete(record.interview),
-    emergencyCleared: record.emergencies.some((e) => e.decision === "not_emergency" || e.cancelledAt !== null),
+    emergencyCleared: record.emergencies.some((e) => e.decision === "not_emergency"),
   };
 }
 
@@ -449,9 +449,11 @@ export function decideEmergency(deps: ServiceDeps, id: string, decision: Emergen
 }
 
 /**
- * 「119番の案内を出す」を、薬剤師が押し間違いとして取り消し、緊急の確認に入る前の画面に戻す（11/6 依頼主の判断）。
+ * 「119番の案内を出す」を、薬剤師が押し間違いとして取り消し、押す前の薬剤師の確認（緊急を確認中）に戻す
+ * （11/6 依頼主の判断。押し間違いは「緊急ではない」という判断ではないので、問診には戻さない）。
  * - 取り消せるのは、緊急終了で、いちばん新しい緊急の判断が「119番の案内を出す」で、まだ取り消していないときだけ。
  * - もとの判断は消さず、取り消した時刻と履歴を足して残す（上書きしない）。
+ * - 確認をやり直すため、同じ根拠（入力した文・当てはまった項目・追加の答え）で、判断前の緊急の記録を1つ足す。
  */
 export function cancelEmergency119(deps: ServiceDeps, id: string): SessionRecord {
   const record = load(deps, id);
@@ -467,17 +469,17 @@ export function cancelEmergency119(deps: ServiceDeps, id: string): SessionRecord
   }
   const snapshot = cancelEmergencyEnd(record.snapshot, last.returnTo);
   const at = deps.now().toISOString();
-  let next: SessionRecord = {
+  const reopened: EmergencyEvent = { ...last, openedAt: at, decision: null, decidedAt: null, cancelledAt: null };
+  const next: SessionRecord = {
     ...record,
     snapshot,
-    emergencies: record.emergencies.map((e, i) => (i === index ? { ...e, cancelledAt: at } : e)),
+    emergencies: [...record.emergencies.map((e, i) => (i === index ? { ...e, cancelledAt: at } : e)), reopened],
     events: [
       ...record.events,
       event(deps, "emergency_cancelled", ["show_119"]),
       event(deps, "status_changed", [snapshot.status]),
     ],
   };
-  next = advance(deps, next);
   deps.store.set(next);
   return next;
 }

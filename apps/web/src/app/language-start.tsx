@@ -44,6 +44,8 @@ export function LanguageStart() {
   const age = useRef<number | undefined>(undefined);
   /** 「119番の案内を出す」をサーバーの記録に残せたか（残せたら、その接客は終わっている） */
   const show119Recorded = useRef(false);
+  /** 「119番の案内を出す」の記録の通信（取り消しは、この記録が終わってから行う） */
+  const show119Pending = useRef<Promise<void>>(Promise.resolve());
 
   /** サーバーを呼び、結果で画面を進める。通信が止まったら「通信が止まりました」の画面にする */
   async function run(action: () => Promise<PatientView>): Promise<void> {
@@ -137,7 +139,7 @@ export function LanguageStart() {
           onFollowUpChange={setFollowUp}
           onShowGuide={() => {
             if (show119Recorded.current) return; // すでに記録した（2回目の押下）。案内はそのまま出す
-            recordDecision("show_119")
+            show119Pending.current = recordDecision("show_119")
               .then((result) => {
                 if (result !== null) show119Recorded.current = true;
               })
@@ -146,20 +148,22 @@ export function LanguageStart() {
                 if (!(error instanceof RuleError)) setRecordFailed(true);
               });
           }}
+          onCancelGuide={async () => {
+            // 押し間違い：119番の案内を取り消し、押す前の薬剤師の確認に戻る（11/6 依頼主の判断）。
+            // 「緊急ではない」の判断ではないので、以降の緊急キーワードの確認はそのまま続く
+            await show119Pending.current; // 記録の途中なら、記録が終わってから取り消す
+            if (!show119Recorded.current || view === null) return true; // 記録できていない（通信が止まっていた）ので画面だけ戻す
+            try {
+              setView(await sessionApi.cancelEmergency119(view.id));
+              show119Recorded.current = false;
+              return true;
+            } catch {
+              return false; // 取り消しを記録できなかった。案内は出したままにする
+            }
+          }}
           onReturn={() => {
             setEmergency(null);
             setFollowUp(EMPTY_FOLLOW_UP);
-            if (show119Recorded.current && view !== null) {
-              // 119番の案内を記録したあとに「緊急ではない」を選んだ：押し間違いとして取り消し、元の画面に戻る
-              // （もとの判断は記録に残る。11/6 依頼主の判断）。記録できていないとき（通信が止まっていた）は下の流れ
-              const id = view.id;
-              void run(async () => {
-                const result = await sessionApi.cancelEmergency119(id);
-                show119Recorded.current = false; // 取り消しを記録できたときだけ忘れる（失敗したら、もう一度取り消せる）
-                return result;
-              });
-              return;
-            }
             if (view === null) {
               // 言語を選ぶ前に開いて、確認の画面で言語を選んだときは、ここから接客を始める
               if (language !== null) void run(() => sessionApi.start(language));

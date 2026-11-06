@@ -178,11 +178,22 @@ describe("緊急を確認中（emergency_review）：問診を止め、薬剤師
 });
 
 describe("119番の案内の取り消し（押し間違い。11/6 依頼主の判断）", () => {
-  it("緊急終了から、緊急の確認に入る前の状態（問診）に戻せる", () => {
+  it("取り消すと、問診には戻らず、119番を押す前の「緊急を確認中」（薬剤師の確認）に戻る", () => {
     const ended = transition(transition(at("interview"), "emergency_review"), "emergency_ended");
     const back = cancelEmergencyEnd(ended, "interview");
-    assert.equal(back.status, "interview");
-    assert.equal(back.emergencyReturnTo, undefined);
+    assert.equal(back.status, "emergency_review");
+    assert.equal(back.emergencyReturnTo, "interview");
+  });
+
+  it("取り消したあと、薬剤師が「緊急ではない」を選べば問診に戻り、「119番の案内を出す」を選べば緊急終了になる", () => {
+    const back = cancelEmergencyEnd(at("emergency_ended"), "interview");
+    assert.equal(transition(back, "interview").status, "interview");
+    assert.equal(transition(back, "emergency_ended").status, "emergency_ended");
+  });
+
+  it("取り消したあとも、緊急の確認から問診以外の画面へは進めない", () => {
+    const back = cancelEmergencyEnd(at("emergency_ended"), "interview");
+    assertRuleError(() => transition(back, "pharmacist_review"), "INVALID_TRANSITION");
   });
 
   it("緊急終了でなければ取り消せない（完了・販売しない・問診中）", () => {
@@ -198,7 +209,7 @@ describe("119番の案内の取り消し（押し間違い。11/6 依頼主の�
     }
   });
 
-  it("取り消しで戻っても、承認の前は印刷できない", () => {
+  it("取り消して確認に戻っても、印刷はできない", () => {
     const back = cancelEmergencyEnd(at("emergency_ended"), "drug_selection");
     assertRuleError(() => assertActionAllowed(back.status, "print"), "NOT_APPROVED");
   });
