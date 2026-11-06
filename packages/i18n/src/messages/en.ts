@@ -109,6 +109,10 @@ export const en: Messages = {
     consultLine: "If you are not sure whether to call an ambulance, you can call an emergency consultation line (#7119 etc.; the number differs by area).",
     childLine: "For advice about a child on holidays or at night, call #8000.",
     visitorHotline: "Visitors to Japan can call the Japan National Tourism Organization (JNTO) \"Japan Visitor Hotline\" at 050-3816-2787 (24 hours, every day; English, Chinese and Korean; support in emergencies such as illness or injury).",
+    infoPagesTitle: "Useful websites",
+    ambulanceGuidePage: "Guide to using an ambulance (Fire and Disaster Management Agency; Japanese page with PDFs in English, Chinese and Korean)",
+    visitorHotlinePage: "About the Japan Visitor Hotline (Japan National Tourism Organization, JNTO; Japanese page)",
+    residentConsultationPage: "If you live in Japan: list of multilingual consultation centers (Council of Local Authorities for International Relations, CLAIR; Japanese page with a link to an English page)",
   },
   emergencyFollowUp: {
     intro: "These are questions from the pharmacist. Please choose the answer that applies.",

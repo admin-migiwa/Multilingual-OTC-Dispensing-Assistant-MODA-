@@ -109,6 +109,10 @@ export const zhHant: Messages = {
     consultLine: "如果不確定是否需要叫救護車，可以撥打急救諮詢電話（#7119 等，號碼依地區而異）。",
     childLine: "兒童在假日或夜間的諮詢電話是 #8000。",
     visitorHotline: "來日本旅遊的旅客可以撥打日本政府觀光局（JNTO）的「Japan Visitor Hotline」050-3816-2787（24小時、全年無休；英語、中文、韓語；在生病、受傷等緊急情況下提供協助）。",
+    infoPagesTitle: "可參考的網頁",
+    ambulanceGuidePage: "救護車使用指南（日本總務省消防廳；日語網頁，有英語、中文、韓語的 PDF）",
+    visitorHotlinePage: "Japan Visitor Hotline 的介紹（日本政府觀光局 JNTO；日語網頁）",
+    residentConsultationPage: "居住在日本的人士：多語言生活諮詢窗口一覽（自治體國際化協會 CLAIR；日語網頁，有英語網頁的連結）",
   },
   emergencyFollowUp: {
     intro: "這是藥劑師的問題。請選擇符合的答案。",

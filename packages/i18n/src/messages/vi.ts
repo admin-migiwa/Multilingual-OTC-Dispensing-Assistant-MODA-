@@ -109,6 +109,10 @@ export const vi: Messages = {
     consultLine: "Nếu bạn phân vân có nên gọi xe cấp cứu hay không, bạn có thể gọi đường dây tư vấn cấp cứu (#7119, v.v.; số khác nhau tùy khu vực).",
     childLine: "Tư vấn cho trẻ em vào ngày nghỉ hoặc ban đêm: gọi #8000.",
     visitorHotline: "Nếu bạn đang du lịch tại Nhật Bản, bạn có thể gọi \"Japan Visitor Hotline\" của Tổng cục Du lịch Quốc gia Nhật Bản (JNTO) theo số 050-3816-2787 (24 giờ, tất cả các ngày trong năm; tiếng Anh, tiếng Trung, tiếng Hàn; hỗ trợ khi khẩn cấp như bị bệnh hoặc bị thương).",
+    infoPagesTitle: "Trang web tham khảo",
+    ambulanceGuidePage: "Hướng dẫn sử dụng xe cấp cứu (Cục Phòng cháy và Quản lý Thảm họa Nhật Bản; trang tiếng Nhật, có PDF tiếng Anh, tiếng Trung, tiếng Hàn)",
+    visitorHotlinePage: "Giới thiệu về Japan Visitor Hotline (Tổng cục Du lịch Quốc gia Nhật Bản, JNTO; trang tiếng Nhật)",
+    residentConsultationPage: "Nếu bạn đang sống tại Nhật Bản: danh sách các trung tâm tư vấn đời sống đa ngôn ngữ (CLAIR, Hội đồng Chính quyền địa phương về Quan hệ Quốc tế; trang tiếng Nhật, có liên kết đến trang tiếng Anh)",
   },
   emergencyFollowUp: {
     intro: "Đây là câu hỏi của dược sĩ. Hãy chọn câu trả lời phù hợp.",

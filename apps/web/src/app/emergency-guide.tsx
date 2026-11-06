@@ -28,8 +28,10 @@ export type EmergencyTrigger =
  * - 文言は packages/i18n の emergency（emergency.md の EN01〜EN04：119番・#7119・#8000・
  *   JNTO の Japan Visitor Hotline）だけ。EN04 は11/6 に薬剤師が確認した（backlog V-01・C-12）。
  *   EN05（在日の方向けの窓口）は未選定（☐）なので載せない。
+ * - その下に、参考になるページ（emergency.md の EP01〜EP03。11/6 依頼主の判断）を紹介する。
  * - 文言は画面のプログラムに組み込んであり、表示にサーバーへの通信を使わない。
  * - デモで電話がかからないように、119 や窓口の番号は電話のリンクにしない（ただの文字）。
+ *   参考のページの URL も、押して画面が切り替わらないように、ただの文字で出す。
  */
 export function EmergencyGuide({
   language,
@@ -231,6 +233,19 @@ export function EmergencyGuide({
   );
 }
 
+/**
+ * 参考になるページ（docs/demo-data/emergency.md の EP01〜EP03。11/6 依頼主の判断）。
+ * URL はどの言語でも同じなので、ここに1か所だけ置く。説明の文は packages/i18n の emergency にある。
+ */
+const INFO_PAGES = [
+  // EP01（EN01 の119番）：総務省消防庁「救急車利用マニュアル」
+  { label: "ambulanceGuidePage", url: "https://www.fdma.go.jp/publication/portal/post2.html" },
+  // EP02（EN04）：JNTO「Japan Visitor Hotline」の案内
+  { label: "visitorHotlinePage", url: "https://www.jnto.go.jp/projects/visitor-support/safetravelinfo.html" },
+  // EP03（EN05 の探し先）：CLAIR「多言語生活相談窓口 一覧」
+  { label: "residentConsultationPage", url: "https://www.clair.or.jp/j/multiculture/association/consultation_list.html" },
+] as const;
+
 /** 患者さんの言語の119番の案内 */
 function GuideBody({ language, aiNotice }: { language: LanguageCode; aiNotice: ReactNode }) {
   const t = getMessages(language).emergency;
@@ -251,6 +266,21 @@ function GuideBody({ language, aiNotice }: { language: LanguageCode; aiNotice: R
         <li>{t.childLine}</li>
         <li>{t.visitorHotline}</li>
       </ul>
+
+      <div className="space-y-2 text-base text-slate-700">
+        <p className="font-semibold">{t.infoPagesTitle}</p>
+        <ul className="space-y-2">
+          {INFO_PAGES.map((page) => (
+            <li key={page.url}>
+              {t[page.label]}
+              {/* デモで画面が切り替わらないように、押して開くリンクにしない */}
+              <span lang="en" className="block break-all text-sm">
+                {page.url}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </div>
 
       {aiNotice}
     </div>
