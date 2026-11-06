@@ -152,9 +152,12 @@ export function LanguageStart() {
             if (show119Recorded.current && view !== null) {
               // 119番の案内を記録したあとに「緊急ではない」を選んだ：押し間違いとして取り消し、元の画面に戻る
               // （もとの判断は記録に残る。11/6 依頼主の判断）。記録できていないとき（通信が止まっていた）は下の流れ
-              show119Recorded.current = false;
               const id = view.id;
-              void run(() => sessionApi.cancelEmergency119(id));
+              void run(async () => {
+                const result = await sessionApi.cancelEmergency119(id);
+                show119Recorded.current = false; // 取り消しを記録できたときだけ忘れる（失敗したら、もう一度取り消せる）
+                return result;
+              });
               return;
             }
             if (view === null) {
