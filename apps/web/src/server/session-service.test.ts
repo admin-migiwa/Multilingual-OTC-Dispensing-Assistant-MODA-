@@ -293,6 +293,9 @@ describe("問診の流れを選ぶ（11/6 の判断）", () => {
     assert.equal(chosen.status, "interview");
     assert.equal(chosen.nextQuestion, "Q07");
     answer(deps, id, { conditions: [] });
+    // いま飲んでいる薬（Q09）は、判定に使わなくてもどの薬でも聞く（11/6 依頼主の判断。K39）
+    assert.equal(patientView(getSession(deps, id)).nextQuestion, "Q09");
+    answer(deps, id, { currentMedications: [] });
     const done = patientView(answer(deps, id, { softContactLens: false }));
     assert.equal(done.status, "drug_selection");
     assert.equal(done.interviewComplete, true);
@@ -333,6 +336,7 @@ describe("レビュー後の直し（No.14）", () => {
     chooseDrugs(deps, id, ["C"]);
     const view = patientView(chooseDrugs(deps, id, ["H"]));
     assert.deepEqual(view.selectedDrugs, ["H"]);
-    assert.equal(view.nextQuestion, "Q14");
+    // 貼り薬 H でも、いま飲んでいる薬（Q09）を先に聞く（11/6 依頼主の判断。K39）
+    assert.equal(view.nextQuestion, "Q09");
   });
 });

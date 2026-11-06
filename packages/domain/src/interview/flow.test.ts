@@ -395,11 +395,12 @@ describe("問診の流れ：ほしい薬がある／症状から探す（11/6 �
   });
 
   // 聞く項目は、drugs.md（薬剤師確認済み）の各薬の「してはいけないことと注意」の行から決まる
+  // いま飲んでいる薬（Q09）は、判定に使わなくても、どの薬を選んでも聞く（11/6 依頼主の判断。contraindication-tests.md K39）
   const productCases: { drug: StockedDrugId; asks: QuestionId[] }[] = [
-    { drug: "G", asks: ["Q07", "Q13"] }, // 緑内障（相談）・ソフトコンタクト
-    { drug: "H", asks: ["Q14"] }, // 貼る場所
-    { drug: "F", asks: ["Q07", "Q12"] }, // 透析・長く続けて飲む
-    { drug: "A", asks: ["Q03", "Q04", "Q07", "Q08"] }, // 妊娠・授乳・肝臓病・アレルギー歴
+    { drug: "G", asks: ["Q07", "Q09", "Q13"] }, // 緑内障（相談）・ソフトコンタクト
+    { drug: "H", asks: ["Q09", "Q14"] }, // 貼る場所
+    { drug: "F", asks: ["Q07", "Q09", "Q12"] }, // 透析・長く続けて飲む
+    { drug: "A", asks: ["Q03", "Q04", "Q07", "Q08", "Q09"] }, // 妊娠・授乳・肝臓病・アレルギー歴
   ];
   for (const { drug, asks } of productCases) {
     it(`「ほしい薬がある」で薬 ${drug} を選んだ30歳女性には、${asks.join("・")} だけを聞く`, () => {
@@ -407,6 +408,24 @@ describe("問診の流れ：ほしい薬がある／症状から探す（11/6 �
       assert.deepEqual(missingQuestions(state), asks);
     });
   }
+
+  it("「ほしい薬がある」で薬を選ぶと、判定に使わない薬でも、いま飲んでいる薬（Q09・処方薬）を聞く（K39）", () => {
+    // 貼り薬 H の判定には Q09 を使わないが、薬剤師が処方薬との飲み合わせを判断するために聞く
+    const state = selectDrugs(chooseRoute(applyAnswers(noRoute, attributes), "product"), ["H"]);
+    assert.equal(nextQuestion(state), "Q09");
+  });
+
+  it("「ほしい薬がある」では、薬を選ぶ前はいま飲んでいる薬（Q09）を聞かない（薬を選んでから聞く）", () => {
+    const state = chooseRoute(applyAnswers(noRoute, attributes), "product");
+    assert.ok(!missingQuestions(state).includes("Q09"));
+  });
+
+  it("「ほしい薬がある」で薬を選び直しても、いま飲んでいる薬（Q09）の答えは消えない", () => {
+    let state = selectDrugs(chooseRoute(applyAnswers(noRoute, attributes), "product"), ["H"]);
+    state = applyAnswers(state, { currentMedications: [] });
+    state = selectDrugs(state, ["G"]);
+    assert.deepEqual(state.answers.currentMedications, []);
+  });
 
   it("「ほしい薬がある」でも、15歳未満には体重（Q05）を聞く（用量の確認のため）", () => {
     const state = selectDrugs(chooseRoute(applyAnswers(noRoute, { age: 10, sex: "male" }), "product"), ["G"]);

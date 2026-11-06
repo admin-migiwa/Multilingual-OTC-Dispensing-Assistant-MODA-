@@ -39,7 +39,8 @@ function contextOf(state: InterviewState, settings: InterviewSettings): AskConte
  * その項目を、いま聞く必要があるか。
  * - 年齢・性別と薬ごとの項目：それぞれの聞く条件のとおり
  * - 基本の項目：症状から探すときは聞く条件のとおり（全員）。ほしい薬のときは、選んだ薬の禁忌判定に使う項目だけ
- *   （体重 Q05 は用量の確認に使うので、15歳未満には聞く）。流れが決まるまでは聞かない
+ *   （体重 Q05 は用量の確認に使うので、15歳未満には聞く。いま飲んでいる薬 Q09 は、薬を選んだあとに必ず聞く）。
+ *   流れが決まるまでは聞かない
  */
 export function isAsked(question: QuestionDefinition, ctx: AskContext): boolean {
   if (!question.askWhen(ctx)) return false;
@@ -47,6 +48,10 @@ export function isAsked(question: QuestionDefinition, ctx: AskContext): boolean 
   if (ctx.route === "symptom") return true;
   if (ctx.route === "product") {
     if (question.id === "Q05") return true;
+    // いま飲んでいる薬（Q09）は、選んだ薬の判定に使わなくても、薬を選んだ人には必ず聞く
+    // （在日の方の処方薬を薬剤師が見て飲み合わせを判断するため。判定には使わない。
+    //   11/6 依頼主の判断。docs/demo-data/contraindication-tests.md K39）
+    if (question.id === "Q09") return ctx.selectedDrugs.length > 0;
     return ctx.selectedDrugs.some((drug) => (questionsUsedByDrug(drug) as ReadonlySet<string>).has(question.id));
   }
   return false;
