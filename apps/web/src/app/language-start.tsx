@@ -38,6 +38,9 @@ export function LanguageStart() {
   const [sessionLost, setSessionLost] = useState(false);
   /** null：緊急の確認・案内を出していない */
   const [emergency, setEmergency] = useState<EmergencyTrigger | null>(null);
+  /** いま出している緊急の確認（画面から外れたチャットが、あとから届いた答えで呼んでくるときに、最新の値を見るため） */
+  const emergencyRef = useRef<EmergencyTrigger | null>(null);
+  emergencyRef.current = emergency;
   /** 緊急の確認で聞いた答えと観察の印（判断のときにサーバーの記録に残す） */
   const [followUp, setFollowUp] = useState<FollowUpState>(EMPTY_FOLLOW_UP);
   /** サーバーの記録に残せなかったとき（表示は続ける。薬剤師に知らせる） */
@@ -175,7 +178,14 @@ export function LanguageStart() {
    * kind "keyword" は、通信がなくても出すための端末の中の知らせ（記録できていなければ、判断のときに「記録に残せていません」を出す）
    */
   function onChatEmergency(found: ChatEmergency) {
-    setEmergency(found.kind === "keyword" ? { kind: "keyword", text: found.text, hits: found.hits } : { kind: "staff" });
+    // チャットは、端末の中のキーワード（keyword）と、サーバーが開いた知らせ（server）の2回知らせることがある。
+    // すでに緊急の確認を出していれば、根拠の表示（入力した文・当てはまった項目）や 119番の記録の状態を上書きしない
+    // （チャットは画面から外れても、届いた答えで呼んでくるため、前の値を見て決める）
+    const next: EmergencyTrigger =
+      found.kind === "keyword" ? { kind: "keyword", text: found.text, hits: found.hits } : { kind: "staff" };
+    if (emergencyRef.current !== null) return;
+    emergencyRef.current = next;
+    setEmergency(next);
     setRecordFailed(false);
     show119Recorded.current = false;
   }

@@ -287,7 +287,8 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
 
       {view !== null ? <EmergencyRecords sessionId={sessionId} refreshKey={view.status} /> : null}
 
-      {view !== null && !["completed", "declined", "emergency_ended"].includes(view.status) ? (
+      {/* 緊急の確認中は出さない（確認は患者さんの画面で行う。チャットのキーワードで画面が移ってしまわないように） */}
+      {view !== null && !["completed", "declined", "emergency_ended", "emergency_review"].includes(view.status) ? (
         <details className="rounded-2xl border border-slate-200 p-3">
           <summary className="cursor-pointer font-semibold">翻訳のチャット（患者さんに画面を見せて、くわしいことをたずねる）</summary>
           <div className="mt-3">
