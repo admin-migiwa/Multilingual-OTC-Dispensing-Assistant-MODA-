@@ -19,7 +19,13 @@ import {
   selectDrugs as selectInterviewDrugs,
   transition,
   cancelEmergencyEnd,
+  checkPackageAnswer,
+  packageChoiceOptions,
+  selectProcedureVersion,
   type InterviewAnswers,
+  type PackageChoice,
+  type QuantityNoticeKind,
+  type QuantityRules,
   type InterviewRoute,
   type InterviewState,
   type QuestionId,
@@ -29,6 +35,7 @@ import {
 } from "@moda/domain";
 import { isSupportedLanguage, type LanguageCode } from "@moda/i18n";
 
+import { japanDate } from "./japan-date.ts";
 import type { PharmacistReviewRound } from "./pharmacist-service";
 
 /** セッションが見つからないなど、ルール以外の理由で処理できないとき */
@@ -149,6 +156,16 @@ export interface PatientView {
   readonly emergencyCleared: boolean;
   /** 年齢（Q01）の答え。画面を読み直したときに、緊急キーワードの確認で子どもの項目を使うかを決め直すため（T8a）。まだなら null */
   readonly age: number | null;
+  /**
+   * 次の質問が R02（買いたい個数・包装）のときだけ：選べる選択肢と注意文（18歳未満の大容量・複数個。backlog M-12）。
+   * 年齢・個数は販売手順の版のデータの値（画面の注意文に差し込む。ルール5）
+   */
+  readonly packageOptions: {
+    readonly allowed: readonly PackageChoice[];
+    readonly notices: readonly QuantityNoticeKind[];
+    readonly minorAgeBelow: number;
+    readonly minorMaxQuantity: number;
+  } | null;
 }
 
 export interface SessionStore {
@@ -214,22 +231,68 @@ function advance(deps: ServiceDeps, record: SessionRecord): SessionRecord {
   return current;
 }
 
-export function patientView(record: SessionRecord): PatientView {
+export function patientView(record: SessionRecord, now: Date = new Date()): PatientView {
   const status = record.snapshot.status;
   // 問診を進めてよい状態のときだけ、次に聞く項目を返す（緊急の確認中などに質問を出さないため）
   const asking = status === "attributes" || status === "interview";
+  const next = asking ? nextQuestion(record.interview) : null;
+  const age = record.interview.answers.age;
+  let packageOptions: PatientView["packageOptions"] = null;
+  if (next === "R02" && age !== undefined) {
+    const rules = quantityRulesAt(now);
+    packageOptions = {
+      ...packageChoiceOptions(record.interview.selectedDrugs, age, rules),
+      minorAgeBelow: rules.minorAgeBelow,
+      minorMaxQuantity: rules.minorMaxQuantity,
+    };
+  }
   return {
     id: record.id,
     language: record.language,
     status,
     route: record.interview.route ?? null,
-    nextQuestion: asking ? nextQuestion(record.interview) : null,
+    nextQuestion: next,
     selectedDrugs: record.interview.selectedDrugs,
     basicInterviewComplete: isBasicInterviewComplete(record.interview),
     interviewComplete: isInterviewComplete(record.interview),
     emergencyCleared: record.emergencies.some((e) => e.decision === "not_emergency"),
     age: record.interview.answers.age ?? null,
+    packageOptions,
   };
+}
+
+// ---------------------------------------------------------------------------
+// R02 の時点の個数・包装の制限（18歳未満の大容量・複数個。backlog M-12・sales-procedures.md S09・S10）
+// ---------------------------------------------------------------------------
+
+/** 店頭の日付（日本時間）の販売手順の版の数量基準 */
+export function quantityRulesAt(now: Date): QuantityRules {
+  return selectProcedureVersion(japanDate(now)).quantityRules;
+}
+
+const PACKAGE_KEYS = ["packageChoice", "multipleCount"] as const;
+
+/** R02 の答えが、いまの年齢・選んだ薬で選べるか（答えがなければ選べるとみなす） */
+function packageAnswerAllowed(interview: InterviewState, rules: QuantityRules): boolean {
+  const { age, packageChoice, multipleCount } = interview.answers;
+  if (age === undefined || packageChoice === undefined) return true;
+  const abuse = multipleCount === undefined ? { packageChoice } : { packageChoice, multipleCount };
+  return checkPackageAnswer(interview.selectedDrugs, abuse, age, rules).allowed;
+}
+
+/**
+ * 記録にある R02 の答えが、年齢の訂正や薬の選び直しで選べなくなったら、その答え（と、それで聞いた R03）を消して聞き直す。
+ * 消したことは種類だけを履歴に残す（中身は残さない）。呼んだあとに、次の質問があれば問診に戻すこと。
+ */
+export function enforcePackageLimit(deps: ServiceDeps, record: SessionRecord): SessionRecord {
+  if (packageAnswerAllowed(record.interview, quantityRulesAt(deps.now()))) return record;
+  const answers: InterviewAnswers = { ...record.interview.answers };
+  for (const key of PACKAGE_KEYS) delete answers[key];
+  const hadReason = answers.reasonText !== undefined;
+  // 包装の答えを消すと R03（大容量・複数個の理由）も聞かなくなるので、聞かなくなった答えを消す
+  const interview = selectInterviewDrugs({ ...record.interview, answers }, record.interview.selectedDrugs);
+  const cleared = ["R02", ...(hadReason && interview.answers.reasonText === undefined ? ["R03"] : [])];
+  return { ...record, interview, events: [...record.events, event(deps, "answers_cleared", cleared)] };
 }
 
 /** 言語を選んで接客を始める。言語選択はここで済んだことになり、年齢・性別を聞く状態から始める */
@@ -298,7 +361,13 @@ export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers)
   if (corrected.length > 0) newEvents.push(event(deps, "corrected", corrected));
   if (cleared.length > 0) newEvents.push(event(deps, "answers_cleared", cleared));
   if (ignored.length > 0) newEvents.push(event(deps, "answers_ignored", ignored));
+  // 18歳未満の大容量・複数個は、R02 の答えとしては受け取らない（記録は変わらない。画面は同じ質問を出す。M-12）
+  if (PACKAGE_KEYS.some((key) => answers[key] !== undefined) && !packageAnswerAllowed(interview, quantityRulesAt(deps.now()))) {
+    throw new DomainRuleError("QUANTITY_NOT_ALLOWED", "この年齢・個数・包装の組み合わせは選べません");
+  }
   let next: SessionRecord = { ...record, interview, events: [...record.events, ...newEvents] };
+  // 年齢を直して、前の R02 の答えが選べなくなったら、聞き直す
+  next = enforcePackageLimit(deps, next);
   // 薬の選択のあとに答え直して聞く項目が増えたら、問診に戻る
   if (next.snapshot.status === "drug_selection" && nextQuestion(next.interview) !== null) {
     next = moveTo(deps, next, "interview");
@@ -366,6 +435,8 @@ export function chooseDrugs(deps: ServiceDeps, id: string, drugIds: readonly Sto
     interview,
     events: [...record.events, event(deps, "drugs_selected", interview.selectedDrugs)],
   };
+  // 薬を足して、前の R02 の答えが選べなくなったら、聞き直す（M-12）
+  next = enforcePackageLimit(deps, next);
   if (nextQuestion(next.interview) !== null) next = moveTo(deps, next, "interview");
   deps.store.set(next);
   return next;

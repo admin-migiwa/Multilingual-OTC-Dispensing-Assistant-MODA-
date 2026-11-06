@@ -26,6 +26,7 @@ import {
   isInterviewComplete,
   judgeDrugs,
   nextQuestion,
+  packageChoiceOptions,
   previewCandidates,
   selectCandidateDrugs,
   type CandidatePreview,
@@ -43,8 +44,11 @@ import {
 } from "@moda/domain";
 import type { LanguageCode } from "@moda/i18n";
 
+import { japanDate } from "./japan-date.ts";
 import {
   SessionServiceError,
+  enforcePackageLimit,
+  quantityRulesAt,
   event,
   load,
   moveTo,
@@ -85,10 +89,8 @@ export const MAX_DECLINE_REASON_LENGTH = 200;
 
 // ---------------------------------------------------------------------------
 
-/** 店頭の日付（日本時間の YYYY-MM-DD）。UTC の日付を使うと朝9時前が前日になるため */
-export function japanDate(now: Date): string {
-  return new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Tokyo", year: "numeric", month: "2-digit", day: "2-digit" }).format(now);
-}
+/** 店頭の日付（日本時間）。session-service と共通にするため japan-date.ts に移した */
+export { japanDate };
 
 function currentRound(record: SessionRecord): { index: number; round: PharmacistReviewRound } {
   const rounds = record.pharmacistReviews ?? [];
@@ -239,6 +241,13 @@ export function chooseCandidateDrugs(deps: ServiceDeps, id: string, drugIds: rea
   const record = load(deps, id);
   const { index, round } = currentRound(record);
   const interview = selectCandidateDrugs(record.interview, [...new Set(drugIds)]);
+  // 18歳未満で、R02 にどの包装も選べない組み合わせ（例：B と E を一緒に）は選ばせない。問診に戻っても答えられないため（M-12）
+  const age = interview.answers.age;
+  if (interview.selectedDrugs.includes("E") && age !== undefined) {
+    if (packageChoiceOptions(interview.selectedDrugs, age, quantityRulesAt(deps.now())).allowed.length === 0) {
+      throw new DomainRuleError("QUANTITY_NOT_ALLOWED", "この年齢では、この薬の組み合わせは販売できません");
+    }
+  }
   const at = deps.now().toISOString();
   const closed = withRound(record, index, { ...round, closedAt: at, candidateDrugIds: interview.selectedDrugs });
   let next = moveTo(deps, closed, "drug_selection");
@@ -251,6 +260,7 @@ export function chooseCandidateDrugs(deps: ServiceDeps, id: string, drugIds: rea
       event(deps, "drugs_selected", interview.selectedDrugs),
     ],
   };
+  next = enforcePackageLimit(deps, next);
   if (nextQuestion(next.interview) !== null) next = moveTo(deps, next, "interview");
   deps.store.set(next);
   return next;

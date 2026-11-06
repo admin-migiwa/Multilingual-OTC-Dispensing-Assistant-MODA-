@@ -6,7 +6,15 @@
  * - ルールで止まったとき（決められた形でない答えなど）は RuleError を投げる。画面は同じ質問をもう一度出す。
  */
 
-import type { InterviewAnswers, InterviewRoute, QuestionId, SessionStatus, StockedDrugId } from "@moda/domain";
+import type {
+  InterviewAnswers,
+  InterviewRoute,
+  PackageChoice,
+  QuantityNoticeKind,
+  QuestionId,
+  SessionStatus,
+  StockedDrugId,
+} from "@moda/domain";
 import type { LanguageCode } from "@moda/i18n";
 
 export interface PatientView {
@@ -22,6 +30,13 @@ export interface PatientView {
   readonly emergencyCleared: boolean;
   /** 年齢の答え（緊急キーワードの確認で子どもの項目を使うかを決める）。まだなら null */
   readonly age: number | null;
+  /** 次の質問が R02 のときだけ：選べる選択肢と注意文（18歳未満の大容量・複数個。年齢・個数は販売手順の版のデータの値。backlog M-12） */
+  readonly packageOptions: {
+    readonly allowed: readonly PackageChoice[];
+    readonly notices: readonly QuantityNoticeKind[];
+    readonly minorAgeBelow: number;
+    readonly minorMaxQuantity: number;
+  } | null;
 }
 
 export class NetworkError extends Error {

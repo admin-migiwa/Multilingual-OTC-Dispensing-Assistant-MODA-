@@ -455,6 +455,7 @@ function PatientBody({
           busy={busy}
           onSubmit={onAnswer}
           onFreeText={onFreeText}
+          packageOptions={view.packageOptions}
         />
         {canReselect ? (
           <button
