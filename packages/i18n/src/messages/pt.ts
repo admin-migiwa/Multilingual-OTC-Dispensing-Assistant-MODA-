@@ -108,6 +108,7 @@ export const pt: Messages = {
     staffHelp: "Nossa equipe vai ajudar você agora. Mostre esta tela a um funcionário.",
     consultLine: "Se não tiver certeza se deve chamar uma ambulância, você pode ligar para uma linha de consulta de emergência (#7119 etc.; o número muda conforme a região).",
     childLine: "Para dúvidas sobre crianças em feriados ou à noite, ligue para #8000.",
+    visitorHotline: "Se você está visitando o Japão, pode ligar para a \"Japan Visitor Hotline\" da Organização Nacional de Turismo do Japão (JNTO) no 050-3816-2787 (24 horas, todos os dias; inglês, chinês e coreano; apoio em emergências como doenças ou ferimentos).",
   },
   emergencyFollowUp: {
     intro: "São perguntas do farmacêutico. Escolha a resposta que se aplica.",

@@ -71,6 +71,15 @@ describe("定型文（9言語）", () => {
       assert.match(emergency.childLine, /#8000/, lang.code);
     }
   });
+
+  it("訪日外国人向けの窓口（emergency.md の EN04：JNTO の Japan Visitor Hotline）の番号が、どの言語でも同じ", () => {
+    for (const lang of LANGUAGES) {
+      const { visitorHotline } = getMessages(lang.code).emergency;
+      assert.match(visitorHotline, /050-3816-2787/, lang.code);
+      assert.match(visitorHotline, /Japan Visitor Hotline/, lang.code);
+      assert.match(visitorHotline, /JNTO/, lang.code);
+    }
+  });
 });
 
 describe("訳の確認状態", () => {

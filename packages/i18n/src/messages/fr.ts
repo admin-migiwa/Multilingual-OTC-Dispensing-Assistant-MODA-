@@ -108,6 +108,7 @@ export const fr: Messages = {
     staffHelp: "Notre personnel va vous aider tout de suite. Montrez cet écran à un membre du personnel.",
     consultLine: "Si vous hésitez à appeler une ambulance, vous pouvez contacter une ligne de conseil d'urgence (#7119, etc. ; le numéro dépend de la région).",
     childLine: "Pour un conseil concernant un enfant les jours fériés ou la nuit, appelez le #8000.",
+    visitorHotline: "Si vous êtes de passage au Japon, vous pouvez appeler la « Japan Visitor Hotline » de l'Office national du tourisme japonais (JNTO) au 050-3816-2787 (24 h/24, tous les jours ; anglais, chinois et coréen ; aide en cas d'urgence, par exemple maladie ou blessure).",
   },
   emergencyFollowUp: {
     intro: "Voici des questions du pharmacien. Choisissez la réponse qui correspond.",

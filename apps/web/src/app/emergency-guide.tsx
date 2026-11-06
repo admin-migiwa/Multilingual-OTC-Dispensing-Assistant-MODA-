@@ -25,10 +25,11 @@ export type EmergencyTrigger =
  *
  * - 言語を選ぶ前に開いたとき（language が null）は、「スタッフがすぐにお手伝いします」を全言語で並べ、
  *   薬剤師が患者さんの言語を選べるようにする（選ぶと質問と119番の案内を母国語で出せる）。
- * - 文言は packages/i18n の emergency（emergency.md の EN01〜EN03：119番・#7119・#8000）だけ。
- *   EN04・EN05（外部の多言語窓口）は未確認（☐）なので載せない。
+ * - 文言は packages/i18n の emergency（emergency.md の EN01〜EN04：119番・#7119・#8000・
+ *   JNTO の Japan Visitor Hotline）だけ。EN04 は11/6 に薬剤師が確認した（backlog V-01・C-12）。
+ *   EN05（在日の方向けの窓口）は未選定（☐）なので載せない。
  * - 文言は画面のプログラムに組み込んであり、表示にサーバーへの通信を使わない。
- * - デモで電話がかからないように、119 は電話のリンクにしない（ただの文字）。
+ * - デモで電話がかからないように、119 や窓口の番号は電話のリンクにしない（ただの文字）。
  */
 export function EmergencyGuide({
   language,
@@ -248,6 +249,7 @@ function GuideBody({ language, aiNotice }: { language: LanguageCode; aiNotice: R
       <ul className="space-y-2 text-base text-slate-700">
         <li>{t.consultLine}</li>
         <li>{t.childLine}</li>
+        <li>{t.visitorHotline}</li>
       </ul>
 
       {aiNotice}

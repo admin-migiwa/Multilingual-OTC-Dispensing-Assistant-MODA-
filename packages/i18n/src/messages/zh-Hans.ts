@@ -108,6 +108,7 @@ export const zhHans: Messages = {
     staffHelp: "工作人员会马上为您提供帮助。请把这个画面给工作人员看。",
     consultLine: "如果不确定是否需要叫救护车，可以拨打急救咨询电话（#7119 等，号码因地区而异）。",
     childLine: "儿童在节假日或夜间的咨询电话是 #8000。",
+    visitorHotline: "来日本旅行的游客可以拨打日本国家旅游局（JNTO）的“Japan Visitor Hotline”050-3816-2787（24小时、全年无休；英语、中文、韩语；在生病、受伤等紧急情况下提供帮助）。",
   },
   emergencyFollowUp: {
     intro: "这是药剂师的问题。请选择符合的答案。",
