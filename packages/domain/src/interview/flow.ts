@@ -193,7 +193,7 @@ function dropAnswersNoLongerAsked(state: InterviewState, settings: InterviewSett
     let changed = false;
     for (const question of QUESTIONS) {
       if (isAsked(question, ctx)) continue;
-      for (const key of question.answerKeys) {
+      for (const key of [...question.answerKeys, ...(question.optionalKeys ?? [])]) {
         if (answers[key] !== undefined) {
           answers = { ...answers };
           delete answers[key];
@@ -242,7 +242,15 @@ export function applyAnswersWithReport(
   newAnswers: InterviewAnswers,
   settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
 ): ApplyAnswersResult {
-  const merged: InterviewAnswers = { ...state.answers, ...newAnswers };
+  const merged: InterviewAnswers = { ...state.answers };
+  // 項目に答え直したら、その項目に付いてくる答え（「その他」の文・薬の名前）も前のものを消す。
+  // 新しい答えに含まれていなければ残さない（古い文が新しい答えと一緒に記録に残らないように）
+  for (const question of QUESTIONS) {
+    if (!question.optionalKeys) continue;
+    if (!question.answerKeys.some((key) => newAnswers[key] !== undefined)) continue;
+    for (const key of question.optionalKeys) delete merged[key];
+  }
+  Object.assign(merged, newAnswers);
   // 先に「聞く必要がなくなった答え」と「聞かない項目への答え」を消してから形を確かめる。
   // 例：R02 を「複数個・3個」から「小箱1個」に直したとき、古い個数が残って形の誤りにならないように
   const next: InterviewState = { ...state, answers: dropAnswersNoLongerAsked({ ...state, answers: merged }, settings) };
@@ -251,7 +259,7 @@ export function applyAnswersWithReport(
   const ignored = new Set<QuestionId>();
   for (const key of Object.keys(newAnswers) as (keyof InterviewAnswers)[]) {
     if (newAnswers[key] !== undefined && next.answers[key] === undefined) {
-      const owner = QUESTIONS.find((q) => q.answerKeys.includes(key));
+      const owner = QUESTIONS.find((q) => q.answerKeys.includes(key) || (q.optionalKeys ?? []).includes(key));
       if (owner) ignored.add(owner.id);
     }
   }

@@ -31,6 +31,7 @@ export const zhHans: Messages = {
     noMatch: "没有找到。请把手机画面给工作人员看。",
     symptomPrompt: "您有什么症状？",
     chooseDrug: "选择这个药",
+    changeDrug: "重新选择其他药",
   },
   photoConsent: {
     title: "关于照片",

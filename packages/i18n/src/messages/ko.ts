@@ -31,6 +31,7 @@ export const ko: Messages = {
     noMatch: "찾지 못했습니다. 휴대폰 화면을 직원에게 보여 주세요.",
     symptomPrompt: "어떤 증상이 있나요?",
     chooseDrug: "이 약으로 할게요",
+    changeDrug: "다른 약으로 다시 고르기",
   },
   photoConsent: {
     title: "사진에 대해",

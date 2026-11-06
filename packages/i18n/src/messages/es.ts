@@ -31,6 +31,7 @@ export const es: Messages = {
     noMatch: "No se encontró. Muestre la pantalla de su teléfono a un miembro del personal.",
     symptomPrompt: "¿Qué síntomas tiene?",
     chooseDrug: "Elegir este medicamento",
+    changeDrug: "Elegir otro medicamento",
   },
   photoConsent: {
     title: "Sobre la foto",

@@ -31,6 +31,7 @@ export const fr: Messages = {
     noMatch: "Aucun résultat. Montrez l'écran de votre téléphone à un membre du personnel.",
     symptomPrompt: "Quels symptômes avez-vous ?",
     chooseDrug: "Choisir ce médicament",
+    changeDrug: "Choisir un autre médicament",
   },
   photoConsent: {
     title: "À propos de la photo",

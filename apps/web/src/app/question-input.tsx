@@ -114,6 +114,8 @@ export function QuestionInput({
           ]}
           textLabel={c.other}
           textWhen={["other"]}
+          // 「その他」を選んだら、内容を入れるまで進めない（空のままだと「なし」と区別できないため）
+          requireText
           onFreeText={onFreeText}
           onSubmit={(values, text) =>
             onSubmit({
@@ -334,6 +336,7 @@ function MultiQuestion({
   busy,
   textLabel,
   textWhen,
+  requireText = false,
   onFreeText,
 }: {
   text: string;
@@ -345,6 +348,8 @@ function MultiQuestion({
   textLabel?: string;
   /** これらのどれかを選んだら、自由入力の欄を出す */
   textWhen?: readonly string[];
+  /** 自由入力の欄を出したら、文を入れるまで「次へ」を押せないようにする */
+  requireText?: boolean;
   onFreeText?: (text: string) => boolean;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
@@ -387,7 +392,12 @@ function MultiQuestion({
         </label>
       ) : null}
       <div className="flex flex-wrap gap-3">
-        <button type="button" disabled={busy || picked.length === 0} onClick={submit} className={primaryClass}>
+        <button
+          type="button"
+          disabled={busy || picked.length === 0 || (requireText && showText && freeText.trim() === "")}
+          onClick={submit}
+          className={primaryClass}
+        >
           {nextLabel}
         </button>
         <button

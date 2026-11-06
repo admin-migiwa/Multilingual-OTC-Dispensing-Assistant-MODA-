@@ -31,6 +31,7 @@ export const vi: Messages = {
     noMatch: "Không tìm thấy. Vui lòng cho nhân viên xem màn hình điện thoại.",
     symptomPrompt: "Bạn có triệu chứng gì?",
     chooseDrug: "Chọn thuốc này",
+    changeDrug: "Chọn lại thuốc khác",
   },
   photoConsent: {
     title: "Về việc chụp ảnh",

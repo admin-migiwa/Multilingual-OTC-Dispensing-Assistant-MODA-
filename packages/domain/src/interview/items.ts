@@ -91,6 +91,11 @@ export interface QuestionDefinition {
   readonly stage: "attributes" | "basic" | "drug";
   /** この項目の答えを入れる場所（答えたかどうかの判定に使う） */
   readonly answerKeys: readonly (keyof InterviewAnswers)[];
+  /**
+   * この項目に付いてくる、なくてもよい答え（例：Q07 の「その他」の文、Q09 の薬の名前）。
+   * 答えたかどうかの判定には使わない。項目を聞かなくなったとき・項目に答え直したときは、一緒に消す
+   */
+  readonly optionalKeys?: readonly (keyof InterviewAnswers)[];
   /** 聞く条件。false なら聞かない（答えがなくても問診は終えられる） */
   readonly askWhen: (ctx: AskContext) => boolean;
 }
@@ -129,9 +134,15 @@ export const QUESTIONS: readonly QuestionDefinition[] = [
     askWhen: (ctx) => ctx.answers.age !== undefined && ctx.answers.age < ctx.settings.weightQuestionBelowAge,
   },
   { id: "Q06", stage: "basic", answerKeys: ["asthmaHistory"], askWhen: always },
-  { id: "Q07", stage: "basic", answerKeys: ["conditions"], askWhen: always },
+  { id: "Q07", stage: "basic", answerKeys: ["conditions"], optionalKeys: ["otherConditionText"], askWhen: always },
   { id: "Q08", stage: "basic", answerKeys: ["drugAllergy"], askWhen: always },
-  { id: "Q09", stage: "basic", answerKeys: ["currentMedications"], askWhen: always },
+  {
+    id: "Q09",
+    stage: "basic",
+    answerKeys: ["currentMedications"],
+    optionalKeys: ["prescriptionDrugNames"],
+    askWhen: always,
+  },
   { id: "Q10", stage: "basic", answerKeys: ["drivingAfter"], askWhen: always },
   // --- 薬ごとの項目（選んだ薬が決まってから） ---
   { id: "Q11", stage: "drug", answerKeys: ["alcohol"], askWhen: selected("C", "D", "E", "I") },

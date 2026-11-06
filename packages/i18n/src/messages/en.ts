@@ -31,6 +31,7 @@ export const en: Messages = {
     noMatch: "No match found. Please show your phone screen to a staff member.",
     symptomPrompt: "What symptoms do you have?",
     chooseDrug: "Choose this medicine",
+    changeDrug: "Choose a different medicine",
   },
   photoConsent: {
     title: "About the photo",

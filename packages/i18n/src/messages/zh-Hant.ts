@@ -31,6 +31,7 @@ export const zhHant: Messages = {
     noMatch: "沒有找到。請把手機畫面給工作人員看。",
     symptomPrompt: "您有什麼症狀？",
     chooseDrug: "選擇這個藥",
+    changeDrug: "重新選擇其他藥",
   },
   photoConsent: {
     title: "關於照片",

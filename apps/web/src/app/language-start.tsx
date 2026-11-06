@@ -22,7 +22,8 @@ import { RuleError, sessionApi, type PatientView } from "./session-api";
  */
 
 /** 画面だけで持つ切り替え（流れの選び直し・症状の入力・受診の案内）。どこまで進んだかはサーバーが持つ */
-type Mode = "questions" | "choose" | "symptom" | "not_for_sale";
+/** reselect：「ほしい薬がある」で、薬を選んだあとの問診の途中から薬を選び直す */
+type Mode = "questions" | "choose" | "symptom" | "reselect" | "not_for_sale";
 
 export function LanguageStart() {
   const [language, setLanguage] = useState<LanguageCode | null>(null);
@@ -41,6 +42,8 @@ export function LanguageStart() {
   const [recordFailed, setRecordFailed] = useState(false);
   /** 緊急キーワードの判定に使う年齢（Q01 の答え。こどもの項目を使うかを決める） */
   const age = useRef<number | undefined>(undefined);
+  /** 「119番の案内を出す」をサーバーの記録に残せたか（残せたら、その接客は終わっている） */
+  const show119Recorded = useRef(false);
 
   /** サーバーを呼び、結果で画面を進める。通信が止まったら「通信が止まりました」の画面にする */
   async function run(action: () => Promise<PatientView>): Promise<void> {
@@ -59,6 +62,8 @@ export function LanguageStart() {
           const latest = await sessionApi.get(view.id);
           setView(latest);
           if (latest.status === "emergency_review") setEmergency({ kind: "staff" });
+          // 119番の案内で接客が終わっていたら、先に進めず「すでに終わっています」の画面にする
+          if (latest.status === "emergency_ended") setSessionLost(true);
         } catch {
           setNetworkDown(true);
         }
@@ -82,6 +87,7 @@ export function LanguageStart() {
   function openEmergency(trigger: EmergencyTrigger) {
     setEmergency(trigger);
     setRecordFailed(false);
+    show119Recorded.current = false;
     if (view === null) return;
     sessionApi
       .openEmergency(view.id, {
@@ -127,11 +133,25 @@ export function LanguageStart() {
           followUp={followUp}
           onFollowUpChange={setFollowUp}
           onShowGuide={() => {
-            recordDecision("show_119").catch(() => setRecordFailed(true));
+            if (show119Recorded.current) return; // すでに記録した（2回目の押下）。案内はそのまま出す
+            recordDecision("show_119")
+              .then((result) => {
+                if (result !== null) show119Recorded.current = true;
+              })
+              .catch((error: unknown) => {
+                // 状態のずれ（すでに終わっているなど）は通信の停止ではないので、「通信が止まっている」と出さない
+                if (!(error instanceof RuleError)) setRecordFailed(true);
+              });
           }}
           onReturn={() => {
             setEmergency(null);
             setFollowUp(EMPTY_FOLLOW_UP);
+            if (show119Recorded.current) {
+              // 119番の案内を記録した接客は終わっている。「緊急ではない」に戻さず、最初からやり直す画面にする
+              // （通信が止まっていて記録に残せなかったときは、元の画面に戻れる）
+              setSessionLost(true);
+              return;
+            }
             if (view === null) {
               // 言語を選ぶ前に開いて、確認の画面で言語を選んだときは、ここから接客を始める
               if (language !== null) void run(() => sessionApi.start(language));
@@ -305,6 +325,12 @@ function PatientBody({
     return <p className="text-center text-lg text-slate-500">…</p>;
   }
 
+  // 「ほしい薬がある」で薬を選んだあと：問診の途中でも薬を選び直せる（サーバーの chooseDrugs が受け付ける）
+  const canReselect = view.route === "product" && view.selectedDrugs.length > 0 && !view.interviewComplete;
+  if (mode === "reselect" && canReselect) {
+    return <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={() => onMode("questions")} />;
+  }
+
   // 問診（年齢・性別から、サーバーが決めた1問ずつ）
   if (view.nextQuestion !== null) {
     return (
@@ -318,6 +344,16 @@ function PatientBody({
           onSubmit={onAnswer}
           onFreeText={onFreeText}
         />
+        {canReselect ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => onMode("reselect")}
+            className="rounded-2xl border-2 border-slate-300 px-5 py-3 text-lg font-semibold hover:bg-slate-50 disabled:opacity-50"
+          >
+            {t.start.changeDrug}
+          </button>
+        ) : null}
       </>
     );
   }

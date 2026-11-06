@@ -35,6 +35,7 @@ export const ja = {
     noMatch: "見つかりませんでした。スマホの画面をスタッフに見せてください。",
     symptomPrompt: "どんな症状ですか？",
     chooseDrug: "この薬にする",
+    changeDrug: "別の薬を選び直す",
   },
   photoConsent: {
     title: "写真について",

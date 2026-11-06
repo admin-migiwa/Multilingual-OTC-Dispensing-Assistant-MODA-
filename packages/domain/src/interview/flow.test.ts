@@ -466,3 +466,39 @@ describe("問診の流れ：ほしい薬がある／症状から探す（11/6 �
     }
   }
 });
+
+describe("「その他」の文・薬の名前の扱い（No.14 のレビュー）", () => {
+  const symptom30: InterviewState = applyAnswers(empty, { age: 30, sex: "female" });
+
+  it("治療中の病気（Q07）を答え直して「その他」を外したら、前の「その他」の文は残らない", () => {
+    let state = applyAnswers(symptom30, { conditions: [], otherConditionText: "持病の名前" });
+    state = applyAnswers(state, { conditions: ["liver"] });
+    assert.deepEqual(state.answers.conditions, ["liver"]);
+    assert.equal(state.answers.otherConditionText, undefined);
+  });
+
+  it("「症状から探す」から「ほしい薬がある」に選び直して治療中の病気（Q07）を聞かなくなったら、「その他」の文も消える", () => {
+    let state = applyAnswers(symptom30, { conditions: [], otherConditionText: "持病の名前" });
+    state = selectDrugs(chooseRoute(state, "product"), ["H"]); // 貼り薬 H の判定には Q07 を使わない
+    assert.equal(state.answers.conditions, undefined);
+    assert.equal(state.answers.otherConditionText, undefined);
+  });
+
+  it("いま飲んでいる薬（Q09）を答え直したら、前に入れた薬の名前は残らない", () => {
+    let state = applyAnswers(symptom30, { currentMedications: ["prescription"], prescriptionDrugNames: ["薬の名前"] });
+    state = applyAnswers(state, { currentMedications: [] });
+    assert.deepEqual(state.answers.currentMedications, []);
+    assert.equal(state.answers.prescriptionDrugNames, undefined);
+  });
+
+  it("いま飲んでいる薬（Q09）で「その他」だけを選んで名前を入れたとき、名前は消えない", () => {
+    const state = applyAnswers(symptom30, { currentMedications: ["other"], prescriptionDrugNames: ["薬の名前"] });
+    assert.deepEqual(state.answers.prescriptionDrugNames, ["薬の名前"]);
+  });
+
+  it("ほかの項目に答えても、いま飲んでいる薬（Q09）の名前は消えない", () => {
+    let state = applyAnswers(symptom30, { currentMedications: ["prescription"], prescriptionDrugNames: ["薬の名前"] });
+    state = applyAnswers(state, { drivingAfter: false });
+    assert.deepEqual(state.answers.prescriptionDrugNames, ["薬の名前"]);
+  });
+});
