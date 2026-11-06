@@ -8,6 +8,13 @@
 
 import { DomainRuleError } from "../errors.ts";
 
+/**
+ * 妊娠・授乳（Q03・Q04）を聞く最低年齢（interview-items.md：12歳以上）。
+ * 問診（どの項目を聞くか）と禁忌判定（妊娠を確かめる対象か）の両方がこの値を使う。2か所で別の値にしないこと。
+ * 表には「設定で変えられる」とあるが、ハッカソン版では固定（docs/backlog.md M-04）。
+ */
+export const PREGNANCY_QUESTION_MIN_AGE = 12;
+
 export const SEXES = ["male", "female", "other", "no_answer"] as const;
 export type Sex = (typeof SEXES)[number];
 

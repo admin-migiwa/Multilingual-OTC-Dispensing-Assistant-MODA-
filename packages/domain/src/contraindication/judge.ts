@@ -19,7 +19,7 @@ import {
   type StockedDrug,
   type StockedDrugId,
 } from "./data.ts";
-import { assertValidFacts, type InterviewFacts, type InterviewItemId } from "./facts.ts";
+import { PREGNANCY_QUESTION_MIN_AGE, assertValidFacts, type InterviewFacts, type InterviewItemId } from "./facts.ts";
 
 export type Verdict = "contraindicated" | "caution" | "ok";
 
@@ -79,7 +79,7 @@ function need<K extends keyof InterviewFacts>(
 function asksPregnancyAndBreastfeeding(facts: InterviewFacts): boolean {
   const sex = need(facts, "sex", "Q02");
   const age = need(facts, "age", "Q01");
-  return sex !== "male" && age >= 12;
+  return sex !== "male" && age >= PREGNANCY_QUESTION_MIN_AGE;
 }
 
 type PregnancyState = "pregnant" | "maybe" | "not_pregnant";

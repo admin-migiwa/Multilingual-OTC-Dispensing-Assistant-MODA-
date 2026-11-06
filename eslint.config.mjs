@@ -8,6 +8,8 @@ export default tseslint.config(
       "**/node_modules/**", "**/.next/**", "**/dist/**", "**/coverage/**", "**/next-env.d.ts",
       // デモ動画の場面の部品。HTML に差し込んで使うため、単独ではチェックできない
       "video/scenes/**",
+      // Claude Code の作業用フォルダ（ほかのセッションのワークツリーなど）。リポジトリのコードではない
+      ".claude/**",
     ],
   },
   js.configs.recommended,

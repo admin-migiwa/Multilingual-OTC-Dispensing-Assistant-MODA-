@@ -1,0 +1,342 @@
+/**
+ * 問診の進め方のテスト。docs/demo-data/interview-items.md（薬剤師確認済み ☑）の
+ * 「聞く条件」「聞かない条件」と「聞かない・聞き直すときの決まり」から作っている。
+ */
+import { describe, it } from "node:test";
+import assert from "node:assert/strict";
+
+import { DomainRuleError } from "../errors.ts";
+import type { StockedDrugId } from "../contraindication/data.ts";
+import { judgeDrug } from "../contraindication/judge.ts";
+import {
+  applyAnswers,
+  assertInterviewComplete,
+  isBasicInterviewComplete,
+  isInterviewComplete,
+  missingQuestions,
+  nextQuestion,
+  selectDrugs,
+  factsForJudgment,
+  abusePreventionAnswers,
+  type InterviewState,
+} from "./flow.ts";
+import type { InterviewAnswers, QuestionId } from "./items.ts";
+
+const empty: InterviewState = { answers: {}, selectedDrugs: [] };
+
+/** 基本の項目の、問題のない答え（30歳女性。妊娠・授乳なし、持病・アレルギー・併用薬・運転なし） */
+const basicOk: InterviewAnswers = {
+  age: 30,
+  sex: "female",
+  pregnancy: "no",
+  breastfeeding: "no",
+  asthmaHistory: "no",
+  conditions: [],
+  drugAllergy: "no",
+  currentMedications: [],
+  drivingAfter: false,
+};
+
+const withAnswers = (answers: InterviewAnswers, selectedDrugs: StockedDrugId[] = []): InterviewState =>
+  applyAnswers({ answers: {}, selectedDrugs }, answers);
+
+function assertRuleError(fn: () => unknown, code: string): void {
+  assert.throws(fn, (err: unknown) => err instanceof DomainRuleError && err.code === code);
+}
+
+/** 最後の質問まで、問題のない答えで1問ずつ進めて、聞かれた項目の順番を返す */
+function walk(start: InterviewState, answerFor: (id: QuestionId) => InterviewAnswers): QuestionId[] {
+  const asked: QuestionId[] = [];
+  let state = start;
+  for (let i = 0; i < 30; i += 1) {
+    const id = nextQuestion(state);
+    if (id === null) return asked;
+    asked.push(id);
+    state = applyAnswers(state, answerFor(id));
+  }
+  throw new Error("問診が終わりません");
+}
+
+const answerOf: Record<QuestionId, InterviewAnswers> = {
+  Q01: { age: 30 },
+  Q02: { sex: "female" },
+  Q03: { pregnancy: "no" },
+  Q03a: { dueWithin12Weeks: "no" },
+  Q04: { breastfeeding: "no" },
+  Q05: { weightKg: 30 },
+  Q06: { asthmaHistory: "no" },
+  Q07: { conditions: [] },
+  Q08: { drugAllergy: "no" },
+  Q09: { currentMedications: [] },
+  Q10: { drivingAfter: false },
+  Q11: { alcohol: false },
+  Q12: { plannedDays: 3 },
+  Q13: { softContactLens: false },
+  Q14: { applicationSite: "normal" },
+  R01: { otherStorePurchase: "no" },
+  R02: { packageChoice: "small_one" },
+  R03: { reasonText: "家族の分" },
+  R04: { purposeText: "かぜ" },
+};
+
+describe("問診の順番：1問ずつ、年齢と性別から聞く", () => {
+  it("最初に年齢（Q01）、次に性別（Q02）を聞く", () => {
+    assert.equal(nextQuestion(empty), "Q01");
+    assert.equal(nextQuestion(withAnswers({ age: 30 })), "Q02");
+  });
+
+  it("30歳女性で薬を選ぶ前は、基本の項目（Q01〜Q10 のうち聞くもの）だけを順に聞く", () => {
+    assert.deepEqual(
+      walk(empty, (id) => answerOf[id]),
+      ["Q01", "Q02", "Q03", "Q04", "Q06", "Q07", "Q08", "Q09", "Q10"],
+    );
+  });
+
+  it("基本の項目を聞き終えるまで、薬ごとの項目は聞かない", () => {
+    const state = withAnswers({ age: 30, sex: "female" }, ["C"]);
+    assert.equal(nextQuestion(state), "Q03");
+  });
+});
+
+describe("妊娠・授乳（Q03・Q04）を聞く条件", () => {
+  it("男性には妊娠（Q03）・授乳（Q04）を聞かない", () => {
+    const asked = walk(empty, (id) => (id === "Q02" ? { sex: "male" } : answerOf[id]));
+    assert.ok(!asked.includes("Q03"));
+    assert.ok(!asked.includes("Q04"));
+  });
+
+  for (const sex of ["female", "other", "no_answer"] as const) {
+    it(`性別が「${sex}」の12歳以上には、妊娠（Q03）と授乳（Q04）を聞く`, () => {
+      const asked = walk(empty, (id) => (id === "Q02" ? { sex } : id === "Q01" ? { age: 12 } : answerOf[id]));
+      assert.ok(asked.includes("Q03"));
+      assert.ok(asked.includes("Q04"));
+    });
+  }
+
+  it("12歳未満には妊娠（Q03）・授乳（Q04）を聞かない", () => {
+    const asked = walk(empty, (id) => (id === "Q01" ? { age: 11 } : answerOf[id]));
+    assert.ok(!asked.includes("Q03"));
+    assert.ok(!asked.includes("Q04"));
+  });
+
+  it("男性への妊娠の答えは受け取らない（サーバー側で除外する）", () => {
+    const male = withAnswers({ age: 30, sex: "male" });
+    assertRuleError(() => applyAnswers(male, { pregnancy: "no" }), "QUESTION_NOT_ASKED");
+  });
+});
+
+describe("出産予定日（Q03a）を聞く条件", () => {
+  it("妊娠（Q03）で「妊娠している」と答えたときだけ聞く", () => {
+    const state = withAnswers({ age: 30, sex: "female", pregnancy: "pregnant" });
+    assert.equal(nextQuestion(state), "Q03a");
+  });
+
+  for (const pregnancy of ["maybe", "no", "not_applicable"] as const) {
+    it(`妊娠（Q03）が「${pregnancy}」なら出産予定日（Q03a）は聞かない`, () => {
+      const state = withAnswers({ age: 30, sex: "female", pregnancy });
+      assert.ok(!missingQuestions(state).includes("Q03a"));
+    });
+  }
+});
+
+describe("体重（Q05）を聞く条件", () => {
+  it("15歳未満には体重を聞く", () => {
+    const asked = walk(empty, (id) => (id === "Q01" ? { age: 14 } : answerOf[id]));
+    assert.ok(asked.includes("Q05"));
+  });
+
+  it("15歳以上には体重を聞かない", () => {
+    const asked = walk(empty, (id) => (id === "Q01" ? { age: 15 } : answerOf[id]));
+    assert.ok(!asked.includes("Q05"));
+  });
+});
+
+describe("薬ごとの項目（Q11〜Q14）を聞く条件", () => {
+  const cases: { drug: StockedDrugId; asks: QuestionId[]; notAsks: QuestionId[] }[] = [
+    { drug: "C", asks: ["Q11"], notAsks: ["Q12", "Q13", "Q14"] },
+    { drug: "D", asks: ["Q11"], notAsks: ["Q12", "Q13", "Q14"] },
+    { drug: "I", asks: ["Q11"], notAsks: ["Q12", "Q13", "Q14"] },
+    { drug: "B", asks: ["Q12"], notAsks: ["Q11", "Q13", "Q14"] },
+    { drug: "F", asks: ["Q12"], notAsks: ["Q11", "Q13", "Q14"] },
+    { drug: "G", asks: ["Q13"], notAsks: ["Q11", "Q12", "Q14"] },
+    { drug: "H", asks: ["Q14"], notAsks: ["Q11", "Q12", "Q13"] },
+    { drug: "E", asks: ["Q11"], notAsks: ["Q12", "Q13", "Q14"] },
+  ];
+  for (const { drug, asks, notAsks } of cases) {
+    it(`薬 ${drug} を選ぶと ${asks.join("・")} を聞き、${notAsks.join("・")} は聞かない`, () => {
+      const missing = missingQuestions(withAnswers(basicOk, [drug]));
+      for (const id of asks) assert.ok(missing.includes(id), id);
+      for (const id of notAsks) assert.ok(!missing.includes(id), id);
+    });
+  }
+
+  it("薬を選ぶ前は、薬ごとの項目を聞かない", () => {
+    assert.deepEqual(missingQuestions(withAnswers(basicOk)), []);
+  });
+});
+
+describe("指定濫用防止医薬品を選んだときの追加の問診（R01〜R04）", () => {
+  it("B を選ぶと R01（ほかの店での購入）と R04（使う目的）を聞き、R02（個数）は聞かない", () => {
+    const missing = missingQuestions(withAnswers(basicOk, ["B"]));
+    assert.ok(missing.includes("R01"));
+    assert.ok(missing.includes("R04"));
+    assert.ok(!missing.includes("R02"));
+  });
+
+  it("E を選ぶと R01・R02・R04 を聞く", () => {
+    const missing = missingQuestions(withAnswers(basicOk, ["E"]));
+    for (const id of ["R01", "R02", "R04"] as const) assert.ok(missing.includes(id), id);
+  });
+
+  it("R02 で小箱1個なら、理由（R03）は聞かない", () => {
+    const state = withAnswers({ ...basicOk, packageChoice: "small_one" }, ["E"]);
+    assert.ok(!missingQuestions(state).includes("R03"));
+  });
+
+  for (const answer of [{ packageChoice: "large_one" }, { packageChoice: "multiple", multipleCount: 2 }] as const) {
+    it(`R02 で「${answer.packageChoice}」なら、理由（R03）を聞く`, () => {
+      const state = withAnswers({ ...basicOk, ...answer }, ["E"]);
+      assert.ok(missingQuestions(state).includes("R03"));
+    });
+  }
+
+  it("B・E 以外の薬では、追加の問診（R01〜R04）を聞かない", () => {
+    const missing = missingQuestions(withAnswers(basicOk, ["C", "G"]));
+    for (const id of ["R01", "R02", "R03", "R04"] as const) assert.ok(!missing.includes(id), id);
+  });
+});
+
+describe("必要な項目がそろうまで問診を終えない", () => {
+  it("薬を選ぶ前は、問診を終えられない", () => {
+    assert.equal(isBasicInterviewComplete(withAnswers(basicOk)), true);
+    assert.equal(isInterviewComplete(withAnswers(basicOk)), false);
+    assertRuleError(() => assertInterviewComplete(withAnswers(basicOk)), "NO_DRUG_SELECTED");
+  });
+
+  it("選んだ薬の項目が残っていると、問診を終えられない", () => {
+    const state = withAnswers(basicOk, ["C"]);
+    assert.equal(isInterviewComplete(state), false);
+    assertRuleError(() => assertInterviewComplete(state), "INTERVIEW_INCOMPLETE");
+  });
+
+  it("選んだ薬の項目までそろうと、問診を終えられる", () => {
+    const state = withAnswers({ ...basicOk, alcohol: false }, ["C"]);
+    assert.equal(isInterviewComplete(state), true);
+    assert.doesNotThrow(() => assertInterviewComplete(state));
+  });
+});
+
+describe("答えの受け取り方（聞かない・聞き直すときの決まり）", () => {
+  it("一度に複数の項目に答えたら、当てはまる項目をすべて確認済みにする", () => {
+    const state = applyAnswers(empty, { age: 30, sex: "female", asthmaHistory: "no" });
+    assert.equal(nextQuestion(state), "Q03");
+    assert.ok(!missingQuestions(state).includes("Q06"));
+  });
+
+  it("決められた形でない答えは受け取らない（推測で進めず、同じ質問をもう一度出す）", () => {
+    assertRuleError(() => applyAnswers(empty, { age: Number.NaN }), "FACT_INVALID");
+    assertRuleError(
+      () => applyAnswers(withAnswers({ age: 30 }), { sex: "unknown" as unknown as "male" }),
+      "FACT_INVALID",
+    );
+    // 受け取らなかったので、次に聞く項目は変わらない
+    assert.equal(nextQuestion(empty), "Q01");
+  });
+
+  it("答え直すと上書きされる（訂正を受け付ける）", () => {
+    const state = applyAnswers(withAnswers({ age: 30, sex: "female", asthmaHistory: "no" }), { asthmaHistory: "yes" });
+    assert.equal(state.answers.asthmaHistory, "yes");
+  });
+
+  it("性別を「男性」に直したら、妊娠・授乳の答えは残さない", () => {
+    const female = withAnswers({ age: 30, sex: "female", pregnancy: "pregnant", dueWithin12Weeks: "no", breastfeeding: "no" });
+    const male = applyAnswers(female, { sex: "male" });
+    assert.equal(male.answers.pregnancy, undefined);
+    assert.equal(male.answers.dueWithin12Weeks, undefined);
+    assert.equal(male.answers.breastfeeding, undefined);
+  });
+
+  it("妊娠を「していない」に直したら、出産予定日（Q03a）の答えは残さない", () => {
+    const pregnant = withAnswers({ age: 30, sex: "female", pregnancy: "pregnant", dueWithin12Weeks: "yes" });
+    const corrected = applyAnswers(pregnant, { pregnancy: "no" });
+    assert.equal(corrected.answers.dueWithin12Weeks, undefined);
+  });
+
+  it("薬を選び直して聞く必要がなくなった項目の答えは残さない", () => {
+    const withC = withAnswers({ ...basicOk, alcohol: true }, ["C"]);
+    const toG = selectDrugs(withC, ["G"]);
+    assert.equal(toG.answers.alcohol, undefined);
+    assert.deepEqual(missingQuestions(toG), ["Q13"]);
+  });
+});
+
+describe("問診と禁忌判定のつながり", () => {
+  const allDrugs: StockedDrugId[] = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+  const people: { label: string; age: number; sex: "male" | "female" | "other" | "no_answer" }[] = [
+    { label: "30歳女性", age: 30, sex: "female" },
+    { label: "30歳男性", age: 30, sex: "male" },
+    { label: "12歳（性別：答えない）", age: 12, sex: "no_answer" },
+    { label: "11歳女性", age: 11, sex: "female" },
+    { label: "14歳（性別：その他）", age: 14, sex: "other" },
+  ];
+
+  for (const drug of allDrugs) {
+    for (const person of people) {
+      it(`${person.label}が薬 ${drug} を選んで問診を最後まで答えたら、その薬の禁忌判定がエラーで止まらない`, () => {
+        let state = selectDrugs(empty, [drug]);
+        for (let i = 0; i < 30; i += 1) {
+          const id = nextQuestion(state);
+          if (id === null) break;
+          const answer = id === "Q01" ? { age: person.age } : id === "Q02" ? { sex: person.sex } : answerOf[id];
+          state = applyAnswers(state, answer);
+        }
+        assert.equal(isInterviewComplete(state), true);
+        assert.doesNotThrow(() => judgeDrug(drug, factsForJudgment(state)));
+      });
+    }
+  }
+
+  it("禁忌判定に渡す答えには、指定濫用防止の追加の問診（R01〜R04）を含めない", () => {
+    const state = withAnswers({ ...basicOk, alcohol: false, otherStorePurchase: "no", packageChoice: "small_one", purposeText: "かぜ" }, ["E"]);
+    const facts = factsForJudgment(state);
+    assert.equal("otherStorePurchase" in facts, false);
+    assert.equal("packageChoice" in facts, false);
+    assert.deepEqual(abusePreventionAnswers(state), { otherStorePurchase: "no", packageChoice: "small_one", purposeText: "かぜ" });
+  });
+});
+
+describe("訂正で聞く条件が変わるとき", () => {
+  it("R02 を「複数個（3個）」から「小箱1個」に直せる。個数と理由（R03）の答えは残さない", () => {
+    const multiple = withAnswers({ ...basicOk, packageChoice: "multiple", multipleCount: 3, reasonText: "家族の分" }, ["E"]);
+    const corrected = applyAnswers(multiple, { packageChoice: "small_one" });
+    assert.equal(corrected.answers.packageChoice, "small_one");
+    assert.equal(corrected.answers.multipleCount, undefined);
+    assert.equal(corrected.answers.reasonText, undefined);
+  });
+
+  it("R02 の「複数個」は、個数と一緒でなければ受け取らない", () => {
+    const state = withAnswers(basicOk, ["E"]);
+    assertRuleError(() => applyAnswers(state, { packageChoice: "multiple" }), "FACT_INVALID");
+  });
+
+  it("年齢を30歳から10歳に直したら、妊娠・授乳の答えは残さず、体重（Q05）を聞く", () => {
+    const adult = withAnswers(basicOk);
+    const child = applyAnswers(adult, { age: 10 });
+    assert.equal(child.answers.pregnancy, undefined);
+    assert.equal(child.answers.breastfeeding, undefined);
+    assert.equal(nextQuestion(child), "Q05");
+  });
+
+  it("年齢を10歳から15歳に直したら、体重の答えは残さず、妊娠（Q03）を聞く", () => {
+    const child = withAnswers({ age: 10, sex: "female", weightKg: 30 });
+    const teen = applyAnswers(child, { age: 15 });
+    assert.equal(teen.answers.weightKg, undefined);
+    assert.equal(nextQuestion(teen), "Q03");
+  });
+});
+
+describe("選んだ薬の確かめ", () => {
+  it("取扱薬にない記号は選べない", () => {
+    assertRuleError(() => selectDrugs(empty, ["Z" as StockedDrugId]), "UNKNOWN_DRUG");
+  });
+});
