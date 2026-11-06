@@ -43,3 +43,18 @@ export {
 
 // 禁忌判定（T4）
 export * from "./contraindication/index.ts";
+
+// 緊急症状の検知（T6）
+export {
+  EMERGENCY_KEYWORD_LANGUAGES,
+  EMERGENCY_KEYWORD_TRANSLATION,
+  EMERGENCY_RULES,
+  CHILD_MAX_AGE,
+  detectEmergency,
+  type EmergencyKeywordLanguage,
+  type EmergencyRule,
+  type KeywordsByLanguage,
+  type EmergencyDetectionOptions,
+  type EmergencyDetectionResult,
+  type EmergencyHit,
+} from "./emergency/index.ts";

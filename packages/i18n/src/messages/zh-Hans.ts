@@ -102,6 +102,24 @@ export const zhHans: Messages = {
     consultLine: "如果不确定是否需要叫救护车，可以拨打急救咨询电话（#7119 等，号码因地区而异）。",
     childLine: "儿童在节假日或夜间的咨询电话是 #8000。",
   },
+  emergencyFollowUp: {
+    intro: "这是药剂师的问题。请选择符合的答案。",
+    questions: {
+      EF01: { text: "这个症状是突然开始的吗？" },
+      EF02: {
+        text: "从什么时候开始的？",
+        options: { minutes: "几分钟前", withinHour: "1小时以内", today: "今天", yesterdayOrEarlier: "昨天或更早" },
+      },
+      EF03: { text: "现在还在持续吗？" },
+      EF04: { text: "是否越来越严重？" },
+      EF05: { text: "这是您有生以来最难受的一次吗？" },
+      EF06: { text: "有呼吸困难吗？" },
+      EF07: { text: "有冷汗或恶心吗？" },
+      EF08: { text: "以前有过同样的症状吗？" },
+      EF09: { text: "您能自己走路吗？" },
+    },
+    scale: { text: "请用0到10的数字选择您现在的难受程度。", min: "0：不难受", max: "10：能想象到的最难受" },
+  },
   pharmacist: {
     waiting: "药剂师正在确认内容，请稍候。",
     notForSale: "非常抱歉。以您目前的状况，本店的非处方药无法满足您的需要。建议您到医院或诊所就诊。",

@@ -1,16 +1,88 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 
+import { detectEmergency } from "@moda/domain";
 import { LANGUAGES, getMessages, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
+
+import { EMPTY_FOLLOW_UP, hasFollowUpRecord, type FollowUpState } from "./emergency-follow-up";
+import { EmergencyGuide, type EmergencyTrigger } from "./emergency-guide";
 
 /**
  * 言語選択と、最初の案内（T3：言語を切り替えると文が変わることの確認用）。
  * 「ほしい薬がある」「症状から探す」から先の画面は T7 で作る。まだボタンを押しても先に進まない。
+ *
+ * T6：薬剤師用の小さな「緊急の確認を開く」（どの画面にも右上に出す）と、確認用の入力欄（緊急キーワードの判定）から、
+ * 薬剤師の確認 → 119番の案内 に切り替わる（spec.md 決まったこと No.38、11/6 の役割分担）。
+ * 患者さん向けの大きな緊急ボタンは置かない（見てわかる人・言葉にできない人は、薬剤師が手動で開く）。
+ * 判定と案内の表示は、この端末（ブラウザ）の中だけで行い、サーバーへの通信を使わない（絶対に守るルール2）。
  */
 export function LanguageStart() {
   const [selected, setSelected] = useState<LanguageCode | null>(null);
+  /** null：緊急の確認・案内を出していない */
+  const [emergency, setEmergency] = useState<EmergencyTrigger | null>(null);
+  /**
+   * 緊急の確認で聞いた答えと観察の印。問診の内容として残すため、元の画面に戻っても消さない。
+   * T7 で問診の記録（サーバー）ができたら、そこに移す。
+   */
+  const [followUp, setFollowUp] = useState<FollowUpState>(EMPTY_FOLLOW_UP);
 
+  if (emergency !== null) {
+    return (
+      <EmergencyGuide
+        language={selected}
+        onLanguageChange={setSelected}
+        trigger={emergency}
+        followUp={followUp}
+        onFollowUpChange={setFollowUp}
+        onReturn={() => setEmergency(null)}
+      />
+    );
+  }
+
+  return (
+    <>
+      <StaffEmergencyButton onOpen={() => setEmergency({ kind: "staff" })} />
+      <PatientScreen
+        selected={selected}
+        onSelect={setSelected}
+        followUp={followUp}
+        onEmergency={setEmergency}
+      />
+    </>
+  );
+}
+
+/**
+ * 薬剤師用の「緊急の確認を開く」（日本語・小さく右上）。患者さんのどの画面にも出す。
+ * 見てわかる緊急・言葉にできない人・通信が止まったときに、薬剤師が手動で緊急の確認を開く。
+ */
+function StaffEmergencyButton({ onOpen }: { onOpen: () => void }) {
+  return (
+    <button
+      type="button"
+      lang="ja"
+      onClick={onOpen}
+      className="fixed right-3 top-3 z-10 rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
+    >
+      薬剤師用：緊急の確認を開く
+    </button>
+  );
+}
+
+function PatientScreen({
+  selected,
+  onSelect,
+  followUp,
+  onEmergency,
+}: {
+  selected: LanguageCode | null;
+  onSelect: (language: LanguageCode | null) => void;
+  followUp: FollowUpState;
+  onEmergency: (trigger: EmergencyTrigger) => void;
+}) {
+  const setSelected = onSelect;
+  const setEmergency = onEmergency;
   if (selected === null) {
     return (
       <>
@@ -67,12 +139,13 @@ export function LanguageStart() {
         </button>
       </div>
 
-      <button
-        type="button"
-        className="w-full rounded-2xl bg-red-700 px-5 py-4 text-xl font-bold text-white transition hover:bg-red-800"
-      >
-        {t.common.emergencyButton}
-      </button>
+      {hasFollowUpRecord(followUp) ? (
+        <p lang="ja" className="rounded-xl bg-slate-100 px-4 py-3 text-sm text-slate-700">
+          緊急の確認で聞いた答えと観察の印は、問診の内容として残っています（もう一度緊急の確認を開くと見られます）。
+        </p>
+      ) : null}
+
+      <EmergencyCheckBox language={selected} onEmergency={setEmergency} />
 
       {needsAiTranslationNotice(selected) ? (
         <p className="rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-900">{t.common.aiTranslationNotice}</p>
@@ -86,5 +159,76 @@ export function LanguageStart() {
         {t.common.back}
       </button>
     </section>
+  );
+}
+
+/**
+ * 確認用の入力欄（T6）。T7 で問診の画面ができるまでの仮のもの。
+ * 「胸が痛い」などを入れて「判定する」を押すと、緊急キーワードに当てはまれば薬剤師の確認の画面に切り替わる。
+ * 入力した文はどこにも送らず、保存もしない。
+ */
+function EmergencyCheckBox({
+  language,
+  onEmergency,
+}: {
+  language: LanguageCode;
+  onEmergency: (trigger: EmergencyTrigger) => void;
+}) {
+  const [text, setText] = useState("");
+  const [age, setAge] = useState("");
+  const [noMatch, setNoMatch] = useState(false);
+
+  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const parsedAge = age.trim() === "" ? undefined : Number(age);
+    const detection = detectEmergency(text, { language, age: parsedAge });
+    if (detection.isEmergency) {
+      setNoMatch(false);
+      onEmergency({ kind: "keyword", text, hits: detection.hits });
+    } else {
+      setNoMatch(true);
+    }
+  }
+
+  return (
+    <form lang="ja" onSubmit={handleSubmit} className="space-y-3 rounded-2xl border-2 border-dashed border-slate-300 p-4">
+      <p className="text-sm font-semibold text-slate-600">
+        確認用：症状を入力（問診の画面ができるまでの仮の入力欄。入力した文は送信も保存もしません）
+      </p>
+      <label className="block space-y-1">
+        <span className="text-sm text-slate-600">症状（選んだ言語か日本語で）</span>
+        <input
+          type="text"
+          lang={language}
+          value={text}
+          onChange={(event) => {
+            setText(event.target.value);
+            setNoMatch(false);
+          }}
+          className="w-full rounded-xl border-2 border-slate-300 px-3 py-2 text-lg"
+        />
+      </label>
+      <label className="block space-y-1">
+        <span className="text-sm text-slate-600">年齢（わかれば。15歳以下か空欄なら、こどもの項目も判定します）</span>
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={130}
+          value={age}
+          onChange={(event) => setAge(event.target.value)}
+          className="w-32 rounded-xl border-2 border-slate-300 px-3 py-2 text-lg"
+        />
+      </label>
+      <div className="flex items-center gap-4">
+        <button
+          type="submit"
+          className="rounded-xl bg-slate-800 px-4 py-2 text-base font-semibold text-white hover:bg-slate-900"
+        >
+          判定する
+        </button>
+        {noMatch ? <span className="text-sm text-slate-600">緊急キーワードは見つかりませんでした。</span> : null}
+      </div>
+    </form>
   );
 }

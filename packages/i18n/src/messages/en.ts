@@ -102,6 +102,24 @@ export const en: Messages = {
     consultLine: "If you are not sure whether to call an ambulance, you can call an emergency consultation line (#7119 etc.; the number differs by area).",
     childLine: "For advice about a child on holidays or at night, call #8000.",
   },
+  emergencyFollowUp: {
+    intro: "These are questions from the pharmacist. Please choose the answer that applies.",
+    questions: {
+      EF01: { text: "Did the symptom start suddenly?" },
+      EF02: {
+        text: "When did it start?",
+        options: { minutes: "A few minutes ago", withinHour: "Within the last hour", today: "Today", yesterdayOrEarlier: "Yesterday or earlier" },
+      },
+      EF03: { text: "Is it still continuing now?" },
+      EF04: { text: "Is it getting worse?" },
+      EF05: { text: "Is this the worst you have ever felt?" },
+      EF06: { text: "Do you have difficulty breathing?" },
+      EF07: { text: "Do you have a cold sweat or nausea?" },
+      EF08: { text: "Have you had the same symptom before?" },
+      EF09: { text: "Can you walk by yourself?" },
+    },
+    scale: { text: "Please choose how bad you feel now, from 0 to 10.", min: "0: no discomfort", max: "10: the worst imaginable" },
+  },
   pharmacist: {
     waiting: "A pharmacist is checking your answers. Please wait a moment.",
     notForSale: "We are sorry. With your current condition, we cannot offer an over-the-counter medicine. We recommend that you see a doctor at a hospital or clinic.",
