@@ -61,6 +61,8 @@ export function LanguageStart() {
     try {
       const next = await action();
       setView(next);
+      // 緊急キーワードの確認に使う年齢は、サーバーが受け取った答えにそろえる（断られた値を端末に残さない。C-13）
+      age.current = next.age ?? undefined;
       setNetworkDown(false);
     } catch (error: unknown) {
       if (error instanceof RuleError && (error.code === "SESSION_NOT_FOUND" || error.code === "SESSION_ALREADY_ENDED")) {
@@ -310,7 +312,6 @@ export function LanguageStart() {
             onFreeText={checkFreeText}
             onAnswer={(answers: InterviewAnswers) => {
               if (view === null) return;
-              if (answers.age !== undefined) age.current = answers.age;
               void run(() => sessionApi.answer(view.id, answers));
             }}
             onChooseDrug={(id: StockedDrugId) => {
