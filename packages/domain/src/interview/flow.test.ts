@@ -276,6 +276,49 @@ describe("指定濫用防止医薬品を選んだときの追加の問診（R01�
   });
 });
 
+describe("数字の答えは整数で、決まった範囲だけを受け取る（interview-items.md。11/6 の判断。backlog J-07・C-13）", () => {
+  const start: InterviewState = { answers: {}, selectedDrugs: [], route: "symptom" };
+  const forDays = (): InterviewState => withAnswers({ ...basicOk }, ["F"]);
+  const forCount = (): InterviewState => withAnswers({ ...basicOk, alcohol: false, otherStorePurchase: "no" }, ["E"]);
+
+  for (const age of [0, 120]) {
+    it(`年齢（Q01）の ${age} 歳は受け取る（範囲の端）`, () => {
+      assert.equal(applyAnswers(start, { age }).answers.age, age);
+    });
+  }
+  for (const age of [121, 30.5, -1]) {
+    it(`年齢（Q01）の ${age} は受け取らず、同じ質問をもう一度する`, () => {
+      assertRuleError(() => applyAnswers(start, { age }), "FACT_INVALID");
+      assert.equal(nextQuestion(start), "Q01");
+    });
+  }
+
+  for (const plannedDays of [1, 365]) {
+    it(`飲む予定の日数（Q12）の ${plannedDays} 日は受け取る（範囲の端）`, () => {
+      assert.equal(applyAnswers(forDays(), { plannedDays }).answers.plannedDays, plannedDays);
+    });
+  }
+  for (const plannedDays of [0, 366, 2.5]) {
+    it(`飲む予定の日数（Q12）の ${plannedDays} は受け取らず、同じ質問をもう一度する`, () => {
+      const state = forDays();
+      const before = nextQuestion(state);
+      assertRuleError(() => applyAnswers(state, { plannedDays }), "FACT_INVALID");
+      assert.equal(before, "Q12");
+    });
+  }
+
+  it("買いたい個数（R02）の「複数個」で 99 個は受け取る（範囲の端）", () => {
+    assert.equal(applyAnswers(forCount(), { packageChoice: "multiple", multipleCount: 99 }).answers.multipleCount, 99);
+  });
+  for (const multipleCount of [100, 2.5]) {
+    it(`買いたい個数（R02）の「複数個」で ${multipleCount} 個は受け取らず、同じ質問をもう一度する`, () => {
+      const state = forCount();
+      assert.equal(nextQuestion(state), "R02");
+      assertRuleError(() => applyAnswers(state, { packageChoice: "multiple", multipleCount }), "FACT_INVALID");
+    });
+  }
+});
+
 describe("必要な項目がそろうまで問診を終えない", () => {
   it("薬を選ぶ前は、問診を終えられない", () => {
     assert.equal(isBasicInterviewComplete(withAnswers(basicOk)), true);

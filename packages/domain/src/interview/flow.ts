@@ -7,7 +7,7 @@
  */
 
 import { DomainRuleError } from "../errors.ts";
-import { assertValidFacts, type InterviewFacts } from "../contraindication/facts.ts";
+import { INTEGER_ANSWER_RANGES, assertValidFacts, isIntegerInRange, type InterviewFacts } from "../contraindication/facts.ts";
 import type { StockedDrugId } from "../contraindication/data.ts";
 import { findStockedDrug, questionsUsedByDrug } from "../contraindication/judge.ts";
 import {
@@ -162,7 +162,8 @@ function assertValidAbuseAnswers(answers: InterviewAnswers): void {
   if (otherStorePurchase !== undefined && otherStorePurchase !== "yes" && otherStorePurchase !== "no") fail("R01");
   if (packageChoice !== undefined && !(PACKAGE_CHOICES as readonly string[]).includes(packageChoice)) fail("R02");
   if (multipleCount !== undefined) {
-    if (!Number.isInteger(multipleCount) || multipleCount < 2) fail("R02");
+    // 「複数個」は2個以上。上限は買いたい個数の範囲（99個。backlog J-07・C-13）
+    if (!isIntegerInRange(multipleCount, { min: 2, max: INTEGER_ANSWER_RANGES.packageCount.max })) fail("R02");
     if (packageChoice !== "multiple") fail("R02");
   }
   if (packageChoice === "multiple" && multipleCount === undefined) fail("R02");
