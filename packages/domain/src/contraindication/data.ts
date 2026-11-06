@@ -259,13 +259,34 @@ const DRIVING = (ingredients: readonly IngredientId[]): ProductRule => ({
   basis: { ingredients, flags: ["drowsiness"] },
 });
 
-const TAKING = (any: readonly CurrentMedication[], label: string): ProductRule => ({
-  code: "CONCURRENT_USE",
-  condition: { kind: "taking", any },
-  verdict: "contraindicated",
-  label,
-  basis: { productLabel: true },
-});
+const MEDICATION_NAMES: Readonly<Partial<Record<CurrentMedication, string>>> = {
+  analgesic: "解熱鎮痛薬",
+  cold: "かぜ薬",
+  antihistamine: "抗ヒスタミン薬",
+};
+
+/**
+ * ほかの薬との併用（禁忌）。飲んでいる薬の種類ごとに1つずつ規則を作り、
+ * 理由の文は当てはまった種類だけを出す（例：解熱鎮痛薬を飲んでいる → 「ほかの解熱鎮痛薬との併用」）。
+ */
+const TAKING = (meds: readonly CurrentMedication[]): ProductRule[] =>
+  meds.map((med) => ({
+    code: "CONCURRENT_USE",
+    condition: { kind: "taking", any: [med] },
+    verdict: "contraindicated",
+    label: `ほかの${MEDICATION_NAMES[med] ?? med}との併用`,
+    basis: { productLabel: true },
+  }));
+
+const CONDITION_NAMES: Readonly<Record<Condition, string>> = {
+  gastric_ulcer: "胃潰瘍",
+  liver: "肝臓病",
+  kidney: "腎臓病",
+  heart: "心臓病",
+  hypertension: "高血圧",
+  glaucoma: "緑内障",
+  dialysis: "透析",
+};
 
 export const STOCKED_DRUGS: readonly StockedDrug[] = [
   {
@@ -331,7 +352,7 @@ export const STOCKED_DRUGS: readonly StockedDrug[] = [
       NSAID_ASTHMA("N1"),
       NSAID_DUE_WITHIN_12_WEEKS("N1"),
       NSAID_PREGNANT_BEFORE_12_WEEKS("N1"),
-      TAKING(["cold", "analgesic"], "ほかのかぜ薬・解熱鎮痛薬との併用"),
+      ...TAKING(["cold", "analgesic"]),
       {
         code: "BREASTFEEDING",
         condition: { kind: "breastfeeding" },
@@ -364,14 +385,17 @@ export const STOCKED_DRUGS: readonly StockedDrug[] = [
       NSAID_ASTHMA("N1"),
       NSAID_DUE_WITHIN_12_WEEKS("N1"),
       NSAID_PREGNANT_BEFORE_12_WEEKS("N1"),
-      {
-        code: "CONDITION",
-        condition: { kind: "condition", any: ["gastric_ulcer", "liver", "kidney", "heart"] },
-        verdict: "contraindicated",
-        label: "胃潰瘍・肝臓病・腎臓病・心臓病で治療中",
-        basis: { ingredients: ["N1"], flags: ["gi_damage"] },
-      },
-      TAKING(["analgesic"], "ほかの解熱鎮痛薬との併用"),
+      // drugs.md の「胃潰瘍・肝臓病・腎臓病・心臓病で治療中」。理由の文は当てはまった病気だけを出す
+      ...(["gastric_ulcer", "liver", "kidney", "heart"] as const).map(
+        (c): ProductRule => ({
+          code: "CONDITION",
+          condition: { kind: "condition", any: [c] },
+          verdict: "contraindicated",
+          label: `${CONDITION_NAMES[c]}で治療中`,
+          basis: { ingredients: ["N1"], flags: ["gi_damage"] },
+        }),
+      ),
+      ...TAKING(["analgesic"]),
       ALCOHOL,
     ],
   },
@@ -390,7 +414,7 @@ export const STOCKED_DRUGS: readonly StockedDrug[] = [
       NSAID_ASTHMA("N2"),
       NSAID_DUE_WITHIN_12_WEEKS("N2"),
       NSAID_PREGNANT_BEFORE_12_WEEKS("N2"),
-      TAKING(["analgesic", "cold"], "ほかの解熱鎮痛薬・かぜ薬との併用"),
+      ...TAKING(["analgesic", "cold"]),
       DRIVING(["S1"]),
       ALCOHOL,
     ],
@@ -414,7 +438,7 @@ export const STOCKED_DRUGS: readonly StockedDrug[] = [
         label: "ぜんそく（商品の記載）",
         basis: { productLabel: true },
       },
-      TAKING(["cold", "antihistamine"], "ほかのかぜ薬・抗ヒスタミン薬との併用"),
+      ...TAKING(["cold", "antihistamine"]),
       {
         code: "BREASTFEEDING",
         condition: { kind: "breastfeeding" },
@@ -528,7 +552,7 @@ export const STOCKED_DRUGS: readonly StockedDrug[] = [
     minAge: 15,
     rules: [
       AGE_UNDER(15),
-      TAKING(["analgesic", "cold"], "ほかの解熱鎮痛薬との併用"),
+      ...TAKING(["analgesic", "cold"]),
       {
         code: "ASTHMA",
         condition: { kind: "asthma" },
