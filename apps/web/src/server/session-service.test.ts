@@ -364,6 +364,7 @@ describe("119番の案内の取り消しと、確認済みの接客（11/6 依�
     assert.equal(back.emergencies[1]?.decision, null);
     assert.equal(back.emergencies[1]?.inputText, "chest pain");
     assert.deepEqual(back.emergencies[1]?.matchedRuleIds, ["EA12"]);
+    assert.deepEqual(back.emergencies[1]?.followUps, []); // 追加の答えは次の判断のときにあらためて記録する（二重にしない）
     assert.ok(back.events.some((e) => e.type === "emergency_cancelled"));
   });
 

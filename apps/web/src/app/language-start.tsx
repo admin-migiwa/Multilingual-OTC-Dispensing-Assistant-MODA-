@@ -128,7 +128,7 @@ export function LanguageStart() {
       <>
         {recordFailed ? (
           <p lang="ja" className="rounded-xl bg-slate-100 px-4 py-2 text-sm text-slate-700">
-            通信が止まっているため、緊急の確認を記録に残せていません（案内はこのまま出せます）。
+            緊急の確認を記録に残せていません（通信が止まっているなど。案内はこのまま出せます）。
           </p>
         ) : null}
         <EmergencyGuide
@@ -143,9 +143,9 @@ export function LanguageStart() {
               .then((result) => {
                 if (result !== null) show119Recorded.current = true;
               })
-              .catch((error: unknown) => {
-                // 状態のずれ（すでに終わっているなど）は通信の停止ではないので、「通信が止まっている」と出さない
-                if (!(error instanceof RuleError)) setRecordFailed(true);
+              .catch(() => {
+                // 通信の失敗でも、記録の順番のずれ（緊急の確認を開いた記録がまだ届いていない）でも、薬剤師に知らせる
+                setRecordFailed(true);
               });
           }}
           onCancelGuide={async () => {

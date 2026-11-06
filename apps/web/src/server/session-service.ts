@@ -453,7 +453,7 @@ export function decideEmergency(deps: ServiceDeps, id: string, decision: Emergen
  * （11/6 依頼主の判断。押し間違いは「緊急ではない」という判断ではないので、問診には戻さない）。
  * - 取り消せるのは、緊急終了で、いちばん新しい緊急の判断が「119番の案内を出す」で、まだ取り消していないときだけ。
  * - もとの判断は消さず、取り消した時刻と履歴を足して残す（上書きしない）。
- * - 確認をやり直すため、同じ根拠（入力した文・当てはまった項目・追加の答え）で、判断前の緊急の記録を1つ足す。
+ * - 確認をやり直すため、同じ根拠（入力した文・当てはまった項目）で、判断前の緊急の記録を1つ足す。
  */
 export function cancelEmergency119(deps: ServiceDeps, id: string): SessionRecord {
   const record = load(deps, id);
@@ -467,9 +467,10 @@ export function cancelEmergency119(deps: ServiceDeps, id: string): SessionRecord
   ) {
     throw new DomainRuleError("INVALID_TRANSITION", "取り消せる「119番の案内」がありません");
   }
-  const snapshot = cancelEmergencyEnd(record.snapshot, last.returnTo);
+  const snapshot = cancelEmergencyEnd(record.snapshot);
   const at = deps.now().toISOString();
-  const reopened: EmergencyEvent = { ...last, openedAt: at, decision: null, decidedAt: null, cancelledAt: null };
+  // 追加の答えは写さない（前の内容は前の記録に残っていて、次の判断のときに画面の内容をあらためて記録するため）
+  const reopened: EmergencyEvent = { ...last, openedAt: at, followUps: [], decision: null, decidedAt: null, cancelledAt: null };
   const next: SessionRecord = {
     ...record,
     snapshot,
