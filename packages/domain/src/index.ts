@@ -6,6 +6,7 @@ export {
   isTerminal,
   isPostApproval,
   transition,
+  cancelEmergencyEnd,
   assertActionAllowed,
   type SessionStatus,
   type SessionSnapshot,

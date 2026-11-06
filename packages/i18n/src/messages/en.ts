@@ -14,6 +14,8 @@ export const en: Messages = {
     redo: "Redo my last answer",
     emergencyButton: "I suddenly feel very unwell",
     aiTranslationNotice: "This text was translated by AI (not yet checked by a person).",
+    networkError: "The connection has stopped. Our staff will help you right away.",
+    retry: "Try again",
   },
   languageSelect: {
     title: "Please select your language",
@@ -25,6 +27,11 @@ export const en: Messages = {
     haveProductHint: "Enter the product name, or take a photo of your phone screen or the product",
     findBySymptom: "Find a medicine by symptoms",
     findBySymptomHint: "We will ask about how you feel, one question at a time",
+    searchPlaceholder: "Enter the product name (the name on your phone screen is fine)",
+    noMatch: "No match found. Please show your phone screen to a staff member.",
+    symptomPrompt: "What symptoms do you have?",
+    chooseDrug: "Choose this medicine",
+    changeDrug: "Choose a different medicine",
   },
   photoConsent: {
     title: "About the photo",
