@@ -18,6 +18,8 @@ export interface PatientView {
   readonly selectedDrugs: readonly StockedDrugId[];
   readonly basicInterviewComplete: boolean;
   readonly interviewComplete: boolean;
+  /** 薬剤師が一度でも「緊急ではない」と判断した（119番の案内を取り消した）か。true なら緊急キーワードで自動に切り替えない */
+  readonly emergencyCleared: boolean;
 }
 
 export class NetworkError extends Error {
@@ -75,6 +77,8 @@ export const sessionApi = {
     id: string,
     followUp: { answers: Record<string, string>; scale: number | null; observedRuleIds: readonly string[] },
   ) => call(`/api/sessions/${encodeURIComponent(id)}/emergency/follow-up`, followUp),
+  /** 「119番の案内を出す」を押し間違いとして取り消す */
+  cancelEmergency119: (id: string) => call(`/api/sessions/${encodeURIComponent(id)}/emergency/cancel`, {}),
   decideEmergency: (id: string, decision: "show_119" | "not_emergency") =>
     call(`/api/sessions/${encodeURIComponent(id)}/emergency/decision`, { decision }),
 };

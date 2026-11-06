@@ -6,6 +6,7 @@ import {
   SESSION_STATUSES,
   TERMINAL_STATUSES,
   assertActionAllowed,
+  cancelEmergencyEnd,
   transition,
   type SessionSnapshot,
   type SessionStatus,
@@ -173,5 +174,32 @@ describe("緊急を確認中（emergency_review）：問診を止め、薬剤師
     for (const status of TERMINAL_STATUSES) {
       assertRuleError(() => transition(at(status), "emergency_review"), "SESSION_ALREADY_ENDED");
     }
+  });
+});
+
+describe("119番の案内の取り消し（押し間違い。11/6 依頼主の判断）", () => {
+  it("緊急終了から、緊急の確認に入る前の状態（問診）に戻せる", () => {
+    const ended = transition(transition(at("interview"), "emergency_review"), "emergency_ended");
+    const back = cancelEmergencyEnd(ended, "interview");
+    assert.equal(back.status, "interview");
+    assert.equal(back.emergencyReturnTo, undefined);
+  });
+
+  it("緊急終了でなければ取り消せない（完了・販売しない・問診中）", () => {
+    for (const status of ["completed", "declined", "interview", "emergency_review"] as SessionStatus[]) {
+      assertRuleError(() => cancelEmergencyEnd(at(status), "interview"), "INVALID_TRANSITION");
+    }
+  });
+
+  it("取り消しても、終了した状態や緊急を確認中には戻れない", () => {
+    const ended = at("emergency_ended");
+    for (const to of ["completed", "declined", "emergency_ended", "emergency_review"] as SessionStatus[]) {
+      assertRuleError(() => cancelEmergencyEnd(ended, to), "INVALID_TRANSITION");
+    }
+  });
+
+  it("取り消しで戻っても、承認の前は印刷できない", () => {
+    const back = cancelEmergencyEnd(at("emergency_ended"), "drug_selection");
+    assertRuleError(() => assertActionAllowed(back.status, "print"), "NOT_APPROVED");
   });
 });

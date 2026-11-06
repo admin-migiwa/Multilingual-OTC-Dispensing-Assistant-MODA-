@@ -6,6 +6,7 @@ import { DomainRuleError } from "@moda/domain";
 import {
   SessionServiceError,
   answer,
+  cancelEmergency119,
   chooseDrugs,
   chooseRoute,
   createSession,
@@ -338,5 +339,61 @@ describe("レビュー後の直し（No.14）", () => {
     assert.deepEqual(view.selectedDrugs, ["H"]);
     // 貼り薬 H でも、いま飲んでいる薬（Q09）を先に聞く（11/6 依頼主の判断。K39）
     assert.equal(view.nextQuestion, "Q09");
+  });
+});
+
+describe("119番の案内の取り消しと、確認済みの接客（11/6 依頼主の判断）", () => {
+  function startInterview(deps: ServiceDeps): string {
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 30, sex: "female" });
+    chooseRoute(deps, id, "symptom", "headache");
+    return id;
+  }
+
+  it("「119番の案内を出す」を押し間違いとして取り消すと、確認の前の問診に戻り、もとの判断は記録に残る", () => {
+    const deps = testDeps();
+    const id = startInterview(deps);
+    openEmergency(deps, id, { trigger: "staff" });
+    decideEmergency(deps, id, "show_119");
+    const back = cancelEmergency119(deps, id);
+    assert.equal(back.snapshot.status, "interview");
+    assert.equal(patientView(back).nextQuestion, "Q03");
+    assert.equal(back.emergencies[0]?.decision, "show_119");
+    assert.notEqual(back.emergencies[0]?.cancelledAt, null);
+    assert.ok(back.events.some((e) => e.type === "emergency_cancelled"));
+  });
+
+  it("119番の案内は二度は取り消せない", () => {
+    const deps = testDeps();
+    const id = startInterview(deps);
+    openEmergency(deps, id, { trigger: "staff" });
+    decideEmergency(deps, id, "show_119");
+    cancelEmergency119(deps, id);
+    assertError(() => cancelEmergency119(deps, id), "INVALID_TRANSITION");
+  });
+
+  it("119番の案内を出していなければ、取り消しはできない", () => {
+    const deps = testDeps();
+    const id = startInterview(deps);
+    assertError(() => cancelEmergency119(deps, id), "INVALID_TRANSITION");
+    openEmergency(deps, id, { trigger: "staff" });
+    assertError(() => cancelEmergency119(deps, id), "INVALID_TRANSITION");
+  });
+
+  it("薬剤師が「緊急ではない」と判断するまでは、確認済みの印は付かない", () => {
+    const deps = testDeps();
+    const id = startInterview(deps);
+    assert.equal(patientView(getSession(deps, id)).emergencyCleared, false);
+    openEmergency(deps, id, { trigger: "staff" });
+    assert.equal(patientView(getSession(deps, id)).emergencyCleared, false);
+    assert.equal(patientView(decideEmergency(deps, id, "not_emergency")).emergencyCleared, true);
+  });
+
+  it("119番の案内を取り消したときも、確認済みの印が付く", () => {
+    const deps = testDeps();
+    const id = startInterview(deps);
+    openEmergency(deps, id, { trigger: "staff" });
+    assert.equal(patientView(decideEmergency(deps, id, "show_119")).emergencyCleared, false);
+    assert.equal(patientView(cancelEmergency119(deps, id)).emergencyCleared, true);
   });
 });

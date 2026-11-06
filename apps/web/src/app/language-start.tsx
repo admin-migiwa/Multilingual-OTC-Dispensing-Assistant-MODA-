@@ -101,6 +101,9 @@ export function LanguageStart() {
   /** 自由に入力された文に緊急キーワードがあれば、緊急の確認に切り替えて true を返す */
   function checkFreeText(text: string): boolean {
     if (language === null) return false;
+    // 薬剤師が一度緊急の確認をして「緊急ではない」と判断した接客では、以降はキーワードで自動に切り替えない。
+    // 必要なら薬剤師が「緊急の確認を開く」を押す（11/6 依頼主の判断。CLAUDE.md ルール2・spec.md No.38 の例外）
+    if (view?.emergencyCleared === true) return false;
     const detection = detectEmergency(text, { language, age: age.current });
     if (!detection.isEmergency) return false;
     openEmergency({ kind: "keyword", text, hits: detection.hits });
@@ -146,10 +149,12 @@ export function LanguageStart() {
           onReturn={() => {
             setEmergency(null);
             setFollowUp(EMPTY_FOLLOW_UP);
-            if (show119Recorded.current) {
-              // 119番の案内を記録した接客は終わっている。「緊急ではない」に戻さず、最初からやり直す画面にする
-              // （通信が止まっていて記録に残せなかったときは、元の画面に戻れる）
-              setSessionLost(true);
+            if (show119Recorded.current && view !== null) {
+              // 119番の案内を記録したあとに「緊急ではない」を選んだ：押し間違いとして取り消し、元の画面に戻る
+              // （もとの判断は記録に残る。11/6 依頼主の判断）。記録できていないとき（通信が止まっていた）は下の流れ
+              show119Recorded.current = false;
+              const id = view.id;
+              void run(() => sessionApi.cancelEmergency119(id));
               return;
             }
             if (view === null) {
