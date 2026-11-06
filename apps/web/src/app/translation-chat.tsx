@@ -61,6 +61,7 @@ export function TranslationChat({
   language,
   age,
   emergencyCleared = false,
+  emergencyReviewOpen = false,
   onEmergency,
 }: {
   sessionId: string;
@@ -69,6 +70,8 @@ export function TranslationChat({
   age?: number | undefined;
   /** 薬剤師が一度「緊急ではない」と判断した接客か（patientView.emergencyCleared） */
   emergencyCleared?: boolean;
+  /** いま緊急の確認中か（patientView.status === "emergency_review"）。確認中にチャットしているときは、もう一度知らせない */
+  emergencyReviewOpen?: boolean;
   onEmergency: (emergency: ChatEmergency) => void;
 }) {
   const [direction, setDirection] = useState<"to_ja" | "to_patient">("to_ja");
@@ -84,7 +87,10 @@ export function TranslationChat({
       const response = await fetch(`/api/sessions/${encodeURIComponent(sessionId)}`, { cache: "no-store" });
       if (!response.ok) return;
       const view = (await response.json()) as Partial<SessionStatusView>;
-      if (view.status === "emergency_review") onEmergency({ kind: "server", ruleIds: [], labelsJa: [] });
+      // 送る前から緊急の確認中だったときは、もう知らせてあるので知らせ直さない
+      if (view.status === "emergency_review" && !emergencyReviewOpen) {
+        onEmergency({ kind: "server", ruleIds: [], labelsJa: [] });
+      }
     } catch {
       // 通信が止まっているときは、端末の中のキーワード照合と薬剤師の手動ボタンで対応する
     }
@@ -119,7 +125,8 @@ export function TranslationChat({
       setEntries((previous) => [...previous, { id: previous.length + 1, direction, original: sent, result }]);
       setText("");
       // この翻訳で止めたとき、またはすでに止まっていて緊急の項目が当てはまったとき（送り直しなど）
-      if (result.emergency.opened || (result.view.status === "emergency_review" && result.emergency.ruleIds.length > 0)) {
+      const newlyInReview = result.view.status === "emergency_review" && !emergencyReviewOpen;
+      if (result.emergency.opened || (newlyInReview && result.emergency.ruleIds.length > 0)) {
         onEmergency({ kind: "server", ruleIds: result.emergency.ruleIds, labelsJa: result.emergency.labelsJa });
       }
     } catch {
