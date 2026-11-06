@@ -313,7 +313,8 @@ export function chooseDrugs(deps: ServiceDeps, id: string, drugIds: readonly Sto
   if (
     record.snapshot.status === "interview" &&
     record.interview.selectedDrugs.length > 0 &&
-    isBasicInterviewComplete(record.interview)
+    // 「ほしい薬がある」では、薬ごとに聞く基本の項目に答えている途中でも選び直せる
+    (record.interview.route === "product" || isBasicInterviewComplete(record.interview))
   ) {
     record = moveTo(deps, record, "drug_selection");
   }

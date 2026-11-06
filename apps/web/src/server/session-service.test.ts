@@ -323,3 +323,16 @@ describe("問診の流れを選ぶ（11/6 の判断）", () => {
     assertError(() => chooseRoute(deps, id, "symptom"), "INVALID_TRANSITION");
   });
 });
+
+describe("レビュー後の直し（No.14）", () => {
+  it("「ほしい薬がある」で、薬の項目に答えている途中でも薬を選び直せる", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 30, sex: "female" });
+    chooseRoute(deps, id, "product");
+    chooseDrugs(deps, id, ["C"]);
+    const view = patientView(chooseDrugs(deps, id, ["H"]));
+    assert.deepEqual(view.selectedDrugs, ["H"]);
+    assert.equal(view.nextQuestion, "Q14");
+  });
+});

@@ -31,6 +31,8 @@ export function LanguageStart() {
   const [busy, setBusy] = useState(false);
   const [networkDown, setNetworkDown] = useState(false);
   const [notUnderstood, setNotUnderstood] = useState(false);
+  /** 接客の記録がなくなった（サーバーの再起動など）か、終了済み。最初からやり直すしかない */
+  const [sessionLost, setSessionLost] = useState(false);
   /** null：緊急の確認・案内を出していない */
   const [emergency, setEmergency] = useState<EmergencyTrigger | null>(null);
   /** 緊急の確認で聞いた答えと観察の印（判断のときにサーバーの記録に残す） */
@@ -49,7 +51,18 @@ export function LanguageStart() {
       setView(next);
       setNetworkDown(false);
     } catch (error: unknown) {
-      if (error instanceof RuleError) {
+      if (error instanceof RuleError && (error.code === "SESSION_NOT_FOUND" || error.code === "SESSION_ALREADY_ENDED")) {
+        setSessionLost(true);
+      } else if (error instanceof RuleError && error.code === "INVALID_TRANSITION" && view !== null) {
+        // 画面とサーバーの状態がずれた（例：緊急の判断の記録だけ通信に失敗した）。サーバーの状態を読み直して合わせる
+        try {
+          const latest = await sessionApi.get(view.id);
+          setView(latest);
+          if (latest.status === "emergency_review") setEmergency({ kind: "staff" });
+        } catch {
+          setNetworkDown(true);
+        }
+      } else if (error instanceof RuleError) {
         // 決められた形でない答えなど。推測で進めず、同じ質問をもう一度出す
         setNotUnderstood(true);
       } else {
@@ -119,7 +132,11 @@ export function LanguageStart() {
           onReturn={() => {
             setEmergency(null);
             setFollowUp(EMPTY_FOLLOW_UP);
-            if (view === null) return;
+            if (view === null) {
+              // 言語を選ぶ前に開いて、確認の画面で言語を選んだときは、ここから接客を始める
+              if (language !== null) void run(() => sessionApi.start(language));
+              return;
+            }
             const id = view.id;
             void run(async () => (await recordDecision("not_emergency")) ?? sessionApi.get(id));
           }}
@@ -133,6 +150,16 @@ export function LanguageStart() {
       <StaffEmergencyButton onOpen={() => openEmergency({ kind: "staff" })} />
       {language === null ? (
         <LanguageSelect onSelect={chooseLanguage} />
+      ) : sessionLost ? (
+        <SessionLost
+          language={language}
+          onRestart={() => {
+            setSessionLost(false);
+            setView(null);
+            setMode("questions");
+            setLanguage(null);
+          }}
+        />
       ) : networkDown ? (
         <NetworkDown
           language={language}
@@ -444,6 +471,29 @@ function SymptomInput({
         </button>
       </div>
     </form>
+  );
+}
+
+/** 接客の記録がなくなったとき（サーバーの再起動など）・終了済みのとき。推測で続けず、最初からやり直す */
+function SessionLost({ language, onRestart }: { language: LanguageCode; onRestart: () => void }) {
+  return (
+    <section className="space-y-6">
+      <p lang={language} className="rounded-2xl border-4 border-amber-500 bg-amber-50 px-5 py-6 text-2xl font-bold">
+        {getMessages(language).emergency.staffHelp}
+      </p>
+      <div lang="ja" className="space-y-3 rounded-2xl border-2 border-slate-300 p-5">
+        <p className="text-lg font-bold">
+          薬剤師の方へ：この接客の記録が見つからないか、すでに終わっています（サーバーの再起動など）。最初からやり直してください。
+        </p>
+        <button
+          type="button"
+          onClick={onRestart}
+          className="rounded-2xl bg-slate-800 px-4 py-3 text-lg font-bold text-white hover:bg-slate-900"
+        >
+          最初からやり直す
+        </button>
+      </div>
+    </section>
   );
 }
 

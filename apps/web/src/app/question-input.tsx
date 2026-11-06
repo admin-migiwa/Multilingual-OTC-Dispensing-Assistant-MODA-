@@ -110,8 +110,18 @@ export function QuestionInput({
             ["hypertension", q.Q07.options.hypertension],
             ["glaucoma", q.Q07.options.glaucoma],
             ["dialysis", q.Q07.options.dialysis],
+            ["other", c.other],
           ]}
-          onSubmit={(values) => onSubmit({ conditions: values as NonNullable<InterviewAnswers["conditions"]> })}
+          textLabel={c.other}
+          textWhen={["other"]}
+          onFreeText={onFreeText}
+          onSubmit={(values, text) =>
+            onSubmit({
+              // 「その他」は治療中の病気の選択肢ではないので、内容は自由入力として薬剤師の画面に出す
+              conditions: values.filter((v) => v !== "other") as NonNullable<InterviewAnswers["conditions"]>,
+              ...(values.includes("other") && text ? { otherConditionText: text } : {}),
+            })
+          }
         />
       );
     case "Q08":
@@ -136,9 +146,10 @@ export function QuestionInput({
             ["antihistamine", q.Q09.options.antihistamine],
             ["kampo", q.Q09.options.kampo],
             ["prescription", q.Q09.options.prescription],
+            ["other", c.other],
           ]}
           textLabel={q.Q09.drugNameLabel}
-          textWhen="prescription"
+          textWhen={["prescription", "other"]}
           onFreeText={onFreeText}
           onSubmit={(values, text) =>
             onSubmit({
@@ -332,14 +343,15 @@ function MultiQuestion({
   onSubmit: (values: string[], text?: string) => void;
   busy: boolean;
   textLabel?: string;
-  textWhen?: string;
+  /** これらのどれかを選んだら、自由入力の欄を出す */
+  textWhen?: readonly string[];
   onFreeText?: (text: string) => boolean;
 }) {
   const [picked, setPicked] = useState<string[]>([]);
   const [freeText, setFreeText] = useState("");
   const toggle = (value: string) =>
     setPicked((current) => (current.includes(value) ? current.filter((v) => v !== value) : [...current, value]));
-  const showText = textWhen !== undefined && picked.includes(textWhen);
+  const showText = textWhen !== undefined && textWhen.some((value) => picked.includes(value));
   function submit() {
     const trimmed = freeText.trim();
     if (showText && trimmed !== "" && onFreeText?.(trimmed)) return;
