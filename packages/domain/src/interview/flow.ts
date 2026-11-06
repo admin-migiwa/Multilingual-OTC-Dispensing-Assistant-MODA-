@@ -7,10 +7,12 @@
  */
 
 import { DomainRuleError } from "../errors.ts";
-import { assertValidFacts } from "../contraindication/facts.ts";
+import { assertValidFacts, type InterviewFacts } from "../contraindication/facts.ts";
 import type { StockedDrugId } from "../contraindication/data.ts";
+import { findStockedDrug } from "../contraindication/judge.ts";
 import {
   DEFAULT_INTERVIEW_SETTINGS,
+  type AbusePreventionAnswers,
   PACKAGE_CHOICES,
   QUESTIONS,
   findQuestion,
@@ -179,9 +181,10 @@ export function applyAnswers(
   settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
 ): InterviewState {
   const merged: InterviewAnswers = { ...state.answers, ...newAnswers };
-  assertValidAnswers(merged);
-
+  // 先に「聞く必要がなくなった答え」を消してから形を確かめる。
+  // 例：R02 を「複数個・3個」から「小箱1個」に直したとき、古い個数が残って形の誤りにならないように
   const next: InterviewState = { ...state, answers: dropAnswersNoLongerAsked({ ...state, answers: merged }, settings) };
+  assertValidAnswers(next.answers);
 
   // 聞く条件に当てはまらない項目への答えは、消されて残らない。受け取ったつもりにならないよう止める
   for (const key of Object.keys(newAnswers) as (keyof InterviewAnswers)[]) {
@@ -196,14 +199,38 @@ export function applyAnswers(
   return next;
 }
 
-/** 選んだ薬を変える。聞く必要がなくなった薬ごとの項目の答えは消す */
+/** 選んだ薬を変える。聞く必要がなくなった薬ごとの項目の答えは消す。取扱薬にない記号は止める */
 export function selectDrugs(
   state: InterviewState,
   drugs: readonly StockedDrugId[],
   settings: InterviewSettings = DEFAULT_INTERVIEW_SETTINGS,
 ): InterviewState {
+  for (const id of drugs) findStockedDrug(id); // 取扱薬にない記号なら UNKNOWN_DRUG で止まる
   const next: InterviewState = { ...state, selectedDrugs: [...new Set(drugs)] };
   return { ...next, answers: dropAnswersNoLongerAsked(next, settings) };
+}
+
+/**
+ * 禁忌判定（judgeDrug など）に渡す答えだけを取り出す。
+ * 指定濫用防止の追加の問診（R01〜R04）は販売手順で使うもので、禁忌判定の答えには含めない
+ * （含めると、判定の側で「知らない項目」として止まる）。
+ */
+export function factsForJudgment(state: InterviewState): InterviewFacts {
+  const facts: InterviewAnswers = { ...state.answers };
+  for (const key of ABUSE_ANSWER_KEYS) delete facts[key];
+  return facts;
+}
+
+/** 指定濫用防止の追加の問診（R01〜R04）の答えだけを取り出す（販売手順で使う） */
+export function abusePreventionAnswers(state: InterviewState): AbusePreventionAnswers {
+  const { otherStorePurchase, packageChoice, multipleCount, reasonText, purposeText } = state.answers;
+  const result: AbusePreventionAnswers = {};
+  if (otherStorePurchase !== undefined) result.otherStorePurchase = otherStorePurchase;
+  if (packageChoice !== undefined) result.packageChoice = packageChoice;
+  if (multipleCount !== undefined) result.multipleCount = multipleCount;
+  if (reasonText !== undefined) result.reasonText = reasonText;
+  if (purposeText !== undefined) result.purposeText = purposeText;
+  return result;
 }
 
 export { findQuestion };

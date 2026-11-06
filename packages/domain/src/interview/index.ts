@@ -20,5 +20,7 @@ export {
   assertValidAnswers,
   applyAnswers,
   selectDrugs,
+  factsForJudgment,
+  abusePreventionAnswers,
   type InterviewState,
 } from "./flow.ts";
