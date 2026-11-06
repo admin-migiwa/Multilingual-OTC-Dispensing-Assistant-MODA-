@@ -90,6 +90,7 @@ const ERROR_MESSAGES: Record<string, string> = {
   INVALID_TRANSITION: "いまの状態ではこの操作はできません。画面を読み直しました。",
   INTERVIEW_INCOMPLETE: "問診が終わっていません。患者さんの画面に戻って、問診を最後まで進めてください。",
   NO_DRUG_SELECTED: "販売する薬を選んでからチェックしてください。",
+  STEP_NOT_YET_AVAILABLE: "この手順は承認の後に記録します（承認の前には ✓ を付けられません）。",
   SESSION_NOT_FOUND: "この接客の記録が見つかりません（サーバーの再起動など）。",
   SESSION_ALREADY_ENDED: "この接客はすでに終わっています。",
   INVALID_REQUEST: "送った内容の形が違います。",
@@ -440,18 +441,20 @@ function ReviewBody({
             <ul className="space-y-2">
               {view.procedure.steps.map((step) => (
                 <li key={step.id}>
-                  <label className="flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-2">
+                  <label
+                    className={`flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-2 ${step.gate === "before_approval" ? "" : "bg-slate-50 text-slate-500"}`}
+                  >
                     <input
                       type="checkbox"
                       className="mt-1 h-6 w-6"
                       checked={step.checked}
-                      disabled={busy}
+                      disabled={busy || step.gate !== "before_approval"}
                       onChange={(e) => onCheck(step.id, e.target.checked)}
                     />
                     <span className="flex-1">
                       {step.label}
                       <span className="ml-2 rounded bg-slate-100 px-1.5 text-xs text-slate-600">
-                        {step.gate === "before_approval" ? "承認の前に" : "会計の前に"}
+                        {step.gate === "before_approval" ? "承認の前に" : "承認の後・会計の前に（記録は T9・T10）"}
                       </span>
                     </span>
                     {step.changedAt ? <span className="text-xs text-slate-500">{time(step.changedAt)}</span> : null}

@@ -6,6 +6,7 @@
  * - 禁忌の薬は、画面だけでなくここでも販売する薬として選べない（CLAUDE.md 絶対に守るルール4。packages/domain の assertSaleSelectable）。
  *   禁忌の解除（PIN の再認証と理由の記録）は T9（docs/backlog.md）。
  * - 販売手順のチェック（✓）は、付けた・外したを履歴として足すだけで、書き換えない（ルール6の考え方）。
+ *   「承認の後・会計の前に」の手順は、承認の前には ✓ を付けられない（まだ起きていないことを記録しないため。T9・T10）。
  *   「✓ がそろうまで承認できない」の関所は T9 で、承認の処理の中で assertApprovalAllowed を呼んで作る。
  * - 販売手順の版は、日本時間（店頭の日付）の YYYY-MM-DD で選ぶ（docs/backlog.md C-07）。
  * - 問診の答えや入力された文をログ・履歴に出さない（ルール9）。履歴には項目 ID・手順 ID・薬の記号だけを入れる。
@@ -188,8 +189,14 @@ export function checkProcedureStep(deps: ServiceDeps, id: string, stepId: string
     throw new DomainRuleError("NO_DRUG_SELECTED", "販売する薬を選んでからチェックします");
   }
   const procedure = procedureOf(record, drugIds, deps.now());
-  if (!procedure.steps.some((step) => step.id === stepId)) {
+  const step = procedure.steps.find((s) => s.id === stepId);
+  if (!step) {
     throw new SessionServiceError("INVALID_REQUEST", "この薬の販売手順にない手順です");
+  }
+  // 「会計の前に」の手順（書面を渡す・理解の確認・法定項目の記録・薬剤師の前での服用の確認など）は、承認の後に行うもの。
+  // 承認の前の確認中に ✓ を付けると、まだ起きていないことを記録してしまうので受け付けない（承認の後の記録は T9・T10）
+  if (step.gate !== "before_approval") {
+    throw new DomainRuleError("STEP_NOT_YET_AVAILABLE", "この手順は承認の後に記録します");
   }
   const check: StepCheck = {
     at: deps.now().toISOString(),

@@ -176,6 +176,24 @@ describe("販売手順のチェック（✓）は記録に足していく", () =
     assertError(() => checkProcedureStep(deps, id, "legal_record", true), "INVALID_REQUEST");
   });
 
+  it("S03：承認の後に行う「理解の確認」には、承認の前の確認中は ✓ を付けられない（まだ起きていないことを記録しない）", () => {
+    const deps = testDeps();
+    const id = answeredProduct(deps, ["G", "C"]);
+    openPharmacistReview(deps, id);
+    chooseSaleDrugs(deps, id, ["C"]);
+    assertError(() => checkProcedureStep(deps, id, "understanding_check", true), "STEP_NOT_YET_AVAILABLE");
+    assertError(() => checkProcedureStep(deps, id, "legal_record", true), "STEP_NOT_YET_AVAILABLE");
+  });
+
+  it("S01・S02：C の「書面の準備」は承認の前の手順なので、確認中に ✓ を付けられる", () => {
+    const deps = testDeps();
+    const id = answeredProduct(deps, ["C"]);
+    openPharmacistReview(deps, id);
+    chooseSaleDrugs(deps, id, ["C"]);
+    const view = pharmacistView(checkProcedureStep(deps, id, "written_information_prepared", true), NOW);
+    assert.equal(view.procedure?.steps.find((s) => s.id === "written_information_prepared")?.checked, true);
+  });
+
   it("販売する薬を選び直すと、チェックはやり直しになる（前のチェックの記録は消さない）", () => {
     const deps = testDeps();
     const id = answeredProduct(deps, ["D", "G"]);
