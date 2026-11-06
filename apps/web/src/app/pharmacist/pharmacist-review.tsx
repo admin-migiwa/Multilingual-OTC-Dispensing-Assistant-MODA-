@@ -246,8 +246,18 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
 
   const languageName = view ? (LANGUAGES.find((l) => l.code === view.language)?.japaneseName ?? view.language) : "";
 
+  // 緊急の確認は患者さんの画面で開く（患者さんの言語の案内と、通信が止まっていても出せる画面がそこにあるため。CLAUDE.md ルール2）。
+  // 状態は変えずに移り、移った先ですぐに緊急の確認を出してから記録する
+  const emergencyUrl = `${patientUrl}&emergency=staff${view ? `&lang=${encodeURIComponent(view.language)}` : ""}`;
+
   return (
     <>
+      <a
+        href={emergencyUrl}
+        className="fixed right-3 top-3 z-10 rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
+      >
+        緊急の確認を開く
+      </a>
       <header className="space-y-2">
         <p className="text-sm font-semibold tracking-widest text-teal-700">MODA 薬剤師用</p>
         <h1 className="text-3xl font-bold">薬剤師の確認</h1>

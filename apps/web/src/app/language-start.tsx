@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { STOCKED_DRUGS, detectEmergency, type InterviewAnswers, type StockedDrugId } from "@moda/domain";
-import { LANGUAGES, getMessages, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
+import { LANGUAGES, getMessages, isSupportedLanguage, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
 
 import { EMPTY_FOLLOW_UP, type FollowUpState } from "./emergency-follow-up";
 import { EmergencyGuide, type EmergencyTrigger } from "./emergency-guide";
@@ -46,6 +46,8 @@ export function LanguageStart() {
   const show119Recorded = useRef(false);
   /** 「119番の案内を出す」の記録の通信（取り消しは、この記録が終わってから行う） */
   const show119Pending = useRef<Promise<void>>(Promise.resolve());
+  /** 住所の ?session= から読み直している接客（読み直しが済む前に緊急の確認から戻ったとき、新しい接客を始めないため） */
+  const restoringId = useRef<string | null>(null);
 
   /** サーバーを呼び、結果で画面を進める。通信が止まったら「通信が止まりました」の画面にする */
   async function run(action: () => Promise<PatientView>): Promise<void> {
@@ -82,11 +84,41 @@ export function LanguageStart() {
 
   // 薬剤師の確認画面（/pharmacist/[id]）から戻ったときは、住所の ?session= の接客を読み直して続ける（T8a）
   useEffect(() => {
-    const id = new URLSearchParams(window.location.search).get("session");
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("session");
     if (!id) return;
+    restoringId.current = id;
+    const restore = (latest: PatientView) => {
+      setLanguage(latest.language);
+      // 緊急キーワードの確認で子どもの項目を使うかを、読み直した年齢で決め直す
+      age.current = latest.age ?? undefined;
+    };
+
+    if (params.get("emergency") === "staff") {
+      // 薬剤師の確認画面の「緊急の確認を開く」から来た（CLAUDE.md ルール2）。通信を待たずに、すぐに緊急の確認を出す。
+      // 住所から印を外し、読み直しでもう一度開かないようにする
+      const lang = params.get("lang");
+      if (lang !== null && isSupportedLanguage(lang)) setLanguage(lang);
+      setEmergency({ kind: "staff" });
+      setRecordFailed(false);
+      show119Recorded.current = false;
+      window.history.replaceState(null, "", `/?session=${encodeURIComponent(id)}`);
+      void (async () => {
+        try {
+          const latest = await sessionApi.get(id);
+          restore(latest);
+          setView(latest.status === "emergency_review" ? latest : await sessionApi.openEmergency(id, { trigger: "staff" }));
+        } catch {
+          // 記録に残せなかった（通信が止まっている、接客が終わっているなど）。案内はこのまま出せる
+          setRecordFailed(true);
+        }
+      })();
+      return;
+    }
+
     void run(async () => {
       const latest = await sessionApi.get(id);
-      setLanguage(latest.language);
+      restore(latest);
       if (latest.status === "emergency_review") setEmergency({ kind: "staff" });
       if (latest.status === "emergency_ended") setSessionLost(true);
       return latest;
@@ -178,6 +210,12 @@ export function LanguageStart() {
             setEmergency(null);
             setFollowUp(EMPTY_FOLLOW_UP);
             if (view === null) {
+              // 薬剤師の確認画面から来て、接客を読み直せていないときは、新しい接客を始めずにもう一度読み直す
+              const restoring = restoringId.current;
+              if (restoring !== null) {
+                void run(() => sessionApi.get(restoring));
+                return;
+              }
               // 言語を選ぶ前に開いて、確認の画面で言語を選んだときは、ここから接客を始める
               if (language !== null) void run(() => sessionApi.start(language));
               return;

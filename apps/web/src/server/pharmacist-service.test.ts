@@ -24,7 +24,7 @@ import {
 } from "./session-service.ts";
 
 // 禁忌の判定は docs/demo-data/contraindication-tests.md の ☑ の行（K01・K03）、
-// 販売手順は docs/demo-data/sales-procedures.md の ☑ の行（S06・S13）にそろえる。
+// 販売手順は docs/demo-data/sales-procedures.md の ☑ の行（S06・S13、手順の表 P01・P02 の備考）にそろえる。
 
 const NOW = new Date("2026-11-06T10:00:00+09:00");
 
@@ -176,7 +176,7 @@ describe("販売手順のチェック（✓）は記録に足していく", () =
     assertError(() => checkProcedureStep(deps, id, "legal_record", true), "INVALID_REQUEST");
   });
 
-  it("S03：承認の後に行う「理解の確認」には、承認の前の確認中は ✓ を付けられない（まだ起きていないことを記録しない）", () => {
+  it("P01・P02 の備考（②③は承認の後）：「理解の確認」「法定項目の記録」には、承認の前の確認中は ✓ を付けられない（まだ起きていないことを記録しない）", () => {
     const deps = testDeps();
     const id = answeredProduct(deps, ["G", "C"]);
     openPharmacistReview(deps, id);
@@ -185,7 +185,7 @@ describe("販売手順のチェック（✓）は記録に足していく", () =
     assertError(() => checkProcedureStep(deps, id, "legal_record", true), "STEP_NOT_YET_AVAILABLE");
   });
 
-  it("S01・S02：C の「書面の準備」は承認の前の手順なので、確認中に ✓ を付けられる", () => {
+  it("P01・P02 の備考（承認の前に必要なのは「書面の準備」だけ）：C の「書面の準備」には、確認中に ✓ を付けられる", () => {
     const deps = testDeps();
     const id = answeredProduct(deps, ["C"]);
     openPharmacistReview(deps, id);

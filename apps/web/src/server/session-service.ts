@@ -123,7 +123,7 @@ export interface SessionRecord {
   readonly events: readonly SessionEvent[];
 }
 
-/** 患者さんの画面に返す内容（答えの中身は返さない） */
+/** 患者さんの画面に返す内容（答えの中身は返さない。年齢だけは緊急キーワードの確認に使うので返す） */
 export interface PatientView {
   readonly id: string;
   readonly language: LanguageCode;
@@ -143,6 +143,8 @@ export interface PatientView {
    * （11/6 依頼主の判断。CLAUDE.md 絶対に守るルール2・spec.md 決まったこと No.38 の例外）
    */
   readonly emergencyCleared: boolean;
+  /** 年齢（Q01）の答え。画面を読み直したときに、緊急キーワードの確認で子どもの項目を使うかを決め直すため（T8a）。まだなら null */
+  readonly age: number | null;
 }
 
 export interface SessionStore {
@@ -222,6 +224,7 @@ export function patientView(record: SessionRecord): PatientView {
     basicInterviewComplete: isBasicInterviewComplete(record.interview),
     interviewComplete: isInterviewComplete(record.interview),
     emergencyCleared: record.emergencies.some((e) => e.decision === "not_emergency"),
+    age: record.interview.answers.age ?? null,
   };
 }
 
