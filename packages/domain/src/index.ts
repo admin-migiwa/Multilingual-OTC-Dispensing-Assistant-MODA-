@@ -58,3 +58,4 @@ export {
   type EmergencyDetectionResult,
   type EmergencyHit,
 } from "./emergency/index.ts";
+export * from "./interview/index.ts";

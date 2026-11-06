@@ -14,7 +14,8 @@ export const SESSION_STATUSES = [
   "counseling", // 説明書の印刷・服薬指導・理解の確認
   "checkout", // お会計の案内
   "completed", // 完了
-  "emergency_ended", // 緊急症状で終了（記録は残す）
+  "emergency_review", // 緊急を確認中（問診を止め、薬剤師が根拠を確認している。spec.md 決まったこと No.38）
+  "emergency_ended", // 緊急症状で終了（119番・受診の案内を出した。記録は残す）
   "declined", // 販売しないと判断して終了（理由を記録）
 ] as const;
 
@@ -28,7 +29,10 @@ export const POST_APPROVAL_STATUSES: readonly SessionStatus[] = ["approved", "co
 /**
  * 通常の遷移先。
  * - 承認（approved）に入れるのは pharmacist_review からだけ。
- * - 緊急終了（emergency_ended）は、終了していないどの状態からでも入れる（ここには書かず transition で扱う）。
+ * - 緊急を確認中（emergency_review）と緊急終了（emergency_ended）は、終了していないどの状態からでも入れる
+ *   （ここには書かず transition で扱う）。
+ * - 緊急を確認中からは、緊急終了か、確認に入る前の状態（emergencyReturnTo）に戻ることだけができる
+ *   （薬剤師が「緊急ではない：元の画面に戻る」を選んだとき）。
  */
 const ALLOWED_TRANSITIONS: Readonly<Record<SessionStatus, readonly SessionStatus[]>> = {
   language_selection: ["attributes"],
@@ -40,6 +44,7 @@ const ALLOWED_TRANSITIONS: Readonly<Record<SessionStatus, readonly SessionStatus
   counseling: ["checkout"],
   checkout: ["completed"],
   completed: [],
+  emergency_review: [], // 戻り先は emergencyReturnTo で決まる（transition で扱う）
   emergency_ended: [],
   declined: [],
 };
@@ -48,6 +53,8 @@ export interface SessionSnapshot {
   readonly status: SessionStatus;
   /** 患者さんが服薬指導の内容を理解したことを確認済みか */
   readonly understandingConfirmed: boolean;
+  /** 緊急を確認中のとき、「緊急ではない」と判断したら戻る状態（確認に入る前の状態） */
+  readonly emergencyReturnTo?: SessionStatus;
 }
 
 export function isTerminal(status: SessionStatus): boolean {
@@ -71,7 +78,25 @@ export function transition(current: SessionSnapshot, to: SessionStatus): Session
   }
 
   if (to === "emergency_ended") {
-    return { ...current, status: to };
+    return withoutReturn({ ...current, status: to });
+  }
+
+  if (to === "emergency_review") {
+    if (current.status === "emergency_review") {
+      throw new DomainRuleError("INVALID_TRANSITION", "すでに緊急を確認中です");
+    }
+    return { ...current, status: to, emergencyReturnTo: current.status };
+  }
+
+  if (current.status === "emergency_review") {
+    // 緊急ではないと判断したときは、確認に入る前の状態にだけ戻れる
+    if (current.emergencyReturnTo === undefined || to !== current.emergencyReturnTo) {
+      throw new DomainRuleError(
+        "INVALID_TRANSITION",
+        "緊急の確認からは、緊急終了か、確認に入る前の状態にだけ進めます",
+      );
+    }
+    return withoutReturn({ ...current, status: to });
   }
 
   const allowed = ALLOWED_TRANSITIONS[current.status];
@@ -84,6 +109,12 @@ export function transition(current: SessionSnapshot, to: SessionStatus): Session
   }
 
   return { ...current, status: to };
+}
+
+function withoutReturn(snapshot: SessionSnapshot): SessionSnapshot {
+  const rest: { -readonly [K in keyof SessionSnapshot]: SessionSnapshot[K] } = { ...snapshot };
+  delete rest.emergencyReturnTo;
+  return rest;
 }
 
 /** 承認後にだけ行える操作 */

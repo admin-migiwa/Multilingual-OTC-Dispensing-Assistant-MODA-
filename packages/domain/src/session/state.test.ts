@@ -118,3 +118,60 @@ describe("通常の流れ", () => {
     assertRuleError(() => transition(at("completed"), "counseling"), "SESSION_ALREADY_ENDED");
   });
 });
+
+describe("緊急を確認中（emergency_review）：問診を止め、薬剤師の判断で終了か元の画面に戻る（spec.md 決まったこと No.38）", () => {
+  const notEnded: SessionStatus[] = [
+    "language_selection",
+    "attributes",
+    "interview",
+    "drug_selection",
+    "pharmacist_review",
+    "approved",
+    "counseling",
+    "checkout",
+  ];
+
+  for (const status of notEnded) {
+    it(`${status} の状態からでも、緊急の確認に入れる`, () => {
+      const reviewing = transition(at(status), "emergency_review");
+      assert.equal(reviewing.status, "emergency_review");
+      assert.equal(reviewing.emergencyReturnTo, status);
+    });
+
+    it(`${status} から緊急の確認に入り、「緊急ではない」と判断したら ${status} に戻る`, () => {
+      const back = transition(transition(at(status), "emergency_review"), status);
+      assert.equal(back.status, status);
+      assert.equal(back.emergencyReturnTo, undefined);
+    });
+  }
+
+  it("緊急の確認から、119番の案内を出したら緊急終了になる", () => {
+    const ended = transition(transition(at("interview"), "emergency_review"), "emergency_ended");
+    assert.equal(ended.status, "emergency_ended");
+    assert.equal(ended.emergencyReturnTo, undefined);
+  });
+
+  it("緊急の確認中は、確認に入る前の状態以外には進めない（問診を勝手に進めない）", () => {
+    const reviewing = transition(at("interview"), "emergency_review");
+    assertRuleError(() => transition(reviewing, "drug_selection"), "INVALID_TRANSITION");
+    assertRuleError(() => transition(reviewing, "approved"), "INVALID_TRANSITION");
+  });
+
+  it("緊急の確認中に、もう一度緊急の確認には入れない", () => {
+    const reviewing = transition(at("interview"), "emergency_review");
+    assertRuleError(() => transition(reviewing, "emergency_review"), "INVALID_TRANSITION");
+  });
+
+  it("緊急の確認中は、印刷・服薬指導・会計ができない", () => {
+    const reviewing = transition(at("counseling", true), "emergency_review");
+    for (const action of ["print", "counsel", "checkout"] as const) {
+      assertRuleError(() => assertActionAllowed(reviewing.status, action), "NOT_APPROVED");
+    }
+  });
+
+  it("終了したセッションからは、緊急の確認に入れない", () => {
+    for (const status of TERMINAL_STATUSES) {
+      assertRuleError(() => transition(at(status), "emergency_review"), "SESSION_ALREADY_ENDED");
+    }
+  });
+});
