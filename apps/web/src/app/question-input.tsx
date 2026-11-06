@@ -2,7 +2,7 @@
 
 import { useState, type FormEvent, type ReactNode } from "react";
 
-import type { InterviewAnswers, QuestionId } from "@moda/domain";
+import { INTEGER_ANSWER_RANGES, type InterviewAnswers, type QuestionId } from "@moda/domain";
 import { getMessages, type LanguageCode } from "@moda/i18n";
 
 /**
@@ -45,11 +45,11 @@ export function QuestionInput({
 
   switch (questionId) {
     case "Q01":
-      return <NumberQuestion text={q.Q01.text} unit={q.Q01.unit} busy={busy} onSubmit={(n) => onSubmit({ age: n })} next={c.next} integer />;
+      return <NumberQuestion text={q.Q01.text} unit={q.Q01.unit} busy={busy} onSubmit={(n) => onSubmit({ age: n })} next={c.next} integer range={INTEGER_ANSWER_RANGES.age} />;
     case "Q05":
       return <NumberQuestion text={q.Q05.text} unit={q.Q05.unit} busy={busy} onSubmit={(n) => onSubmit({ weightKg: n })} next={c.next} />;
     case "Q12":
-      return <NumberQuestion text={q.Q12.text} unit={q.Q12.unit} busy={busy} onSubmit={(n) => onSubmit({ plannedDays: n })} next={c.next} integer />;
+      return <NumberQuestion text={q.Q12.text} unit={q.Q12.unit} busy={busy} onSubmit={(n) => onSubmit({ plannedDays: n })} next={c.next} integer range={INTEGER_ANSWER_RANGES.plannedDays} />;
     case "Q02":
       return (
         <ChoiceQuestion
@@ -251,6 +251,7 @@ function NumberQuestion({
   onSubmit,
   busy,
   integer = false,
+  range,
 }: {
   text: string;
   unit: string;
@@ -258,10 +259,18 @@ function NumberQuestion({
   onSubmit: (value: number) => void;
   busy: boolean;
   integer?: boolean;
+  /** 受け取る範囲（年齢・日数。backlog C-13）。範囲外は押せない。サーバーでも同じ範囲で確かめる */
+  range?: { readonly min: number; readonly max: number };
 }) {
   const [value, setValue] = useState("");
   const parsed = Number(value);
-  const valid = value.trim() !== "" && Number.isFinite(parsed) && parsed >= 0 && (!integer || Number.isInteger(parsed));
+  const min = range?.min ?? 0;
+  const valid =
+    value.trim() !== "" &&
+    Number.isFinite(parsed) &&
+    parsed >= min &&
+    (range === undefined || parsed <= range.max) &&
+    (!integer || Number.isInteger(parsed));
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (valid) onSubmit(parsed);
@@ -272,7 +281,8 @@ function NumberQuestion({
         <input
           type="number"
           inputMode={integer ? "numeric" : "decimal"}
-          min={0}
+          min={min}
+          max={range?.max}
           step={integer ? 1 : "any"}
           value={value}
           onChange={(event) => setValue(event.target.value)}
@@ -505,6 +515,7 @@ function PackageQuestion({
           type="number"
           inputMode="numeric"
           min={2}
+          max={INTEGER_ANSWER_RANGES.packageCount.max}
           step={1}
           value={count}
           onChange={(event) => setCount(event.target.value)}
@@ -512,7 +523,7 @@ function PackageQuestion({
         />
         <button
           type="button"
-          disabled={busy || !Number.isInteger(parsed) || parsed < 2}
+          disabled={busy || !Number.isInteger(parsed) || parsed < 2 || parsed > INTEGER_ANSWER_RANGES.packageCount.max}
           onClick={() => onSubmit({ packageChoice: "multiple", multipleCount: parsed })}
           className={primaryClass}
         >

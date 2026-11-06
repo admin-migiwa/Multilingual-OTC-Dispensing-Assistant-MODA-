@@ -127,12 +127,36 @@ const listOf =
   (v) =>
     Array.isArray(v) && v.every((x) => typeof x === "string" && choices.includes(x));
 const nonNegativeNumber: Check = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
+
+/**
+ * 数字で答える項目のうち、整数で決まった範囲だけを受け取る項目（interview-items.md「聞かない・聞き直すときの決まり」。
+ * 11/6 薬剤師の判断。打ち間違いを止めるための広い範囲で、判定の基準ではない。backlog J-07・C-13）。
+ * 体重（Q05）と、ほかの店で買った個数（R01）はまだ決めていない（backlog J-16）ので、ここに入れない。
+ */
+export const INTEGER_ANSWER_RANGES = {
+  /** 年齢（Q01）：0〜120歳 */
+  age: { min: 0, max: 120 },
+  /** 飲む予定の日数（Q12）：1〜365日 */
+  plannedDays: { min: 1, max: 365 },
+  /** 買いたい個数（R02）：1〜99個（「複数個」は2個以上なので、2〜99） */
+  packageCount: { min: 1, max: 99 },
+} as const;
+
+/** 整数で、min 以上 max 以下か */
+export function isIntegerInRange(v: unknown, range: { readonly min: number; readonly max: number }): boolean {
+  return typeof v === "number" && Number.isInteger(v) && v >= range.min && v <= range.max;
+}
+
+const integerIn =
+  (range: { readonly min: number; readonly max: number }): Check =>
+  (v) =>
+    isIntegerInRange(v, range);
 const isBoolean: Check = (v) => typeof v === "boolean";
 const isString: Check = (v) => typeof v === "string";
 const stringList: Check = (v) => Array.isArray(v) && v.every((x) => typeof x === "string");
 
 const FACT_CHECKS: Readonly<Record<keyof InterviewFacts, { itemId: InterviewItemId; check: Check }>> = {
-  age: { itemId: "Q01", check: nonNegativeNumber },
+  age: { itemId: "Q01", check: integerIn(INTEGER_ANSWER_RANGES.age) },
   sex: { itemId: "Q02", check: oneOf(SEXES) },
   pregnancy: { itemId: "Q03", check: oneOf(PREGNANCY_ANSWERS) },
   dueWithin12Weeks: { itemId: "Q03a", check: oneOf(YES_NO_UNKNOWN) },
@@ -146,7 +170,7 @@ const FACT_CHECKS: Readonly<Record<keyof InterviewFacts, { itemId: InterviewItem
   prescriptionDrugNames: { itemId: "Q09", check: stringList },
   drivingAfter: { itemId: "Q10", check: isBoolean },
   alcohol: { itemId: "Q11", check: isBoolean },
-  plannedDays: { itemId: "Q12", check: nonNegativeNumber },
+  plannedDays: { itemId: "Q12", check: integerIn(INTEGER_ANSWER_RANGES.plannedDays) },
   softContactLens: { itemId: "Q13", check: isBoolean },
   applicationSite: { itemId: "Q14", check: oneOf(APPLICATION_SITES) },
 };
@@ -154,7 +178,7 @@ const FACT_CHECKS: Readonly<Record<keyof InterviewFacts, { itemId: InterviewItem
 /**
  * 入っている答えが、決められた選択肢・範囲に収まっているかを確かめる。
  * 外れていたら DomainRuleError("FACT_INVALID") で止める（推測で読み替えない）。
- * 数値は0以上の有限の数。まだ答えていない項目（値なし）はここでは確かめない。
+ * 年齢・日数は INTEGER_ANSWER_RANGES の範囲の整数、体重は0以上の有限の数。まだ答えていない項目（値なし）はここでは確かめない。
  */
 export function assertValidFacts(facts: InterviewFacts): void {
   for (const [key, value] of Object.entries(facts)) {

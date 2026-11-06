@@ -412,6 +412,14 @@ describe("119番の案内の取り消しと、確認済みの接客（11/6 依�
     assert.equal(patientView(decideEmergency(deps, id, "not_emergency")).emergencyCleared, true);
   });
 
+  it("範囲の外の年齢（121歳）は受け取らず、記録も変えない（C-13）", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    const before = getSession(deps, id);
+    assert.throws(() => answer(deps, id, { age: 121, sex: "female" }), (e: unknown) => e instanceof DomainRuleError && e.code === "FACT_INVALID");
+    assert.deepEqual(getSession(deps, id), before);
+  });
+
   it("画面を読み直したときに緊急キーワードの確認で使う年齢を返す（まだ答えていなければ null）", () => {
     const deps = testDeps();
     const { id } = createSession(deps, "en");
