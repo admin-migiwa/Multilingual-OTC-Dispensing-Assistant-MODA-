@@ -37,6 +37,7 @@ export function EmergencyGuide({
   followUp,
   onFollowUpChange,
   onReturn,
+  onShowGuide,
 }: {
   /** 患者さんの言語。言語を選ぶ前に開いたときは null */
   language: LanguageCode | null;
@@ -46,6 +47,8 @@ export function EmergencyGuide({
   followUp: FollowUpState;
   onFollowUpChange: (next: FollowUpState) => void;
   onReturn: () => void;
+  /** 薬剤師が「119番の案内を出す」を選んだとき（記録に残すため）。表示はこの呼び出しの成否にかかわらず切り替える */
+  onShowGuide?: () => void;
 }) {
   const [step, setStep] = useState<"confirm" | "guide">("confirm");
 
@@ -103,7 +106,10 @@ export function EmergencyGuide({
             {/* 明らかに救急のときに、下まで操作せずにすぐ案内へ進めるように上にも置く */}
             <button
               type="button"
-              onClick={() => setStep("guide")}
+              onClick={() => {
+                setStep("guide");
+                onShowGuide?.();
+              }}
               className="rounded-2xl bg-red-700 px-4 py-3 text-base font-bold text-white hover:bg-red-800"
             >
               119番の案内を出す
@@ -151,7 +157,10 @@ export function EmergencyGuide({
           <div className="grid gap-3 sm:grid-cols-2">
             <button
               type="button"
-              onClick={() => setStep("guide")}
+              onClick={() => {
+                setStep("guide");
+                onShowGuide?.();
+              }}
               className="rounded-2xl bg-red-700 px-4 py-4 text-lg font-bold text-white hover:bg-red-800"
             >
               119番の案内を出す

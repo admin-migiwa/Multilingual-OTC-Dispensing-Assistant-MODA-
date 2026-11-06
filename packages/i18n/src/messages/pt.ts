@@ -14,6 +14,8 @@ export const pt: Messages = {
     redo: "Refazer a resposta anterior",
     emergencyButton: "De repente estou me sentindo muito mal",
     aiTranslationNotice: "Este texto foi traduzido por IA (ainda não foi revisado por uma pessoa).",
+    networkError: "A conexão caiu. Nossa equipe vai ajudar você agora.",
+    retry: "Tentar de novo",
   },
   languageSelect: {
     title: "Escolha o seu idioma",
@@ -25,6 +27,10 @@ export const pt: Messages = {
     haveProductHint: "Digite o nome do produto, ou tire uma foto da tela do celular ou do produto",
     findBySymptom: "Procurar pelos sintomas",
     findBySymptomHint: "Vamos perguntar como você está, uma pergunta por vez",
+    searchPlaceholder: "Digite o nome do produto (pode ser o nome que aparece no celular)",
+    noMatch: "Não encontramos. Mostre a tela do celular a um funcionário.",
+    symptomPrompt: "Quais sintomas você tem?",
+    chooseDrug: "Escolher este remédio",
   },
   photoConsent: {
     title: "Sobre a foto",

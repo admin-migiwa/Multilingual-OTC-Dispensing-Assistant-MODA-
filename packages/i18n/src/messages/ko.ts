@@ -14,6 +14,8 @@ export const ko: Messages = {
     redo: "이전 답변 다시 하기",
     emergencyButton: "갑자기 몸이 많이 안 좋아요",
     aiTranslationNotice: "이 문장은 AI가 번역한 것입니다(아직 사람이 확인하지 않았습니다).",
+    networkError: "통신이 끊겼습니다. 직원이 바로 도와드리겠습니다.",
+    retry: "다시 시도",
   },
   languageSelect: {
     title: "언어를 선택해 주세요",
@@ -25,6 +27,10 @@ export const ko: Messages = {
     haveProductHint: "상품명을 입력하거나, 휴대폰 화면 또는 상품을 촬영합니다",
     findBySymptom: "증상으로 찾기",
     findBySymptomHint: "몸 상태를 하나씩 질문합니다",
+    searchPlaceholder: "상품명을 입력해 주세요(휴대폰 화면의 이름도 괜찮습니다)",
+    noMatch: "찾지 못했습니다. 휴대폰 화면을 직원에게 보여 주세요.",
+    symptomPrompt: "어떤 증상이 있나요?",
+    chooseDrug: "이 약으로 할게요",
   },
   photoConsent: {
     title: "사진에 대해",

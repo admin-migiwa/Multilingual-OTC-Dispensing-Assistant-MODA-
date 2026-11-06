@@ -14,6 +14,8 @@ export const vi: Messages = {
     redo: "Trả lời lại câu trước",
     emergencyButton: "Tôi đột nhiên thấy rất khó chịu",
     aiTranslationNotice: "Nội dung này do AI dịch (chưa được người kiểm tra).",
+    networkError: "Kết nối đã bị ngắt. Nhân viên sẽ giúp bạn ngay.",
+    retry: "Thử lại",
   },
   languageSelect: {
     title: "Vui lòng chọn ngôn ngữ",
@@ -25,6 +27,10 @@ export const vi: Messages = {
     haveProductHint: "Nhập tên sản phẩm, hoặc chụp màn hình điện thoại hay sản phẩm",
     findBySymptom: "Tìm thuốc theo triệu chứng",
     findBySymptomHint: "Chúng tôi sẽ hỏi về tình trạng sức khỏe của bạn, từng câu một",
+    searchPlaceholder: "Vui lòng nhập tên sản phẩm (tên trên màn hình điện thoại cũng được)",
+    noMatch: "Không tìm thấy. Vui lòng cho nhân viên xem màn hình điện thoại.",
+    symptomPrompt: "Bạn có triệu chứng gì?",
+    chooseDrug: "Chọn thuốc này",
   },
   photoConsent: {
     title: "Về việc chụp ảnh",
