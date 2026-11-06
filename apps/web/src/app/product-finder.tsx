@@ -25,6 +25,7 @@ interface IdentifyResponse {
   readonly readable: boolean;
   readonly productNames: readonly string[];
   readonly candidates: readonly Candidate[];
+  readonly ambiguous: boolean;
   readonly provider: "mock" | "anthropic" | null;
 }
 
@@ -43,7 +44,8 @@ const ERROR_TEXT: Readonly<Record<string, string>> = {
 
 /** 写真を端末の中で小さくし、JPEG の base64 にする（付加情報は描き直すときに消える） */
 async function shrinkToJpeg(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file);
+  // 写真の向きの情報（EXIF）に合わせて起こす（古い Safari で横向きのまま送らないため）
+  const bitmap = await createImageBitmap(file, { imageOrientation: "from-image" });
   const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
   const canvas = document.createElement("canvas");
   canvas.width = Math.round(bitmap.width * scale);
@@ -202,6 +204,11 @@ export function ProductFinder({
           ) : (
             <>
               <p className="text-sm font-semibold text-slate-700">候補（薬剤師が確かめて選んでください）</p>
+              {result.ambiguous ? (
+                <p className="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
+                  名前が近い候補が複数あります。並び順ではなく、箱やスマホの画面の名前と見比べて選んでください。
+                </p>
+              ) : null}
               <ul className="space-y-2">
                 {result.candidates.map((candidate) => (
                   <li key={candidate.drugId}>

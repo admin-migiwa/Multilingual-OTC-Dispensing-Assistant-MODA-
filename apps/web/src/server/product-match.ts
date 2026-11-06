@@ -94,3 +94,15 @@ export function matchProducts(readTexts: readonly string[]): ProductCandidate[] 
   }
   return [...best.values()].sort((a, b) => b.score - a.score).slice(0, MAX_CANDIDATES);
 }
+
+/** 点数の差がこれ以下なら「どちらとも言えない」とみなす */
+export const AMBIGUOUS_GAP = 0.05;
+
+/**
+ * いちばん上の候補と2番目の候補の点数が近いか（例：「モダペイン」だけ読めて、S と A のどちらか決まらない）。
+ * 近いときは、画面で「名前が近い候補が複数ある」と出し、並び順に意味を持たせない。
+ */
+export function isAmbiguous(candidates: readonly ProductCandidate[]): boolean {
+  const [first, second] = candidates;
+  return first !== undefined && second !== undefined && first.score - second.score <= AMBIGUOUS_GAP;
+}

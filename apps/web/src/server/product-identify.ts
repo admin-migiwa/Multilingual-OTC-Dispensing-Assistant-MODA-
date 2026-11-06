@@ -11,13 +11,21 @@
 import { z } from "zod";
 
 import { AiError, type AiClient, type AiImageType } from "./ai/index.ts";
-import { matchProducts, type ProductCandidate } from "./product-match.ts";
+import { isAmbiguous, matchProducts, type ProductCandidate } from "./product-match.ts";
 import { SessionServiceError } from "./session-service.ts";
 
 /** 入力する名前の長さの上限 */
 export const MAX_NAME_LENGTH = 100;
-/** 写真の大きさの上限（Claude API の1枚の上限 5MB に合わせる。base64 の文字数で見る） */
-export const MAX_IMAGE_BASE64_LENGTH = Math.floor((5 * 1024 * 1024 * 4) / 3);
+/** 写真の大きさの上限（Claude API の1枚の上限 5MB。厳しいほうに合わせて base64 の文字数で見る） */
+export const MAX_IMAGE_BASE64_LENGTH = 5 * 1024 * 1024;
+
+/** 写真の先頭の数バイトが、名乗った形式と合っているか（base64 の先頭の文字で見る） */
+const IMAGE_SIGNATURES: Readonly<Record<AiImageType, (base64: string) => boolean>> = {
+  "image/jpeg": (b) => b.startsWith("/9j/"),
+  "image/png": (b) => b.startsWith("iVBORw0KGgo"),
+  // RIFF....WEBP
+  "image/webp": (b) => b.startsWith("UklGR") && Buffer.from(b.slice(0, 16), "base64").subarray(8, 12).toString("ascii") === "WEBP",
+};
 
 const IMAGE_TYPES: readonly AiImageType[] = ["image/jpeg", "image/png", "image/webp"];
 
@@ -51,9 +59,11 @@ export interface IdentifyResult {
   /** photo：写真から読んだ／text：入力した名前 */
   readonly source: "photo" | "text";
   readonly readable: boolean;
-  /** 読み取った（入力した）商品名 */
+  /** 読み取った商品名のうち候補に当たったもの（入力のときは入力した名前） */
   readonly productNames: readonly string[];
   readonly candidates: readonly ProductCandidate[];
+  /** 上の候補どうしの点数が近く、どれとも決めにくい（薬剤師が箱の名前をよく見比べる） */
+  readonly ambiguous: boolean;
   readonly provider: AiClient["provider"] | null;
 }
 
@@ -61,7 +71,8 @@ export function identifyFromText(text: string): IdentifyResult {
   const name = text.trim();
   if (!name) throw new SessionServiceError("INVALID_REQUEST", "名前がありません");
   if (name.length > MAX_NAME_LENGTH) throw new SessionServiceError("INVALID_REQUEST", "名前が長すぎます");
-  return { source: "text", readable: true, productNames: [name], candidates: matchProducts([name]), provider: null };
+  const candidates = matchProducts([name]);
+  return { source: "text", readable: true, productNames: [name], candidates, ambiguous: isAmbiguous(candidates), provider: null };
 }
 
 export async function identifyFromPhoto(
@@ -71,7 +82,14 @@ export async function identifyFromPhoto(
   if (input.consent !== true) throw new SessionServiceError("INVALID_REQUEST", "写真を送る同意がありません");
   const mediaType = IMAGE_TYPES.find((type) => type === input.mediaType);
   if (!mediaType) throw new SessionServiceError("INVALID_REQUEST", "写真の形式に対応していません");
-  if (!input.base64 || input.base64.length > MAX_IMAGE_BASE64_LENGTH || !/^[A-Za-z0-9+/]+={0,2}$/.test(input.base64)) {
+  const { base64 } = input;
+  if (
+    !base64 ||
+    base64.length > MAX_IMAGE_BASE64_LENGTH ||
+    base64.length % 4 !== 0 ||
+    !/^[A-Za-z0-9+/]+={0,2}$/.test(base64) ||
+    !IMAGE_SIGNATURES[mediaType](base64)
+  ) {
     throw new SessionServiceError("INVALID_REQUEST", "写真が大きすぎるか、形が違います");
   }
 
@@ -87,12 +105,16 @@ export async function identifyFromPhoto(
   const parsed = readSchema.safeParse(raw);
   if (!parsed.success) throw new AiError("AI_INVALID_OUTPUT", "AI の答えが決められた形ではありません");
 
-  const productNames = parsed.data.readable ? parsed.data.productNames : [];
+  const readNames = parsed.data.readable ? parsed.data.productNames : [];
+  const candidates = matchProducts(readNames);
+  // 画面に出す読み取りの文字は、候補に当たったものだけ（写り込んだ通知などの文字を出さないため）
+  const productNames = [...new Set(candidates.map((candidate) => candidate.matchedText))];
   return {
     source: "photo",
-    readable: productNames.length > 0,
+    readable: readNames.length > 0,
     productNames,
-    candidates: matchProducts(productNames),
+    candidates,
+    ambiguous: isAmbiguous(candidates),
     provider: ai.provider,
   };
 }

@@ -63,6 +63,16 @@ describe("商品名の照らし合わせ", () => {
     assert.deepEqual(ids(["ビタミンドリンク"]), []);
   });
 
+  it("名前の一部しか読めず、S と A のどちらか決めにくいときは「決めにくい」と知らせる（モダペイン → C と D）", () => {
+    const result = identifyFromText("モダペイン");
+    assert.equal(result.ambiguous, true);
+    assert.deepEqual(result.candidates.slice(0, 2).map((c) => c.drugId).sort(), ["C", "D"]);
+  });
+
+  it("名前が同じときは「決めにくい」にしない（モダペインS錠）", () => {
+    assert.equal(identifyFromText("モダペインS錠").ambiguous, false);
+  });
+
   it("候補は3つまで", () => {
     assert.ok(matchProducts(["モダ"]).length <= 3);
   });
@@ -102,9 +112,16 @@ describe("写真から商品名を読む", () => {
     assert.equal(call.content[0]?.type, "image");
   });
 
+  it("画面に返す読み取りの文字は、候補に当たったものだけ（写り込んだ通知などの文字は返さない）", async () => {
+    const ai = fakeAi({ readable: true, productNames: ["新着メッセージ：明日10時に会いましょう", "モダシップ"] });
+    const result = await identifyFromPhoto(ai, { consent: true, mediaType: "image/png", base64: TINY_PNG });
+    assert.deepEqual(result.productNames, ["モダシップ"]);
+    assert.equal(result.candidates[0]?.drugId, "H");
+  });
+
   it("読めなかったら候補は空（推測で出さない）", async () => {
     const ai = fakeAi({ readable: false, productNames: [] });
-    const result = await identifyFromPhoto(ai, { consent: true, mediaType: "image/jpeg", base64: TINY_PNG });
+    const result = await identifyFromPhoto(ai, { consent: true, mediaType: "image/png", base64: TINY_PNG });
     assert.equal(result.readable, false);
     assert.deepEqual(result.candidates, []);
   });
@@ -123,6 +140,10 @@ describe("写真から商品名を読む", () => {
       { mediaType: "image/gif", base64: TINY_PNG },
       { mediaType: "image/png", base64: "A".repeat(MAX_IMAGE_BASE64_LENGTH + 4) },
       { mediaType: "image/png", base64: "これは写真ではない" },
+      // PNG なのに JPEG と名乗っている
+      { mediaType: "image/jpeg", base64: TINY_PNG },
+      // base64 の長さが4の倍数でない
+      { mediaType: "image/png", base64: TINY_PNG.slice(0, -1) },
     ];
     for (const input of cases) {
       await assert.rejects(identifyFromPhoto(ai, { consent: true, ...input }), SessionServiceError);
