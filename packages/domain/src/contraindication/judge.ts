@@ -78,7 +78,8 @@ function need<K extends keyof InterviewFacts>(
 /**
  * 妊娠・授乳（Q03・Q04）を聞く対象か（interview-items.md Q03・Q04）。
  * 男性には聞かない。12歳未満にも聞かないが、選んだ薬に pregnancyQuestionsAtAnyAge の薬（A）があるときは年齢を問わない。
- * 問診（どの項目を聞くか）と禁忌判定（妊娠を確かめる対象か）の両方がこの関数を使う。2か所で基準をずらさないこと。
+ * 問診（どの項目を聞くか。選んだ薬ぜんぶを渡す）と禁忌判定（その薬で答えが要るか。その薬だけを渡す）の両方がこの関数を使う。
+ * 2か所で基準をずらさないこと。判定では、ほかの薬のために聞いた答えも使う（usesPregnancyAnswer。K47）。
  */
 export function asksPregnancyQuestions(
   sex: InterviewFacts["sex"],
@@ -90,17 +91,24 @@ export function asksPregnancyQuestions(
   return age >= PREGNANCY_QUESTION_MIN_AGE || drugIds.some((id) => findStockedDrug(id).pregnancyQuestionsAtAnyAge === true);
 }
 
-/** この薬の判定で、妊娠・授乳を確かめる対象か（年齢・性別がまだなら止める） */
-function asksPregnancyAndBreastfeeding(facts: InterviewFacts, drug: StockedDrug): boolean {
+/**
+ * この薬の判定で、妊娠（key = "pregnancy"）・授乳（key = "breastfeeding"）の答えを使うか（年齢・性別がまだなら止める）。
+ * - この薬だけで聞く対象なら、答えが要る（なければ need() で止める）。
+ * - 12歳未満で、この薬だけなら聞かない場合でも、一緒に選んだ A のために聞いた答えが記録にあれば使う
+ *   （11/6 依頼主＝薬剤師の判断。contraindication-tests.md K47。例：A と J を選んだ11歳の妊娠の答えを J の注意にも使う）。
+ */
+function usesPregnancyAnswer(facts: InterviewFacts, drug: StockedDrug, key: "pregnancy" | "breastfeeding"): boolean {
   const sex = need(facts, "sex", "Q02");
   const age = need(facts, "age", "Q01");
-  return asksPregnancyQuestions(sex, age, [drug.id]);
+  if (sex === "male") return false;
+  if (asksPregnancyQuestions(sex, age, [drug.id])) return true;
+  return facts[key] !== undefined && facts[key] !== null;
 }
 
 type PregnancyState = "pregnant" | "maybe" | "not_pregnant";
 
 function pregnancyState(facts: InterviewFacts, drug: StockedDrug): PregnancyState {
-  if (!asksPregnancyAndBreastfeeding(facts, drug)) return "not_pregnant";
+  if (!usesPregnancyAnswer(facts, drug, "pregnancy")) return "not_pregnant";
   const answer = need(facts, "pregnancy", "Q03");
   if (answer === "pregnant") return "pregnant";
   if (answer === "maybe") return "maybe";
@@ -140,7 +148,7 @@ function evaluate(condition: RuleCondition, facts: InterviewFacts, drug: Stocked
     }
 
     case "breastfeeding": {
-      if (!asksPregnancyAndBreastfeeding(facts, drug)) return NO_MATCH;
+      if (!usesPregnancyAnswer(facts, drug, "breastfeeding")) return NO_MATCH;
       return need(facts, "breastfeeding", "Q04") === "yes" ? hit(["Q04"]) : NO_MATCH;
     }
 

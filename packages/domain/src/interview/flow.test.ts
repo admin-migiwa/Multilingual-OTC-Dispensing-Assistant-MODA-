@@ -154,6 +154,16 @@ describe("妊娠・授乳（Q03・Q04）を聞く条件", () => {
     assert.equal(judgeDrug("A", factsForJudgment(state)).verdict, "contraindicated");
   });
 
+  it("K47：11歳女性が A と J を選び、妊娠を「している」と答えると、問診を終えたあとの判定で J は注意になる", () => {
+    let state: InterviewState = { answers: { age: 11, sex: "female" }, selectedDrugs: ["A", "J"], route: "product" };
+    for (let i = 0; i < 30; i += 1) {
+      const id = nextQuestion(state);
+      if (id === null) break;
+      state = applyAnswers(state, id === "Q03" ? { pregnancy: "pregnant" } : answerOf[id]);
+    }
+    assert.equal(judgeDrug("J", factsForJudgment(state)).verdict, "caution");
+  });
+
   it("男性への妊娠の答えは記録に残さない（サーバー側で除外する）", () => {
     const male = withAnswers({ age: 30, sex: "male" });
     const result = applyAnswersWithReport(male, { pregnancy: "no" });

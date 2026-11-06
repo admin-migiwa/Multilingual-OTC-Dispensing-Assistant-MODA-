@@ -134,6 +134,11 @@ describe("禁忌判定：妊娠（Q03・Q03a）", () => {
     expectVerdict("A", patient({ age: 11, pregnancy: "no" }), "ok");
   });
 
+  it("K47 A と一緒に選んで妊娠を聞いた11歳女性で、妊娠している人に J は注意（妊娠中・相談）", () => {
+    const r = expectVerdict("J", patient({ age: 11, pregnancy: "pregnant", dueWithin12Weeks: "no" }), "caution");
+    expectReason(r, { code: "PREGNANT_CONSULT", item: "Q03", label: "妊娠中（相談）" });
+  });
+
   it("K43 妊娠しているかもしれない人に C は禁忌（出産予定日まで12週以内かがわからない）", () => {
     const r = expectVerdict("C", patient({ pregnancy: "maybe" }), "contraindicated");
     expectReason(r, { code: "DUE_WITHIN_12_WEEKS", item: "Q03", uncertain: true, flag: "nsaid", label: "妊娠の可能性（出産予定日まで12週以内かがわからない）" });
