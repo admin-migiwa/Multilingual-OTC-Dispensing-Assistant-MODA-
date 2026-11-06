@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent, type FormEvent } from "react";
+import { useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
 import { getMessages, type LanguageCode } from "@moda/i18n";
 
@@ -11,6 +11,8 @@ import { getMessages, type LanguageCode } from "@moda/i18n";
  *   同意しなければ、名前の入力に進む。
  * - 写真は端末の中で小さくしてから送り（位置情報などの付加情報も消える）、送ったら画面の中からも消す。端末に保存しない。
  * - 出すのは「候補」。どれにするかは薬剤師が確かめて選ぶ（CLAUDE.md 絶対に守るルール10）。AI が薬を勧める表示はしない（決まったこと No.22）。
+ *   **組み込む人へ（backlog C-10）**：候補のボタン（onChoose）は薬剤師が押すもの。患者さんだけが見る画面に置くときは、
+ *   選んだあとに薬剤師の確認をはさむか、候補の一覧を薬剤師の画面に出す。
  */
 
 interface Candidate {
@@ -26,6 +28,7 @@ interface IdentifyResponse {
   readonly productNames: readonly string[];
   readonly candidates: readonly Candidate[];
   readonly ambiguous: boolean;
+  readonly exactMatch: boolean;
   readonly provider: "mock" | "anthropic" | null;
 }
 
@@ -74,8 +77,11 @@ export function ProductFinder({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<IdentifyResponse | null>(null);
+  /** 何回目の問い合わせか。古い答えがあとから届いても、新しい答えを上書きしないため */
+  const latest = useRef(0);
 
   async function send(body: unknown) {
+    const requestNo = (latest.current += 1);
     setBusy(true);
     setError(null);
     setResult(null);
@@ -86,20 +92,25 @@ export function ProductFinder({
         body: JSON.stringify(body),
       });
       const data = (await response.json().catch(() => ({}))) as Partial<IdentifyResponse> & { error?: string };
+      if (requestNo !== latest.current) return;
       if (!response.ok || !Array.isArray(data.candidates)) {
         setError(ERROR_TEXT[data.error ?? ""] ?? "候補を出せませんでした。");
         return;
       }
       setResult(data as IdentifyResponse);
     } catch {
-      setError("通信が止まりました。商品名を薬剤師に見せてください。");
+      if (requestNo === latest.current) setError("通信が止まりました。商品名を薬剤師に見せてください。");
     } finally {
-      setBusy(false);
+      if (requestNo === latest.current) setBusy(false);
     }
   }
 
   async function handlePhoto(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
+    if (busy) {
+      event.target.value = "";
+      return;
+    }
     // 選んだ写真を入力欄からすぐに消す（同じ写真をもう一度選べるように、また端末の画面に残さないように）
     event.target.value = "";
     if (!file) return;
@@ -159,7 +170,14 @@ export function ProductFinder({
         <div className="space-y-3">
           <label className="inline-block cursor-pointer rounded-xl bg-slate-800 px-4 py-3 text-lg font-semibold text-white">
             📷 {messages.photoConsent.agree}
-            <input type="file" accept="image/*" capture="environment" className="sr-only" onChange={handlePhoto} />
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="sr-only"
+              disabled={busy}
+              onChange={handlePhoto}
+            />
           </label>
           <button lang="ja" type="button" onClick={() => setStep("name")} className="ml-3 text-sm text-slate-600 underline">
             商品名を入力する
@@ -204,6 +222,11 @@ export function ProductFinder({
           ) : (
             <>
               <p className="text-sm font-semibold text-slate-700">候補（薬剤師が確かめて選んでください）</p>
+              {!result.ambiguous && !result.exactMatch ? (
+                <p className="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
+                  名前が完全には一致していません。箱やスマホの画面の名前と見比べてください。
+                </p>
+              ) : null}
               {result.ambiguous ? (
                 <p className="rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
                   名前が近い候補が複数あります。並び順ではなく、箱やスマホの画面の名前と見比べて選んでください。

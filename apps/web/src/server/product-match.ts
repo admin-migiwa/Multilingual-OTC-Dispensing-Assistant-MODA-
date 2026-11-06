@@ -104,5 +104,15 @@ export const AMBIGUOUS_GAP = 0.05;
  */
 export function isAmbiguous(candidates: readonly ProductCandidate[]): boolean {
   const [first, second] = candidates;
-  return first !== undefined && second !== undefined && first.score - second.score <= AMBIGUOUS_GAP;
+  // 点数は小数2けたに丸めてあるので、差も100倍した整数で比べる（0.67-0.62 のような小数の誤差で外れないように）
+  return (
+    first !== undefined &&
+    second !== undefined &&
+    Math.round((first.score - second.score) * 100) <= Math.round(AMBIGUOUS_GAP * 100)
+  );
+}
+
+/** いちばん上の候補の名前が、読み取り（入力）と完全に同じか。同じでなければ、薬剤師が箱の名前と見比べる */
+export function isExactMatch(candidates: readonly ProductCandidate[]): boolean {
+  return candidates[0]?.score === 1;
 }

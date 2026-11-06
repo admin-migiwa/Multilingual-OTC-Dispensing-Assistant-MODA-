@@ -42,7 +42,7 @@ for (const { file, expected } of CASES) {
     if (ok) correct += 1;
     const ids = result.candidates.map((candidate) => candidate.drugId).join(",") || "なし";
     process.stdout.write(
-      `${ok ? "○" : "×"} ${file}：読んだ名前「${result.productNames.join("、")}」→ 候補 ${ids}（正解 ${expected}）\n`,
+      `${ok ? "○" : "×"} ${file}：候補 ${ids}（正解 ${expected}${result.exactMatch ? "、名前が完全に一致" : "、名前は完全には一致しない"}）\n`,
     );
   } catch (error: unknown) {
     const code = error instanceof Error && "code" in error ? String(error.code) : "不明";

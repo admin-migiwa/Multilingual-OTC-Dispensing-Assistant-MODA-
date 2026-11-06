@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { AiError, createAiClient, type AiClient, type AiRequest } from "./ai/index.ts";
 import { identifyFromPhoto, identifyFromText, MAX_IMAGE_BASE64_LENGTH } from "./product-identify.ts";
-import { matchProducts, normalizeName } from "./product-match.ts";
+import { isAmbiguous, matchProducts, normalizeName, type ProductCandidate } from "./product-match.ts";
 import { SessionServiceError } from "./session-service.ts";
 
 /**
@@ -73,6 +73,21 @@ describe("商品名の照らし合わせ", () => {
     assert.equal(identifyFromText("モダペインS錠").ambiguous, false);
   });
 
+  it("点数の差がちょうど 0.05 のときも「決めにくい」にする（小数の誤差で外れない）", () => {
+    const c = (drugId: string, score: number): ProductCandidate => ({ drugId, name: drugId, stocked: true, score, matchedText: "" });
+    assert.equal(isAmbiguous([c("X2", 0.67), c("C", 0.62)]), true);
+    assert.equal(isAmbiguous([c("F", 0.97), c("X3", 0.92)]), true);
+    assert.equal(isAmbiguous([c("F", 0.97), c("X3", 0.91)]), false);
+  });
+
+  it("名前が完全に同じでなければ「完全には一致しない」と知らせる（モダシップクール → H だが、完全一致ではない）", () => {
+    const exact = identifyFromText("モダシップ");
+    assert.equal(exact.exactMatch, true);
+    const partial = identifyFromText("モダシップクール");
+    assert.equal(partial.candidates[0]?.drugId, "H");
+    assert.equal(partial.exactMatch, false);
+  });
+
   it("候補は3つまで", () => {
     assert.ok(matchProducts(["モダ"]).length <= 3);
   });
@@ -104,19 +119,30 @@ describe("写真から商品名を読む", () => {
   it("読んだ商品名から候補を出す（読んだ名前は候補と一緒に返す）", async () => {
     const ai = fakeAi({ readable: true, productNames: ["モダアイクリア"] });
     const result = await identifyFromPhoto(ai, { consent: true, mediaType: "image/png", base64: TINY_PNG });
-    assert.deepEqual(result.productNames, ["モダアイクリア"]);
     assert.equal(result.candidates[0]?.drugId, "G");
+    assert.equal(result.exactMatch, true);
     const call = ai.calls[0];
     assert.ok(call);
     assert.equal(call.task, "read_product");
     assert.equal(call.content[0]?.type, "image");
   });
 
-  it("画面に返す読み取りの文字は、候補に当たったものだけ（写り込んだ通知などの文字は返さない）", async () => {
-    const ai = fakeAi({ readable: true, productNames: ["新着メッセージ：明日10時に会いましょう", "モダシップ"] });
+  it("写真から読んだ文字は画面に返さない（名前や電話番号が商品名と一緒に読まれても、表の商品名だけを返す）", async () => {
+    const ai = fakeAi({ readable: true, productNames: ["山田花子 090-1234 モダシップ", "新着メッセージ"] });
     const result = await identifyFromPhoto(ai, { consent: true, mediaType: "image/png", base64: TINY_PNG });
-    assert.deepEqual(result.productNames, ["モダシップ"]);
+    assert.deepEqual(result.productNames, []);
     assert.equal(result.candidates[0]?.drugId, "H");
+    assert.equal(result.candidates[0]?.matchedText, "モダシップ（架空）");
+    assert.ok(!JSON.stringify(result).includes("090"));
+    assert.ok(!JSON.stringify(result).includes("新着"));
+  });
+
+  it("40文字を超える読み取りは、商品名以外が混じっているとみなして止める", async () => {
+    const ai = fakeAi({ readable: true, productNames: ["あ".repeat(41)] });
+    await assert.rejects(
+      identifyFromPhoto(ai, { consent: true, mediaType: "image/png", base64: TINY_PNG }),
+      (err: unknown) => err instanceof AiError && err.code === "AI_INVALID_OUTPUT",
+    );
   });
 
   it("読めなかったら候補は空（推測で出さない）", async () => {
