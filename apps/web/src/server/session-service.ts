@@ -9,7 +9,9 @@
 
 import {
   DomainRuleError,
+  EMERGENCY_RULES,
   applyAnswers,
+  isTerminal,
   isBasicInterviewComplete,
   isInterviewComplete,
   nextQuestion,
@@ -47,6 +49,14 @@ export interface EmergencyFollowUp {
   readonly observedRuleIds: readonly string[];
 }
 
+/** 送られた時刻つきの、緊急の確認画面の内容（送り直しても前の内容を消さず、足していく） */
+export interface RecordedFollowUp extends EmergencyFollowUp {
+  readonly at: string;
+}
+
+/** 自由に入力された文の長さの上限（メモリにため込みすぎないため） */
+export const MAX_TEXT_LENGTH = 500;
+
 export type EmergencyDecision = "show_119" | "not_emergency";
 
 /** 緊急の出来事。問診の記録に紐づけて残す（docs/backlog.md C-04） */
@@ -59,7 +69,8 @@ export interface EmergencyEvent {
   readonly inputText: string | null;
   /** 確認に入る前の状態 */
   readonly returnTo: SessionStatus;
-  readonly followUp: EmergencyFollowUp | null;
+  /** 緊急の確認画面の内容。送られるたびに足す（最後のものが今の内容）。判断の根拠を後から確かめられるよう、前の内容も残す */
+  readonly followUps: readonly RecordedFollowUp[];
   readonly decision: EmergencyDecision | null;
   readonly decidedAt: string | null;
 }
@@ -68,6 +79,8 @@ export interface EmergencyEvent {
 export type SessionEventType =
   | "created"
   | "answered"
+  | "corrected"
+  | "answers_cleared"
   | "drugs_selected"
   | "status_changed"
   | "emergency_opened"
@@ -214,12 +227,30 @@ export function getSession(deps: ServiceDeps, id: string): SessionRecord {
 export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers): SessionRecord {
   const record = load(deps, id);
   const status = record.snapshot.status;
+  if (isTerminal(status)) {
+    throw new DomainRuleError("SESSION_ALREADY_ENDED", "終了した接客には答えを受け取れません");
+  }
   if (status !== "attributes" && status !== "interview" && status !== "drug_selection") {
     throw new DomainRuleError("INVALID_TRANSITION", `${status} の状態では問診の答えを受け取れません`);
   }
+  for (const value of Object.values(answers)) {
+    if (typeof value === "string" && value.length > MAX_TEXT_LENGTH) {
+      throw new SessionServiceError("INVALID_REQUEST", "入力が長すぎます");
+    }
+  }
+  const before = record.interview.answers;
   const interview = applyAnswers(record.interview, answers);
-  const answered = Object.keys(answers).filter((key) => answers[key as keyof InterviewAnswers] !== undefined);
-  let next: SessionRecord = { ...record, interview, events: [...record.events, event(deps, "answered", answered)] };
+  const keys = Object.keys(answers) as (keyof InterviewAnswers)[];
+  const answered = keys.filter((key) => answers[key] !== undefined);
+  // 訂正した項目と、訂正で聞く必要がなくなって消えた項目を、種類だけ履歴に残す（中身は残さない）
+  const corrected = answered.filter((key) => before[key] !== undefined && JSON.stringify(before[key]) !== JSON.stringify(answers[key]));
+  const cleared = (Object.keys(before) as (keyof InterviewAnswers)[]).filter(
+    (key) => before[key] !== undefined && interview.answers[key] === undefined,
+  );
+  const newEvents = [event(deps, "answered", answered)];
+  if (corrected.length > 0) newEvents.push(event(deps, "corrected", corrected));
+  if (cleared.length > 0) newEvents.push(event(deps, "answers_cleared", cleared));
+  let next: SessionRecord = { ...record, interview, events: [...record.events, ...newEvents] };
   // 薬の選択のあとに答え直して聞く項目が増えたら、問診に戻る
   if (next.snapshot.status === "drug_selection" && nextQuestion(next.interview) !== null) {
     next = moveTo(deps, next, "interview");
@@ -231,7 +262,15 @@ export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers)
 
 /** 薬を選ぶ（希望の薬・候補の薬）。選んだ薬の項目が残っていれば問診に戻る */
 export function chooseDrugs(deps: ServiceDeps, id: string, drugIds: readonly StockedDrugId[]): SessionRecord {
-  const record = load(deps, id);
+  let record = load(deps, id);
+  // 薬を選んだあと、その薬の項目に答えている途中でも選び直せる（基本の項目は答え終えているとき）
+  if (
+    record.snapshot.status === "interview" &&
+    record.interview.selectedDrugs.length > 0 &&
+    isBasicInterviewComplete(record.interview)
+  ) {
+    record = moveTo(deps, record, "drug_selection");
+  }
   if (record.snapshot.status !== "drug_selection") {
     throw new DomainRuleError("INVALID_TRANSITION", "基本の問診を答え終えてから薬を選びます");
   }
@@ -253,6 +292,17 @@ export function chooseDrugs(deps: ServiceDeps, id: string, drugIds: readonly Sto
 // 緊急の確認（spec.md 決まったこと No.38）
 // ---------------------------------------------------------------------------
 
+const KNOWN_RULE_IDS = new Set(EMERGENCY_RULES.map((rule) => rule.id));
+/** 緊急の確認画面の追加の質問の ID（EF01〜EF09）。定義はまだ画面の中にある（docs/backlog.md S-10） */
+const FOLLOW_UP_QUESTION_ID = /^EF\d{2}$/;
+
+/** 緊急症状の表（emergency.md）にある ID だけを受け取る。自由な文を記録や履歴に入れないため */
+function assertKnownRuleIds(ids: readonly string[]): void {
+  for (const id of ids) {
+    if (!KNOWN_RULE_IDS.has(id)) throw new SessionServiceError("INVALID_REQUEST", "緊急症状の ID が表にありません");
+  }
+}
+
 function openEmergencyOf(record: SessionRecord): { index: number; event: EmergencyEvent } {
   const index = record.emergencies.findIndex((e) => e.decision === null);
   const found = record.emergencies[index];
@@ -269,6 +319,10 @@ export function openEmergency(
   input: { trigger: EmergencyTrigger; matchedRuleIds?: readonly string[]; inputText?: string | null },
 ): SessionRecord {
   const record = load(deps, id);
+  assertKnownRuleIds(input.matchedRuleIds ?? []);
+  if (input.inputText != null && input.inputText.length > MAX_TEXT_LENGTH) {
+    throw new SessionServiceError("INVALID_REQUEST", "入力が長すぎます");
+  }
   const returnTo = record.snapshot.status;
   const moved = moveTo(deps, record, "emergency_review");
   const emergency: EmergencyEvent = {
@@ -277,7 +331,7 @@ export function openEmergency(
     matchedRuleIds: [...(input.matchedRuleIds ?? [])],
     inputText: input.inputText ?? null,
     returnTo,
-    followUp: null,
+    followUps: [],
     decision: null,
     decidedAt: null,
   };
@@ -297,7 +351,15 @@ export function recordEmergencyFollowUp(deps: ServiceDeps, id: string, followUp:
   if (followUp.scale !== null && !(Number.isInteger(followUp.scale) && followUp.scale >= 0 && followUp.scale <= 10)) {
     throw new SessionServiceError("INVALID_REQUEST", "つらさの数字は0〜10で入れてください");
   }
-  const emergencies = record.emergencies.map((e, i) => (i === index ? { ...open, followUp } : e));
+  assertKnownRuleIds(followUp.observedRuleIds);
+  for (const [key, value] of Object.entries(followUp.answers)) {
+    // 追加の質問の ID（EF01〜EF09）と、決まった選択肢の短い値だけを受け取る（自由な文を記録に入れない）
+    if (!FOLLOW_UP_QUESTION_ID.test(key) || value.length > 40) {
+      throw new SessionServiceError("INVALID_REQUEST", "追加の質問の答えの形が違います");
+    }
+  }
+  const recorded: RecordedFollowUp = { ...followUp, at: deps.now().toISOString() };
+  const emergencies = record.emergencies.map((e, i) => (i === index ? { ...open, followUps: [...open.followUps, recorded] } : e));
   const next: SessionRecord = {
     ...record,
     emergencies,

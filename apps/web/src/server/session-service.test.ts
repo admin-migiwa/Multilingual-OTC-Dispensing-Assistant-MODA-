@@ -147,7 +147,9 @@ describe("緊急の確認（決まったこと No.38）", () => {
     assert.equal(emergency?.trigger, "keyword");
     assert.deepEqual(emergency?.matchedRuleIds, ["EA12"]);
     assert.equal(emergency?.inputText, "chest pain");
-    assert.deepEqual(emergency?.followUp, { answers: { EF01: "yes" }, scale: 8, observedRuleIds: ["EA06"] });
+    assert.deepEqual(emergency?.followUps, [
+      { answers: { EF01: "yes" }, scale: 8, observedRuleIds: ["EA06"], at: "2026-11-06T01:00:00.000Z" },
+    ]);
     assert.equal(emergency?.decision, "show_119");
     assert.equal(emergency?.returnTo, "attributes");
   });
@@ -177,7 +179,71 @@ describe("緊急の確認（決まったこと No.38）", () => {
     const { id } = createSession(deps, "en");
     openEmergency(deps, id, { trigger: "staff" });
     decideEmergency(deps, id, "show_119");
-    assertError(() => answer(deps, id, { age: 30 }), "INVALID_TRANSITION");
+    assertError(() => answer(deps, id, { age: 30 }), "SESSION_ALREADY_ENDED");
     assertError(() => openEmergency(deps, id, { trigger: "staff" }), "SESSION_ALREADY_ENDED");
+  });
+});
+
+describe("レビュー後の直し（No.13）", () => {
+  it("緊急の確認画面の内容を送り直しても、前の内容を消さずに足していく", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    openEmergency(deps, id, { trigger: "staff" });
+    recordEmergencyFollowUp(deps, id, { answers: { EF01: "yes" }, scale: 9, observedRuleIds: ["EA06"] });
+    const record = recordEmergencyFollowUp(deps, id, { answers: {}, scale: null, observedRuleIds: [] });
+    const followUps = record.emergencies[0]?.followUps ?? [];
+    assert.equal(followUps.length, 2);
+    assert.equal(followUps[0]?.scale, 9);
+  });
+
+  it("緊急症状の表にない ID や、自由な文は緊急の記録に入れない", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    assertError(() => openEmergency(deps, id, { trigger: "keyword", matchedRuleIds: ["I have chest pain"] }), "INVALID_REQUEST");
+    openEmergency(deps, id, { trigger: "staff" });
+    assertError(
+      () => recordEmergencyFollowUp(deps, id, { answers: { "my heart hurts": "yes" }, scale: null, observedRuleIds: [] }),
+      "INVALID_REQUEST",
+    );
+    assertError(
+      () => recordEmergencyFollowUp(deps, id, { answers: {}, scale: null, observedRuleIds: ["free text"] }),
+      "INVALID_REQUEST",
+    );
+  });
+
+  it("長すぎる入力は受け取らない", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    assertError(() => openEmergency(deps, id, { trigger: "keyword", inputText: "x".repeat(501) }), "INVALID_REQUEST");
+  });
+
+  it("薬を選んだあと、その薬の項目に答える途中でも薬を選び直せる", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, basic);
+    chooseDrugs(deps, id, ["C"]);
+    const view = patientView(chooseDrugs(deps, id, ["A"]));
+    assert.deepEqual(view.selectedDrugs, ["A"]);
+    assert.equal(view.status, "drug_selection");
+    assert.equal(view.interviewComplete, true);
+  });
+
+  it("終了した接客に答えを送ると「終了済み」として止める", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    openEmergency(deps, id, { trigger: "staff" });
+    decideEmergency(deps, id, "show_119");
+    assertError(() => answer(deps, id, { age: 30 }), "SESSION_ALREADY_ENDED");
+  });
+
+  it("訂正した項目と、訂正で消えた項目を、種類だけ履歴に残す", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 30, sex: "female", pregnancy: "no", breastfeeding: "no" });
+    const record = answer(deps, id, { sex: "male" });
+    const corrected = record.events.find((e) => e.type === "corrected");
+    const cleared = record.events.find((e) => e.type === "answers_cleared");
+    assert.deepEqual(corrected?.detail, ["sex"]);
+    assert.deepEqual([...(cleared?.detail ?? [])].sort(), ["breastfeeding", "pregnancy"]);
   });
 });
