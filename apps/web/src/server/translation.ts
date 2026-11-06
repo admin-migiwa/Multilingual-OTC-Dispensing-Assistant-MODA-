@@ -226,7 +226,7 @@ export async function translate(
 
   const ruleIds = EMERGENCY_RULE_IDS.filter((ruleId) => aiIds.includes(ruleId) || keywordIds.includes(ruleId));
   // AI の緊急フラグは、訳し戻しを待たずにすぐ問診を止める（訳し戻しが失敗しても止めたままにする）。
-  // キーワードですでに開いていれば開き直さない（AI だけが足した項目は、画面に出すだけ。docs/backlog.md S-13）
+  // キーワードですでに開いていれば開き直さない（AI だけが足した項目は、画面に出すだけ。docs/backlog.md S-15）
   if (aiIds.length > 0 && !opened) opened = openEmergencyIfNeeded(deps, id, "ai", ruleIds, text);
 
   const backTranslation = parseOrThrow(
@@ -265,6 +265,10 @@ function openEmergencyIfNeeded(
 ): boolean {
   const current = getSession(deps, id);
   if (current.snapshot.status === "emergency_review" || isTerminal(current.snapshot.status)) return false;
+  // 薬剤師が一度「緊急ではない」と判断した接客では、キーワードでも AI の緊急フラグでも自動に止めない
+  // （CLAUDE.md ルール2の例外。AI の緊急フラグも同じにするのは 11/7 依頼主の判断）。当てはまった項目は画面に出す。
+  // 薬剤師はいつでも手動で「緊急の確認を開く」を押せる。
+  if (patientView(current).emergencyCleared) return false;
   openEmergency(deps, id, { trigger, matchedRuleIds: ruleIds, inputText: text });
   return true;
 }

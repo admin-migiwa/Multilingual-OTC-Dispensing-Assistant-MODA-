@@ -26,6 +26,7 @@ export {
   rankCandidates,
   doseForAge,
   findStockedDrug,
+  questionsUsedByDrug,
   type Verdict,
   type JudgmentReason,
   type DrugJudgment,

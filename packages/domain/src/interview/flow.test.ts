@@ -17,13 +17,15 @@ import {
   missingQuestions,
   nextQuestion,
   selectDrugs,
+  chooseRoute,
   factsForJudgment,
   abusePreventionAnswers,
   type InterviewState,
 } from "./flow.ts";
 import type { InterviewAnswers, QuestionId } from "./items.ts";
 
-const empty: InterviewState = { answers: {}, selectedDrugs: [] };
+/** 「症状から探す」流れ（基本の項目を全員に聞く。11/6 より前のテストはこの流れにあたる） */
+const empty: InterviewState = { answers: {}, selectedDrugs: [], route: "symptom" };
 
 /** 基本の項目の、問題のない答え（30歳女性。妊娠・授乳なし、持病・アレルギー・併用薬・運転なし） */
 const basicOk: InterviewAnswers = {
@@ -39,7 +41,7 @@ const basicOk: InterviewAnswers = {
 };
 
 const withAnswers = (answers: InterviewAnswers, selectedDrugs: StockedDrugId[] = []): InterviewState =>
-  applyAnswers({ answers: {}, selectedDrugs }, answers);
+  applyAnswers({ answers: {}, selectedDrugs, route: "symptom" }, answers);
 
 function assertRuleError(fn: () => unknown, code: string): void {
   assert.throws(fn, (err: unknown) => err instanceof DomainRuleError && err.code === code);
@@ -364,5 +366,139 @@ describe("訂正で聞く条件が変わるとき", () => {
 describe("選んだ薬の確かめ", () => {
   it("取扱薬にない記号は選べない", () => {
     assertRuleError(() => selectDrugs(empty, ["Z" as StockedDrugId]), "UNKNOWN_DRUG");
+  });
+});
+
+describe("問診の流れ：ほしい薬がある／症状から探す（11/6 の判断）", () => {
+  const noRoute: InterviewState = { answers: {}, selectedDrugs: [] };
+  const attributes: InterviewAnswers = { age: 30, sex: "female" };
+
+  it("流れが決まるまでは、年齢・性別だけを聞く", () => {
+    const state = applyAnswers(noRoute, attributes);
+    assert.equal(nextQuestion(state), null);
+    assert.equal(isBasicInterviewComplete(state), false);
+  });
+
+  it("年齢・性別を答える前は、流れを選べない", () => {
+    assertRuleError(() => chooseRoute(noRoute, "product"), "ATTRIBUTES_INCOMPLETE");
+  });
+
+  it("「症状から探す」では、基本の項目をすべて聞く", () => {
+    const state = chooseRoute(applyAnswers(noRoute, attributes), "symptom");
+    assert.deepEqual(missingQuestions(state), ["Q03", "Q04", "Q06", "Q07", "Q08", "Q09", "Q10"]);
+  });
+
+  it("「ほしい薬がある」では、薬を選ぶ前に聞く基本の項目はなく、すぐに薬の選択に進める", () => {
+    const state = chooseRoute(applyAnswers(noRoute, attributes), "product");
+    assert.equal(nextQuestion(state), null);
+    assert.equal(isBasicInterviewComplete(state), true);
+  });
+
+  // 聞く項目は、drugs.md（薬剤師確認済み）の各薬の「してはいけないことと注意」の行から決まる
+  // いま飲んでいる薬（Q09）は、判定に使わなくても、どの薬を選んでも聞く（11/6 依頼主の判断。contraindication-tests.md K39）
+  const productCases: { drug: StockedDrugId; asks: QuestionId[] }[] = [
+    { drug: "G", asks: ["Q07", "Q09", "Q13"] }, // 緑内障（相談）・ソフトコンタクト
+    { drug: "H", asks: ["Q09", "Q14"] }, // 貼る場所
+    { drug: "F", asks: ["Q07", "Q09", "Q12"] }, // 透析・長く続けて飲む
+    { drug: "A", asks: ["Q03", "Q04", "Q07", "Q08", "Q09"] }, // 妊娠・授乳・肝臓病・アレルギー歴
+  ];
+  for (const { drug, asks } of productCases) {
+    it(`「ほしい薬がある」で薬 ${drug} を選んだ30歳女性には、${asks.join("・")} だけを聞く`, () => {
+      const state = selectDrugs(chooseRoute(applyAnswers(noRoute, attributes), "product"), [drug]);
+      assert.deepEqual(missingQuestions(state), asks);
+    });
+  }
+
+  it("「ほしい薬がある」で薬を選ぶと、判定に使わない薬でも、いま飲んでいる薬（Q09・処方薬）を聞く（K39）", () => {
+    // 貼り薬 H の判定には Q09 を使わないが、薬剤師が処方薬との飲み合わせを判断するために聞く
+    const state = selectDrugs(chooseRoute(applyAnswers(noRoute, attributes), "product"), ["H"]);
+    assert.equal(nextQuestion(state), "Q09");
+  });
+
+  it("「ほしい薬がある」では、薬を選ぶ前はいま飲んでいる薬（Q09）を聞かない（薬を選んでから聞く）", () => {
+    const state = chooseRoute(applyAnswers(noRoute, attributes), "product");
+    assert.ok(!missingQuestions(state).includes("Q09"));
+  });
+
+  it("「ほしい薬がある」で薬を選び直しても、いま飲んでいる薬（Q09）の答えは消えない", () => {
+    let state = selectDrugs(chooseRoute(applyAnswers(noRoute, attributes), "product"), ["H"]);
+    state = applyAnswers(state, { currentMedications: [] });
+    state = selectDrugs(state, ["G"]);
+    assert.deepEqual(state.answers.currentMedications, []);
+  });
+
+  it("「ほしい薬がある」でも、15歳未満には体重（Q05）を聞く（用量の確認のため）", () => {
+    const state = selectDrugs(chooseRoute(applyAnswers(noRoute, { age: 10, sex: "male" }), "product"), ["G"]);
+    assert.ok(missingQuestions(state).includes("Q05"));
+  });
+
+  it("「ほしい薬がある」から「症状から探す」に選び直すと、残りの基本の項目を聞く", () => {
+    const product = chooseRoute(applyAnswers(noRoute, attributes), "product");
+    const symptom = chooseRoute(product, "symptom");
+    assert.equal(nextQuestion(symptom), "Q03");
+  });
+
+  it("流れが決まっていなければ、問診を終えられない", () => {
+    const state = selectDrugs(applyAnswers(noRoute, attributes), ["H"]);
+    assertRuleError(() => assertInterviewComplete(state), "ROUTE_NOT_CHOSEN");
+  });
+
+  const allDrugs: StockedDrugId[] = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
+  const people: { label: string; age: number; sex: "male" | "female" | "other" | "no_answer" }[] = [
+    { label: "30歳女性", age: 30, sex: "female" },
+    { label: "30歳男性", age: 30, sex: "male" },
+    { label: "12歳（性別：答えない）", age: 12, sex: "no_answer" },
+    { label: "11歳女性", age: 11, sex: "female" },
+  ];
+  for (const drug of allDrugs) {
+    for (const person of people) {
+      it(`「ほしい薬がある」で${person.label}が薬 ${drug} を選んで問診を最後まで答えたら、禁忌判定がエラーで止まらない`, () => {
+        let state = applyAnswers(noRoute, { age: person.age, sex: person.sex });
+        state = selectDrugs(chooseRoute(state, "product"), [drug]);
+        for (let i = 0; i < 30; i += 1) {
+          const id = nextQuestion(state);
+          if (id === null) break;
+          state = applyAnswers(state, answerOf[id]);
+        }
+        assert.equal(isInterviewComplete(state), true);
+        assert.doesNotThrow(() => judgeDrug(drug, factsForJudgment(state)));
+      });
+    }
+  }
+});
+
+describe("「その他」の文・薬の名前の扱い（No.14 のレビュー）", () => {
+  const symptom30: InterviewState = applyAnswers(empty, { age: 30, sex: "female" });
+
+  it("治療中の病気（Q07）を答え直して「その他」を外したら、前の「その他」の文は残らない", () => {
+    let state = applyAnswers(symptom30, { conditions: [], otherConditionText: "持病の名前" });
+    state = applyAnswers(state, { conditions: ["liver"] });
+    assert.deepEqual(state.answers.conditions, ["liver"]);
+    assert.equal(state.answers.otherConditionText, undefined);
+  });
+
+  it("「症状から探す」から「ほしい薬がある」に選び直して治療中の病気（Q07）を聞かなくなったら、「その他」の文も消える", () => {
+    let state = applyAnswers(symptom30, { conditions: [], otherConditionText: "持病の名前" });
+    state = selectDrugs(chooseRoute(state, "product"), ["H"]); // 貼り薬 H の判定には Q07 を使わない
+    assert.equal(state.answers.conditions, undefined);
+    assert.equal(state.answers.otherConditionText, undefined);
+  });
+
+  it("いま飲んでいる薬（Q09）を答え直したら、前に入れた薬の名前は残らない", () => {
+    let state = applyAnswers(symptom30, { currentMedications: ["prescription"], prescriptionDrugNames: ["薬の名前"] });
+    state = applyAnswers(state, { currentMedications: [] });
+    assert.deepEqual(state.answers.currentMedications, []);
+    assert.equal(state.answers.prescriptionDrugNames, undefined);
+  });
+
+  it("いま飲んでいる薬（Q09）で「その他」だけを選んで名前を入れたとき、名前は消えない", () => {
+    const state = applyAnswers(symptom30, { currentMedications: ["other"], prescriptionDrugNames: ["薬の名前"] });
+    assert.deepEqual(state.answers.prescriptionDrugNames, ["薬の名前"]);
+  });
+
+  it("ほかの項目に答えても、いま飲んでいる薬（Q09）の名前は消えない", () => {
+    let state = applyAnswers(symptom30, { currentMedications: ["prescription"], prescriptionDrugNames: ["薬の名前"] });
+    state = applyAnswers(state, { drivingAfter: false });
+    assert.deepEqual(state.answers.prescriptionDrugNames, ["薬の名前"]);
   });
 });

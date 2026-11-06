@@ -6,6 +6,7 @@ import {
   SESSION_STATUSES,
   TERMINAL_STATUSES,
   assertActionAllowed,
+  cancelEmergencyEnd,
   transition,
   type SessionSnapshot,
   type SessionStatus,
@@ -173,5 +174,49 @@ describe("緊急を確認中（emergency_review）：問診を止め、薬剤師
     for (const status of TERMINAL_STATUSES) {
       assertRuleError(() => transition(at(status), "emergency_review"), "SESSION_ALREADY_ENDED");
     }
+  });
+});
+
+describe("119番の案内の取り消し（押し間違い。11/6 依頼主の判断）", () => {
+  /** 問診中 → 緊急の確認 → 119番の案内を出す、で終わった状態 */
+  const endedFrom = (status: SessionStatus): SessionSnapshot =>
+    transition(transition(at(status), "emergency_review"), "emergency_ended");
+
+  it("取り消すと、問診には戻らず、119番を押す前の「緊急を確認中」（薬剤師の確認）に戻る", () => {
+    const back = cancelEmergencyEnd(endedFrom("interview"));
+    assert.equal(back.status, "emergency_review");
+    assert.equal(back.emergencyReturnTo, "interview");
+    assert.equal(back.emergencyCancelReturnTo, undefined);
+  });
+
+  it("取り消したあと、薬剤師が「緊急ではない」を選べば元の問診に戻り、「119番の案内を出す」を選べば緊急終了になる", () => {
+    const back = cancelEmergencyEnd(endedFrom("interview"));
+    assert.equal(transition(back, "interview").status, "interview");
+    assert.equal(transition(back, "emergency_ended").status, "emergency_ended");
+  });
+
+  it("取り消したあとも、緊急の確認から元の画面以外（承認・薬剤師の確認など）へは進めない", () => {
+    const back = cancelEmergencyEnd(endedFrom("interview"));
+    assertRuleError(() => transition(back, "approved"), "INVALID_TRANSITION");
+    assertRuleError(() => transition(back, "pharmacist_review"), "INVALID_TRANSITION");
+  });
+
+  it("戻り先は終了したときの状態の中に残した値だけを使う（外から戻り先を渡して承認などへ飛ばせない）", () => {
+    // 緊急の確認を通らずに終わったとき（戻り先が残っていない）は取り消せない
+    assertRuleError(() => cancelEmergencyEnd(transition(at("interview"), "emergency_ended")), "INVALID_TRANSITION");
+    // 戻り先として承認済みを書き込んだ状態を渡しても、承認済みには戻らない
+    const forged: SessionSnapshot = { ...at("emergency_ended"), emergencyCancelReturnTo: "completed" };
+    assertRuleError(() => cancelEmergencyEnd(forged), "INVALID_TRANSITION");
+  });
+
+  it("緊急終了でなければ取り消せない（完了・販売しない・問診中・緊急を確認中）", () => {
+    for (const status of ["completed", "declined", "interview", "emergency_review"] as SessionStatus[]) {
+      assertRuleError(() => cancelEmergencyEnd({ ...at(status), emergencyCancelReturnTo: "interview" }), "INVALID_TRANSITION");
+    }
+  });
+
+  it("同じ「119番の案内」は二度は取り消せない（取り消すと戻り先は消える）", () => {
+    const back = cancelEmergencyEnd(endedFrom("interview"));
+    assertRuleError(() => cancelEmergencyEnd(back), "INVALID_TRANSITION");
   });
 });
