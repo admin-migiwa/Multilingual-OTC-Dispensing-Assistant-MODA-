@@ -7,14 +7,17 @@
     "build": "next build",
     "start": "next start",
     "typecheck": "next typegen && tsc --noEmit -p tsconfig.json",
-    "test": "node --test --experimental-strip-types --disable-warning=ExperimentalWarning \"src/**/*.test.ts\""
+    "test": "node --test --experimental-strip-types --disable-warning=ExperimentalWarning \"src/**/*.test.ts\"",
+    "eval:photos": "node --env-file-if-exists=.env.local --experimental-strip-types --disable-warning=ExperimentalWarning --disable-warning=MODULE_TYPELESS_PACKAGE_JSON scripts/eval-product-photos.ts"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
     "@moda/domain": "workspace:*",
     "@moda/i18n": "workspace:*",
     "next": "^16.0.0",
     "react": "^19.2.0",
-    "react-dom": "^19.2.0"
+    "react-dom": "^19.2.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.1.0",

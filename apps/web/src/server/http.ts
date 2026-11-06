@@ -8,6 +8,7 @@
 
 import { DomainRuleError } from "@moda/domain";
 
+import { AiError } from "./ai";
 import { SessionServiceError } from "./session-service";
 
 export class BadRequestError extends Error {
@@ -42,6 +43,11 @@ export async function handle(fn: () => Promise<unknown> | unknown): Promise<Resp
     }
     if (error instanceof SessionServiceError) {
       return errorResponse(error.code === "SESSION_NOT_FOUND" ? 404 : 400, error.code);
+    }
+    if (error instanceof AiError) {
+      // 設定がない・通信できないは 503、答えの形が違う・答えなかったは 502。どちらも推測で続けない（ルール7）
+      const unavailable = error.code === "AI_NOT_CONFIGURED" || error.code === "AI_UNAVAILABLE";
+      return errorResponse(unavailable ? 503 : 502, error.code);
     }
     if (error instanceof BadRequestError) {
       return errorResponse(400, error.code);
