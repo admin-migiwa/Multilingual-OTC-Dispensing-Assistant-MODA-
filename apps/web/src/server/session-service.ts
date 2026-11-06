@@ -11,13 +11,16 @@ import {
   DomainRuleError,
   EMERGENCY_RULES,
   applyAnswersWithReport,
+  chooseRoute as chooseInterviewRoute,
   isTerminal,
   isBasicInterviewComplete,
   isInterviewComplete,
   nextQuestion,
   selectDrugs as selectInterviewDrugs,
   transition,
+  cancelEmergencyEnd,
   type InterviewAnswers,
+  type InterviewRoute,
   type InterviewState,
   type QuestionId,
   type SessionSnapshot,
@@ -73,6 +76,8 @@ export interface EmergencyEvent {
   readonly followUps: readonly RecordedFollowUp[];
   readonly decision: EmergencyDecision | null;
   readonly decidedAt: string | null;
+  /** 「119番の案内を出す」を薬剤師が押し間違いとして取り消した時刻（取り消していなければ null。もとの判断は消さずに残す） */
+  readonly cancelledAt: string | null;
 }
 
 /** 何が起きたかの履歴。中身（答えや入力）は入れず、種類と項目 ID だけを残す */
@@ -83,10 +88,12 @@ export type SessionEventType =
   | "answers_cleared"
   | "answers_ignored"
   | "drugs_selected"
+  | "route_chosen"
   | "status_changed"
   | "emergency_opened"
   | "emergency_follow_up"
-  | "emergency_decided";
+  | "emergency_decided"
+  | "emergency_cancelled";
 
 export interface SessionEvent {
   readonly at: string;
@@ -101,6 +108,8 @@ export interface SessionRecord {
   readonly language: LanguageCode;
   readonly snapshot: SessionSnapshot;
   readonly interview: InterviewState;
+  /** 「症状から探す」で入力された症状（薬剤師の画面で候補を選ぶのに使う。ログ・履歴には出さない） */
+  readonly symptomText: string | null;
   readonly emergencies: readonly EmergencyEvent[];
   readonly events: readonly SessionEvent[];
 }
@@ -110,6 +119,8 @@ export interface PatientView {
   readonly id: string;
   readonly language: LanguageCode;
   readonly status: SessionStatus;
+  /** 問診の流れ（ほしい薬がある／症状から探す）。まだ選んでいなければ null */
+  readonly route: InterviewRoute | null;
   /** 次に聞く項目。聞く項目がなければ null */
   readonly nextQuestion: QuestionId | null;
   readonly selectedDrugs: readonly StockedDrugId[];
@@ -117,6 +128,12 @@ export interface PatientView {
   readonly basicInterviewComplete: boolean;
   /** 選んだ薬の項目まで答え終えたか */
   readonly interviewComplete: boolean;
+  /**
+   * この接客で、薬剤師が一度でも緊急の確認をして「緊急ではない」と判断したか（119番の案内の押し間違いの取り消しは含めない）。
+   * true なら、画面は以降の入力で緊急キーワードによる自動の切り替えをしない。薬剤師は手動で緊急の確認を開ける
+   * （11/6 依頼主の判断。CLAUDE.md 絶対に守るルール2・spec.md 決まったこと No.38 の例外）
+   */
+  readonly emergencyCleared: boolean;
 }
 
 export interface SessionStore {
@@ -190,10 +207,12 @@ export function patientView(record: SessionRecord): PatientView {
     id: record.id,
     language: record.language,
     status,
+    route: record.interview.route ?? null,
     nextQuestion: asking ? nextQuestion(record.interview) : null,
     selectedDrugs: record.interview.selectedDrugs,
     basicInterviewComplete: isBasicInterviewComplete(record.interview),
     interviewComplete: isInterviewComplete(record.interview),
+    emergencyCleared: record.emergencies.some((e) => e.decision === "not_emergency"),
   };
 }
 
@@ -209,6 +228,7 @@ export function createSession(deps: ServiceDeps, language: string): SessionRecor
     language,
     snapshot: { status: "language_selection", understandingConfirmed: false },
     interview: { answers: {}, selectedDrugs: [] },
+    symptomText: null,
     emergencies: [],
     events: [{ at, type: "created", detail: [language] }],
   };
@@ -263,6 +283,40 @@ export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers)
   return next;
 }
 
+/**
+ * 問診の流れを選ぶ（11/6 依頼主の判断）。年齢・性別を答えたあと、薬を選ぶ前に選ぶ（選び直しもできる）。
+ * - product：ほしい薬がある → すぐに薬の選択へ（その薬の判定に使う項目だけを、あとで聞く）
+ * - symptom：症状から探す → 基本の項目をすべて聞く。入力された症状は記録に残す（履歴には中身を入れない）
+ */
+export function chooseRoute(
+  deps: ServiceDeps,
+  id: string,
+  route: InterviewRoute,
+  symptomText: string | null = null,
+): SessionRecord {
+  const record = load(deps, id);
+  const status = record.snapshot.status;
+  if ((status !== "interview" && status !== "drug_selection") || record.interview.selectedDrugs.length > 0) {
+    throw new DomainRuleError("INVALID_TRANSITION", "年齢・性別を答えたあと、薬を選ぶ前に流れを選びます");
+  }
+  if (symptomText !== null && (symptomText.trim() === "" || symptomText.length > MAX_TEXT_LENGTH)) {
+    throw new SessionServiceError("INVALID_REQUEST", "症状の入力の形が違います");
+  }
+  const interview = chooseInterviewRoute(record.interview, route);
+  let next: SessionRecord = {
+    ...record,
+    interview,
+    symptomText: route === "symptom" ? symptomText : null,
+    events: [...record.events, event(deps, "route_chosen", [route])],
+  };
+  if (next.snapshot.status === "drug_selection" && nextQuestion(next.interview) !== null) {
+    next = moveTo(deps, next, "interview");
+  }
+  next = advance(deps, next);
+  deps.store.set(next);
+  return next;
+}
+
 /** 薬を選ぶ（希望の薬・候補の薬）。選んだ薬の項目が残っていれば問診に戻る */
 export function chooseDrugs(deps: ServiceDeps, id: string, drugIds: readonly StockedDrugId[]): SessionRecord {
   let record = load(deps, id);
@@ -270,7 +324,8 @@ export function chooseDrugs(deps: ServiceDeps, id: string, drugIds: readonly Sto
   if (
     record.snapshot.status === "interview" &&
     record.interview.selectedDrugs.length > 0 &&
-    isBasicInterviewComplete(record.interview)
+    // 「ほしい薬がある」では、薬ごとに聞く基本の項目に答えている途中でも選び直せる
+    (record.interview.route === "product" || isBasicInterviewComplete(record.interview))
   ) {
     record = moveTo(deps, record, "drug_selection");
   }
@@ -337,6 +392,7 @@ export function openEmergency(
     followUps: [],
     decision: null,
     decidedAt: null,
+    cancelledAt: null,
   };
   const next: SessionRecord = {
     ...moved,
@@ -388,6 +444,43 @@ export function decideEmergency(deps: ServiceDeps, id: string, decision: Emergen
     events: [...record.events, event(deps, "emergency_decided", [decision])],
   };
   const next = moveTo(deps, withDecision, decision === "show_119" ? "emergency_ended" : open.returnTo);
+  deps.store.set(next);
+  return next;
+}
+
+/**
+ * 「119番の案内を出す」を、薬剤師が押し間違いとして取り消し、押す前の薬剤師の確認（緊急を確認中）に戻す
+ * （11/6 依頼主の判断。押し間違いは「緊急ではない」という判断ではないので、問診には戻さない）。
+ * - 取り消せるのは、緊急終了で、いちばん新しい緊急の判断が「119番の案内を出す」で、まだ取り消していないときだけ。
+ * - もとの判断は消さず、取り消した時刻と履歴を足して残す（上書きしない）。
+ * - 確認をやり直すため、同じ根拠（入力した文・当てはまった項目）で、判断前の緊急の記録を1つ足す。
+ */
+export function cancelEmergency119(deps: ServiceDeps, id: string): SessionRecord {
+  const record = load(deps, id);
+  const index = record.emergencies.length - 1;
+  const last = record.emergencies[index];
+  if (
+    record.snapshot.status !== "emergency_ended" ||
+    !last ||
+    last.decision !== "show_119" ||
+    last.cancelledAt !== null
+  ) {
+    throw new DomainRuleError("INVALID_TRANSITION", "取り消せる「119番の案内」がありません");
+  }
+  const snapshot = cancelEmergencyEnd(record.snapshot);
+  const at = deps.now().toISOString();
+  // 追加の答えは写さない（前の内容は前の記録に残っていて、次の判断のときに画面の内容をあらためて記録するため）
+  const reopened: EmergencyEvent = { ...last, openedAt: at, followUps: [], decision: null, decidedAt: null, cancelledAt: null };
+  const next: SessionRecord = {
+    ...record,
+    snapshot,
+    emergencies: [...record.emergencies.map((e, i) => (i === index ? { ...e, cancelledAt: at } : e)), reopened],
+    events: [
+      ...record.events,
+      event(deps, "emergency_cancelled", ["show_119"]),
+      event(deps, "status_changed", [snapshot.status]),
+    ],
+  };
   deps.store.set(next);
   return next;
 }

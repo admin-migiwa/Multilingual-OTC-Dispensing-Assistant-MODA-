@@ -14,6 +14,8 @@ export const fr: Messages = {
     redo: "Refaire ma réponse précédente",
     emergencyButton: "Je me sens soudain très mal",
     aiTranslationNotice: "Ce texte a été traduit par une IA (il n'a pas encore été vérifié par une personne).",
+    networkError: "La connexion est interrompue. Notre personnel va vous aider tout de suite.",
+    retry: "Réessayer",
   },
   languageSelect: {
     title: "Veuillez choisir votre langue",
@@ -25,6 +27,11 @@ export const fr: Messages = {
     haveProductHint: "Saisissez le nom du produit, ou prenez en photo l'écran de votre téléphone ou le produit",
     findBySymptom: "Chercher selon les symptômes",
     findBySymptomHint: "Nous vous poserons des questions sur votre état, une à la fois",
+    searchPlaceholder: "Saisissez le nom du produit (le nom affiché sur votre téléphone convient)",
+    noMatch: "Aucun résultat. Montrez l'écran de votre téléphone à un membre du personnel.",
+    symptomPrompt: "Quels symptômes avez-vous ?",
+    chooseDrug: "Choisir ce médicament",
+    changeDrug: "Choisir un autre médicament",
   },
   photoConsent: {
     title: "À propos de la photo",

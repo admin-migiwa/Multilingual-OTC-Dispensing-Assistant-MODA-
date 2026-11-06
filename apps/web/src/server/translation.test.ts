@@ -229,6 +229,18 @@ describe("AI の緊急フラグ（docs/backlog.md S-02、spec.md 決まったこ
     assert.equal(getSession(deps, id).emergencies.length, 1);
   });
 
+  it("薬剤師が一度「緊急ではない」と判断した接客では、キーワードでも AI でも自動に止めず、当てはまった項目だけを返す", async () => {
+    const deps = testDeps(simpleAi(["EA12"]));
+    const id = startInterview(deps);
+    openEmergency(deps, id, { trigger: "staff" });
+    decideEmergency(deps, id, "not_emergency");
+    const result = await translate(deps, id, { direction: "to_ja", text: "I have chest pain." });
+    assert.deepEqual(result.emergency.ruleIds, ["EA12"]);
+    assert.equal(result.emergency.opened, false);
+    assert.equal(result.view.status, "interview");
+    assert.equal(getSession(deps, id).emergencies.length, 1);
+  });
+
   it("すでに緊急の確認中なら開き直さず、当てはまった項目だけを返す（薬剤師がチャットで様子をたずねている最中）", async () => {
     const deps = testDeps(simpleAi(["EA12"]));
     const id = startInterview(deps);
