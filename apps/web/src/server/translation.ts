@@ -55,6 +55,14 @@ const patientTranslationSchema = z
   })
   .strict();
 
+/**
+ * 答え全体の形が外れたときに、緊急の ID の欄だけを確かめる形（訳は捨ててエラーにするが、
+ * 表にある ID で緊急と判断していれば、先に問診を止める。見落とさない側に倒す）
+ */
+const emergencyOnlySchema = z.object({
+  emergencyRuleIds: z.array(z.enum(EMERGENCY_RULE_IDS)).max(EMERGENCY_RULE_IDS.length),
+});
+
 /** 薬剤師の文を訳すとき・訳し戻しの答え */
 const plainTranslationSchema = z.object({ translation: translationText }).strict();
 
@@ -133,6 +141,10 @@ function backTranslationSystemPrompt(from: LanguageCode, to: LanguageCode): stri
 // --- 翻訳の本体 ----------------------------------------------------------------
 
 export interface TranslationDeps extends ServiceDeps {
+  /**
+   * AI。キーワード照合で問診を止めたあとに初めて読む（AI の設定がなくて作れないときも、キーワードでは止められるように、
+   * 呼び出し元は get ai() のように、読んだときに作る形で渡してよい）
+   */
   readonly ai: AiClient;
 }
 
@@ -201,17 +213,21 @@ export async function translate(
   let translation: string;
   let aiIds: string[] = [];
   if (fromPatient) {
-    const answer = parseOrThrow(
-      patientTranslationSchema,
-      await deps.ai.generateJson({
-        task: "translate",
-        system: patientSystemPrompt(sourceLanguage),
-        content: [{ type: "text", text }],
-        schema: PATIENT_TRANSLATION_JSON_SCHEMA,
-      }),
-    );
-    translation = answer.translation;
-    aiIds = forAge(answer.emergencyRuleIds, age);
+    const raw = await deps.ai.generateJson({
+      task: "translate",
+      system: patientSystemPrompt(sourceLanguage),
+      content: [{ type: "text", text }],
+      schema: PATIENT_TRANSLATION_JSON_SCHEMA,
+    });
+    const parsed = patientTranslationSchema.safeParse(raw);
+    if (!parsed.success) {
+      const flags = emergencyOnlySchema.safeParse(raw);
+      const flagged = flags.success ? forAge(flags.data.emergencyRuleIds, age) : [];
+      if (flagged.length > 0 && !opened) openEmergencyIfNeeded(deps, id, "ai", flagged, text);
+      throw new AiError("AI_INVALID_OUTPUT", "AI の答えが決められた形ではありません");
+    }
+    translation = parsed.data.translation;
+    aiIds = forAge(parsed.data.emergencyRuleIds, age);
   } else {
     translation = parseOrThrow(
       plainTranslationSchema,

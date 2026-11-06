@@ -1,7 +1,7 @@
 import { defaultAiClient } from "@/server/ai";
 import { BadRequestError, handle, readJson } from "@/server/http";
 import { defaultDeps } from "@/server/session-service";
-import { translate } from "@/server/translation";
+import { translate, type TranslationDeps } from "@/server/translation";
 
 export const dynamic = "force-dynamic";
 
@@ -17,6 +17,13 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const body = await readJson(request);
     if (body.direction !== "to_ja" && body.direction !== "to_patient") throw new BadRequestError("訳す向きの形が違います");
     if (typeof body.text !== "string") throw new BadRequestError("訳す文の形が違います");
-    return translate({ ...defaultDeps(), ai: defaultAiClient() }, id, { direction: body.direction, text: body.text });
+    // AI は読んだときに作る（AI の設定がなくても、先にキーワード照合で問診を止められるように）
+    const deps: TranslationDeps = {
+      ...defaultDeps(),
+      get ai() {
+        return defaultAiClient();
+      },
+    };
+    return translate(deps, id, { direction: body.direction, text: body.text });
   });
 }
