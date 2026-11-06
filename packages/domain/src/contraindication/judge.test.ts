@@ -135,8 +135,13 @@ describe("禁忌判定：妊娠（Q03・Q03a）", () => {
   });
 
   it("K47 A と一緒に選んで妊娠を聞いた11歳女性で、妊娠している人に J は注意（妊娠中・相談）", () => {
-    const r = expectVerdict("J", patient({ age: 11, pregnancy: "pregnant", dueWithin12Weeks: "no" }), "caution");
+    const r = expectVerdict("J", patient({ age: 11, pregnancy: "pregnant" }), "caution");
     expectReason(r, { code: "PREGNANT_CONSULT", item: "Q03", label: "妊娠中（相談）" });
+  });
+
+  it("K48 A と一緒に選んで妊娠を聞いた11歳女性で、妊娠しているかもしれない人に J は注意（妊娠の可能性）", () => {
+    const r = expectVerdict("J", patient({ age: 11, pregnancy: "maybe" }), "caution");
+    expectReason(r, { code: "PREGNANT_CONSULT", item: "Q03", uncertain: true, label: "妊娠の可能性" });
   });
 
   it("K43 妊娠しているかもしれない人に C は禁忌（出産予定日まで12週以内かがわからない）", () => {
@@ -172,6 +177,17 @@ describe("禁忌判定：授乳（Q04）", () => {
 
   it("K18 授乳中の人に E は禁忌（C1）", () => {
     const r = expectVerdict("E", patient({ breastfeeding: "yes" }), "contraindicated");
+    expectReason(r, { code: "BREASTFEEDING", item: "Q04", ingredient: "C1", label: "授乳中（C1）" });
+  });
+
+  it("K49 11歳女性で授乳中の人に A は注意（A は12歳未満でも授乳を確かめる。服用後24時間は授乳を避ける）", () => {
+    const r = expectVerdict("A", patient({ age: 11, breastfeeding: "yes" }), "caution");
+    expectReason(r, { code: "BREASTFEEDING", item: "Q04", ingredient: "L1", label: "服用後24時間は授乳を避ける" });
+  });
+
+  it("K50 A と一緒に選んで授乳を聞いた11歳女性で、授乳中の人に E は禁忌（12歳未満・授乳中）", () => {
+    const r = expectVerdict("E", patient({ age: 11, breastfeeding: "yes" }), "contraindicated");
+    expectReason(r, { code: "AGE_UNDER", item: "Q01", label: "12歳未満" });
     expectReason(r, { code: "BREASTFEEDING", item: "Q04", ingredient: "C1", label: "授乳中（C1）" });
   });
 });
