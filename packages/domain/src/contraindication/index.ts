@@ -1,0 +1,40 @@
+export * from "./facts.ts";
+export {
+  INGREDIENTS,
+  INGREDIENT_FLAGS,
+  EFFICACY_CATEGORIES,
+  STOCKED_DRUGS,
+  UNSTOCKED_DRUGS,
+  type Ingredient,
+  type IngredientId,
+  type IngredientFlag,
+  INGREDIENT_GROUPS,
+  type IngredientGroup,
+  type EfficacyCategory,
+  type RuleVerdict,
+  type RuleCondition,
+  type RuleBasis,
+  type ProductRule,
+  type StockedDrug,
+  type StockedDrugId,
+  type DoseByAge,
+  type UnstockedDrug,
+} from "./data.ts";
+export {
+  judgeDrug,
+  judgeDrugs,
+  rankCandidates,
+  doseForAge,
+  findStockedDrug,
+  type Verdict,
+  type JudgmentReason,
+  type DrugJudgment,
+} from "./judge.ts";
+export {
+  matchStockedDrugs,
+  MATCH_LEVELS,
+  type MatchLevel,
+  type MatchCandidate,
+  type MatchResult,
+  type ShownDrug,
+} from "./match.ts";

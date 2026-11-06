@@ -11,3 +11,6 @@ export {
   type SessionSnapshot,
   type PostApprovalAction,
 } from "./session/state.ts";
+
+// 禁忌判定（T4）
+export * from "./contraindication/index.ts";
