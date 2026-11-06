@@ -31,7 +31,8 @@ export function mockAiClient(): AiClient {
         case "back_translate":
           return { translation: `［仮の AI の訳し戻し］${text}` };
         case "read_product":
-          return { readable: false, productNames: [], printedText: "" };
+          // 写真は読まない（読めなかったときの流れ＝名前の入力に進む、を試すため）
+          return { readable: false, productNames: [] };
       }
     },
   };
