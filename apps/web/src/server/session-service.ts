@@ -39,8 +39,8 @@ export class SessionServiceError extends Error {
   }
 }
 
-/** 緊急の確認のきっかけ（spec.md 決まったこと No.38：キーワードの検知か、薬剤師が手動で開いたか） */
-export type EmergencyTrigger = "keyword" | "staff";
+/** 緊急の確認のきっかけ（spec.md 決まったこと No.38：キーワードの検知か、薬剤師が手動で開いたか、AI の緊急フラグ〈T13〉か） */
+export type EmergencyTrigger = "keyword" | "staff" | "ai";
 
 /** 緊急の確認画面で集めたもの（追加の質問 EF01〜EF09、つらさの数字 ES01、観察の印） */
 export interface EmergencyFollowUp {
