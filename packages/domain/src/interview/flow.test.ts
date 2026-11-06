@@ -587,3 +587,33 @@ describe("「その他」の文・薬の名前の扱い（No.14 のレビュー�
     assert.deepEqual(state.answers.prescriptionDrugNames, ["薬の名前"]);
   });
 });
+
+// interview-items.md Q08（☑）：「はい（薬の名前を入力）」。入力された薬名は薬剤師が確認する（backlog S-11）
+describe("薬のアレルギー歴（Q08）の薬の名前", () => {
+  const symptom30 = applyAnswers(empty, { age: 30, sex: "female" });
+
+  it("「はい」と一緒に入れた薬の名前は記録に残る", () => {
+    const state = applyAnswers(symptom30, { drugAllergy: "yes", allergyDrugNames: ["薬の名前"] });
+    assert.deepEqual(state.answers.allergyDrugNames, ["薬の名前"]);
+  });
+
+  it("薬の名前は判定に使わない（名前があってもなくても、アレルギー歴ありの判定は同じ）", () => {
+    const base = { ...basicOk, drugAllergy: "yes" as const };
+    for (const drug of ["A", "J"] as const) {
+      assert.deepEqual(judgeDrug(drug, { ...base, allergyDrugNames: ["薬の名前"] }), judgeDrug(drug, base));
+    }
+  });
+
+  it("Q08 を「いいえ」に答え直したら、前に入れた薬の名前は残らない", () => {
+    let state = applyAnswers(symptom30, { drugAllergy: "yes", allergyDrugNames: ["薬の名前"] });
+    state = applyAnswers(state, { drugAllergy: "no" });
+    assert.equal(state.answers.drugAllergy, "no");
+    assert.equal(state.answers.allergyDrugNames, undefined);
+  });
+
+  it("「いいえ」「わからない」と一緒に薬の名前を送ったら、形の誤りで止まる", () => {
+    for (const drugAllergy of ["no", "unknown"] as const) {
+      assertRuleError(() => applyAnswers(symptom30, { drugAllergy, allergyDrugNames: ["薬の名前"] }), "FACT_INVALID");
+    }
+  });
+});

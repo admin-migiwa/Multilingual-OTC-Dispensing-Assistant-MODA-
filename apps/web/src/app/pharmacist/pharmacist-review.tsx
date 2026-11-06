@@ -16,6 +16,7 @@ import type { InterviewAnswers, QuestionId, SessionStatus, StockedDrugId } from 
 import { LANGUAGES } from "@moda/i18n";
 
 import { NetworkError, RuleError } from "../session-api";
+import { EmergencyRecords } from "./emergency-records";
 import { pharmacistApi, type PharmacistView } from "./pharmacist-api";
 
 /** 問診の項目名（docs/demo-data/interview-items.md） */
@@ -149,9 +150,13 @@ function AnswerText({ id, answers }: { id: QuestionId; answers: InterviewAnswers
         <>
           {label(YES_NO_UNKNOWN, answers.drugAllergy)}
           {answers.drugAllergy === "yes" ? (
-            <span className="block text-sm text-amber-800">
-              薬の名前は記録していません（口頭で確かめてください。改修候補 S-11）
-            </span>
+            (answers.allergyDrugNames ?? []).length > 0 ? (
+              <span className="block">
+                アレルギーが出た薬の名前：<FreeText>{(answers.allergyDrugNames ?? []).join("、")}</FreeText>
+              </span>
+            ) : (
+              <span className="block text-sm text-amber-800">薬の名前は入力されていません（口頭で確かめてください）</span>
+            )
           ) : null}
         </>
       );
@@ -278,6 +283,8 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
           {error}
         </p>
       ) : null}
+
+      {view !== null ? <EmergencyRecords sessionId={sessionId} refreshKey={view.status} /> : null}
 
       {view === null ? (
         <p className="text-slate-500">読み込み中…</p>
