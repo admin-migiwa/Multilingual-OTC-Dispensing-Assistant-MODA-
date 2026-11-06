@@ -265,6 +265,15 @@ describe("AI の緊急フラグ（docs/backlog.md S-02、spec.md 決まったこ
     assert.equal(record.emergencies[0]?.trigger, "ai");
   });
 
+  it("答えの形が外れていて、表にない ID が混じっていても、表にある ID（EA12）があれば問診を止める", async () => {
+    const deps = testDeps(fakeAi(() => ({ translation: "", emergencyRuleIds: ["EA12", "EA99"] })));
+    const id = startInterview(deps);
+    await assertRejects(translate(deps, id, { direction: "to_ja", text: "Something is pressing on me." }), "AI_INVALID_OUTPUT");
+    const record = getSession(deps, id);
+    assert.equal(record.snapshot.status, "emergency_review");
+    assert.deepEqual(record.emergencies[0]?.matchedRuleIds, ["EA12"]);
+  });
+
   it("答えの形が外れていて、緊急の ID も表にないものなら、止めずにエラーだけ返す", async () => {
     const deps = testDeps(fakeAi(() => ({ translation: "", emergencyRuleIds: ["EA99"] })));
     const id = startInterview(deps);

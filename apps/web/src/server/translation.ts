@@ -60,7 +60,7 @@ const patientTranslationSchema = z
  * 表にある ID で緊急と判断していれば、先に問診を止める。見落とさない側に倒す）
  */
 const emergencyOnlySchema = z.object({
-  emergencyRuleIds: z.array(z.enum(EMERGENCY_RULE_IDS)).max(EMERGENCY_RULE_IDS.length),
+  emergencyRuleIds: z.array(z.string()).max(EMERGENCY_RULE_IDS.length),
 });
 
 /** 薬剤師の文を訳すとき・訳し戻しの答え */
@@ -222,7 +222,9 @@ export async function translate(
     const parsed = patientTranslationSchema.safeParse(raw);
     if (!parsed.success) {
       const flags = emergencyOnlySchema.safeParse(raw);
-      const flagged = flags.success ? forAge(flags.data.emergencyRuleIds, age) : [];
+      // 表にない ID は捨て、表にある ID だけで判断する（1つでも表にない ID があると全部を捨てる、にしない）
+      const known = flags.success ? flags.data.emergencyRuleIds.filter((ruleId) => EMERGENCY_RULE_IDS.includes(ruleId)) : [];
+      const flagged = forAge(known, age);
       if (flagged.length > 0 && !opened) openEmergencyIfNeeded(deps, id, "ai", flagged, text);
       throw new AiError("AI_INVALID_OUTPUT", "AI の答えが決められた形ではありません");
     }
