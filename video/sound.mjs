@@ -1,5 +1,6 @@
 // 効果音を数式で作り、WAV（音声ファイル）にする。外部の音素材は使わない（権利の心配がない）。
 const RATE = 44100;
+const MASTER = 0.45; // 効果音全体の大きさ（11/6 の依頼で小さくした）
 
 function addTone(buf, start, { freq, freq2 = freq, len, vol = 0.3, attack = 0.005, type = "sine" }) {
   const s0 = Math.floor(start * RATE);
@@ -40,6 +41,7 @@ const SOUNDS = {
 export function makeWav(events, duration) {
   const buf = new Float32Array(Math.ceil(duration * RATE));
   for (const e of events) SOUNDS[e.kind]?.(buf, e.t);
+  for (let i = 0; i < buf.length; i++) buf[i] *= MASTER;
   const out = Buffer.alloc(44 + buf.length * 2);
   out.write("RIFF", 0); out.writeUInt32LE(36 + buf.length * 2, 4); out.write("WAVE", 8);
   out.write("fmt ", 12); out.writeUInt32LE(16, 16); out.writeUInt16LE(1, 20); out.writeUInt16LE(1, 22);

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>MODA デモ動画 前半（0:00〜0:53）</title>
+<style>
+  html, body { margin: 0; background: #ffffff; }
+  canvas { display: block; width: 100vw; height: auto; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script src="lib/common.js"></script>
+<script src="lib/without.js"></script>
+<script src="lib/with.js"></script>
+<script>
+/*
+ * デモ動画の前半（約53秒）。絵コンテの場面1〜4。このあとに実際の画面の録画（実演）が続く。
+ *   場面1 つかみ・AI の役割   0〜8 秒（決まったこと #22 の文をそのまま出す）
+ *   場面2 業務の手順         8〜25 秒（docs/demo-data/sales-procedures.md の P01〜P07 をもとにした図）
+ *   場面3 課題（ないとき）   25〜45 秒
+ *   場面4 変わること（あるとき） 45〜55 秒
+ * ナレーションは window.NARRATION の文を render.mjs が読み上げ音声にして重ねる。
+ * 読み上げ用の文なので、MODA は「モダ」、濫用は「乱用」と書いている（読み間違いを防ぐため）。
+ */
+const SEG = { title: 0, steps: 8, without: 25, with: 45 };
+const DURATION = 55;
+window.DURATION = DURATION;
+
+// 「ないとき」は11秒ぶんの動きを20秒に、「あるとき」は20.6秒ぶんを10秒にする
+const WARP_WITHOUT = makeWarp([[0, 0], [19.2, 11.0], [20, 11.9]]);
+const WARP_WITH = makeWarp([[0, 0], [3, 5], [5.5, 11.6], [7.3, 15.9], [10, 20.6]]);
+
+const CAPS_WITHOUT = [
+  [0.8, 7.5, "翻訳アプリでのやりとりは、時間がかかる。"],
+  [8.0, 13.5, "まとめて聞くと、答えがもれる。"],
+  [14.0, 18.8, "説明書も、日本語のまま。"],
+];
+const CAPS_WITH = [[0.8, 9.8, "候補は薬剤師への提案。決めるのは薬剤師。"]];
+
+// ---- 場面1：タイトル ----
+const GREETINGS = ["Xin chào", "Hello", "你好", "안녕하세요", "Hola", "Olá", "Bonjour", "您好", "こんにちは"];
+function drawTitle(t) {
+  room(false);
+  // ゆっくり漂う、9言語のあいさつ
+  GREETINGS.forEach((g, i) => {
+    const x = ((i * 233 + GT * (18 + i * 3)) % (W + 400)) - 200;
+    const y = 120 + ((i * 137) % 840);
+    alpha(0.22, () => {
+      ctx.font = `700 34px ${FONT}`;
+      const w = ctx.measureText(g).width + 48;
+      ctx.strokeStyle = C.tealLight; ctx.lineWidth = 2; rr(x - w / 2, y - 30, w, 60, 30); ctx.stroke();
+      text(g, x, y, 34, C.tealLight, 700);
+    });
+  });
+  const s = pop(t, 0.3, 0.6);
+  alpha(clamp(prog(t, 0.3, 0.4)), () => {
+    ctx.save(); ctx.translate(W / 2, 330); ctx.scale(s, s);
+    text("MODA", 0, 0, 150, C.teal, 800);
+    ctx.restore();
+  });
+  alpha(prog(t, 0.9, 0.5), () => text("Multilingual OTC Dispensing Assistant", W / 2, 440, 30, C.muted, 600));
+  const lines = [
+    [2.0, "言語の壁をなくす接客支援。", C.ink, 600],
+    [3.2, "AI は助言せず、訳して聞き取るだけ。", C.teal, 690],
+    [4.4, "薬の判断は薬剤師。", C.ink, 780],
+  ];
+  for (const [st, s2, col, y] of lines) {
+    const k = easeOut(prog(t, st, 0.6));
+    alpha(k, () => text(s2, W / 2, y + (1 - k) * 24, 58, col, 800));
+  }
+}
+
+// ---- 場面2：業務の手順 ----
+const BIG_STEPS = [
+  { t: 0.8, n: "①", title: "問診", sub: "体の状態を聞く" },
+  { t: 1.6, n: "②", title: "禁忌の確認", sub: "飲んではいけない薬でないか" },
+  { t: 2.4, n: "③", title: "書面・記録", sub: "書面で説明・理解の確認・記録" },
+];
+// 下から積み上がる区分の段。new=その区分で加わる手順
+const TIERS = [
+  { t: 7.0, label: "第3類・第2類", blocks: [["①問診", 170, true], ["②禁忌の確認", 250, true]] },
+  { t: 8.0, label: "指定第2類", blocks: [["①②", 120, false], ["＋相談を促す表示", 300, true]] },
+  { t: 9.0, label: "第1類・要指導", blocks: [["①②", 120, false], ["③書面・理解の確認・記録", 400, true]] },
+  { t: 10.0, label: "特定要指導", blocks: [["①②③", 150, false], ["＋別紙書類・薬剤師の前での服用", 450, true]] },
+];
+function drawSteps(t) {
+  room(false);
+  alpha(easeOut(prog(t, 0.2, 0.5)), () => {
+    text("MODA が確かめる手順", W / 2, 80, 52, C.ink, 800);
+    text("（2026年5月施行の制度をもとに）", W / 2, 134, 26, C.muted, 700);
+  });
+  // 上段：3つの手順（③は「第1類以上」）
+  const shrink = easeInOut(prog(t, 5.6, 0.7));
+  BIG_STEPS.forEach((b, i) => {
+    const s = pop(t, b.t, 0.4);
+    if (s <= 0) return;
+    const cx = 420 + i * 540, cy = lerp(300, 230, shrink);
+    ctx.save(); ctx.translate(cx, cy); ctx.scale(s * lerp(1, 0.78, shrink), s * lerp(1, 0.78, shrink));
+    shadowed(() => { ctx.fillStyle = "#fff"; rr(-240, -80, 480, 160, 24); ctx.fill(); });
+    ctx.fillStyle = C.teal; ctx.beginPath(); ctx.arc(-170, 0, 46, 0, Math.PI * 2); ctx.fill();
+    text(b.n, -170, 2, 48, "#fff", 800);
+    text(b.title, -100, -22, 40, C.ink, 800, "left");
+    text(b.sub, -100, 30, 24, C.muted, 700, "left");
+    ctx.restore();
+  });
+  // 下段：区分の段（下から積み上がる）
+  TIERS.forEach((tr, i) => {
+    const k = easeOut(prog(t, tr.t, 0.6));
+    if (k <= 0) return;
+    const y = 820 - i * 112;
+    alpha(k, () => {
+      text(tr.label, 470, y, 32, C.ink, 800, "right");
+      let x = 510;
+      tr.blocks.forEach(([s, w, isNew], j) => {
+        const kb = easeOut(prog(t, tr.t + 0.15 * j, 0.5));
+        const bx = x + (1 - kb) * 120;
+        alpha(kb, () => {
+          ctx.fillStyle = isNew ? C.teal : "#a9bcc6";
+          rr(bx, y - 36, w, 72, 16); ctx.fill();
+          text(s, bx + w / 2, y, 26, "#fff", 800);
+        });
+        x += w + 14;
+      });
+    });
+  });
+  // 区分の説明
+  const kc = easeOut(prog(t, 6.2, 0.6));
+  alpha(kc, () => {
+    text("市販薬は「区分」によって、確かめること・売り方が変わります", W / 2, 375 + (1 - kc) * 20, 38, C.teal, 800);
+  });
+  // 指定濫用防止：区分とは別に、横から重なる帯
+  const kb = easeOut(prog(t, 12.0, 0.8));
+  if (kb > 0) {
+    const x0 = lerp(W + 40, 1490, kb);
+    ctx.save();
+    ctx.fillStyle = "rgba(109,79,194,.16)"; ctx.strokeStyle = C.violet; ctx.lineWidth = 4; ctx.setLineDash([16, 10]);
+    rr(x0, 440, 370, 430, 26); ctx.fill(); ctx.stroke();
+    ctx.setLineDash([]);
+    text("指定濫用防止", x0 + 185, 500, 34, C.violet, 800);
+    text("区分とは別に重なる", x0 + 185, 545, 22, C.violet, 700);
+    text("＋年齢・数量の確認", x0 + 185, 630, 26, C.ink, 700);
+    text("＋使用目的の確認", x0 + 185, 690, 26, C.ink, 700);
+    text("＋濫用の危険の書面", x0 + 185, 750, 26, C.ink, 700);
+    ctx.restore();
+  }
+}
+
+window.SOUND_EVENTS = [
+  { t: 0.3, kind: "stamp" }, { t: 2.0, kind: "pop" }, { t: 3.2, kind: "pop" }, { t: 4.4, kind: "pop" },
+  ...BIG_STEPS.map((b) => ({ t: SEG.steps + b.t, kind: "pop" })),
+  ...TIERS.map((tr) => ({ t: SEG.steps + tr.t, kind: "check" })),
+  { t: SEG.steps + 6.2, kind: "pop" },
+  { t: SEG.steps + 12.0, kind: "swoosh" },
+  ...WITHOUT_EVENTS.map((e) => ({ ...e, t: SEG.without + WARP_WITHOUT.toReal(e.t) })),
+  ...WITH_EVENTS.map((e) => ({ ...e, t: SEG.with + WARP_WITH.toReal(e.t) })),
+];
+
+// ナレーション（t＝読み始める時刻、max＝読み終えるまでの上限秒。長いときは render.mjs が速さを上げて収める）
+window.NARRATION = [
+  { t: 0.5, max: 7.2, text: "モダは、言語の壁をなくす接客支援。AIは助言せず、訳して聞き取るだけ。判断は薬剤師です。" },
+  { t: SEG.steps + 0.4, max: 6.0, text: "薬剤師は、体の状態を聞き、飲んではいけない薬でないかを確かめます。" },
+  { t: SEG.steps + 6.6, max: 10.0, text: "市販薬は、区分によって、確かめることや売り方が変わります。第1類などでは、書面での説明と記録も必要です。" },
+  { t: SEG.without + 0.8, max: 6.6, text: "翻訳アプリでの対応では、やりとりに時間がかかります。" },
+  { t: SEG.without + 8.0, max: 5.5, text: "まとめて聞くと、答えがもれてしまいます。" },
+  { t: SEG.without + 14.0, max: 5.6, text: "説明書も日本語のままで、患者さんは確かめられません。" },
+  { t: SEG.with + 0.6, max: 9.0, text: "モダでは、患者さんは母国語で1問ずつ答えるだけ。薬剤師は日本語で確かめ、薬を選んで承認します。" },
+];
+
+function captions(list, t, color) {
+  for (const [s, e, msg, col] of list) caption(msg, fadeWindow(t, s, e), col || color);
+}
+
+window.draw = function (tg) {
+  GT = tg;
+  ctx.clearRect(0, 0, W, H);
+  if (tg < SEG.steps) {
+    drawTitle(tg - SEG.title);
+  } else if (tg < SEG.without) {
+    drawSteps(tg - SEG.steps);
+  } else if (tg < SEG.with) {
+    const lt = tg - SEG.without;
+    drawWithout(WARP_WITHOUT.toScene(lt));
+    captions(CAPS_WITHOUT, lt, C.ink);
+    irisClose(WARP_WITHOUT.toScene(lt));
+  } else {
+    const lt = tg - SEG.with;
+    drawWith(WARP_WITH.toScene(lt));
+    captions(CAPS_WITH, lt, C.teal);
+  }
+  // 場面1→2、2→3 は白くしてつなぐ（3→4 は円の切り替え）。最初と最後も白から・白へ
+  const dark = Math.max(
+    1 - prog(tg, 0, 0.4),
+    clamp(1 - Math.abs(tg - SEG.steps) / 0.4),
+    clamp(1 - Math.abs(tg - SEG.without) / 0.4),
+    prog(tg, DURATION - 0.4, 0.4),
+  );
+  if (dark > 0) { ctx.fillStyle = `rgba(${C.fade},${dark})`; ctx.fillRect(0, 0, W, H); }
+};
+
+window.__rendering = false;
+document.fonts.ready.then(() => {
+  const start = performance.now();
+  (function loop() {
+    if (window.__rendering) return;
+    window.draw(((performance.now() - start) / 1000) % DURATION);
+    requestAnimationFrame(loop);
+  })();
+});
+</script>
+</body>
+</html>

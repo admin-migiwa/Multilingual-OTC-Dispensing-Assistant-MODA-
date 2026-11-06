@@ -7,6 +7,7 @@ import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { makeWav } from "./sound.mjs";
+import { mixNarration } from "./narration.mjs";
 
 const [, , sceneArg, outArg, flag, flagValue] = process.argv;
 if (!sceneArg || !outArg) {
@@ -50,10 +51,18 @@ if (flag === "--stills") {
   process.exit(0);
 }
 
-const { duration, events } = await page.evaluate(() => ({ duration: window.DURATION, events: window.SOUND_EVENTS ?? [] }));
+const { duration, events, lines, voice } = await page.evaluate(() => ({
+  duration: window.DURATION, events: window.SOUND_EVENTS ?? [],
+  lines: window.NARRATION ?? [], voice: window.NARRATION_VOICE,
+}));
 mkdirSync(dirname(resolve(outArg)), { recursive: true });
-const wavPath = resolve(outArg).replace(/\.mp4$/, ".wav");
-writeFileSync(wavPath, makeWav(events, duration));
+const sfxPath = resolve(outArg).replace(/\.mp4$/, ".sfx.wav");
+writeFileSync(sfxPath, makeWav(events, duration));
+// --no-voice を付けると、ナレーションなし（効果音だけ）で書き出す
+const withVoice = flag !== "--no-voice";
+const wavPath = withVoice
+  ? mixNarration({ ffmpeg: findFfmpeg(), sfxWav: sfxPath, lines, voice, outWav: resolve(outArg).replace(/\.mp4$/, ".wav") })
+  : sfxPath;
 
 const ff = spawn(findFfmpeg(), [
   "-y", "-loglevel", "error",
