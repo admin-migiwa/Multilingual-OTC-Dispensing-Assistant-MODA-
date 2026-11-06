@@ -139,6 +139,7 @@ export function LanguageStart() {
   }, []);
 
   function chooseLanguage(code: LanguageCode) {
+    if (busy) return; // 読み直しなどの通信の途中では受け付けない（同じ接客の読み直しが重ならないように）
     setLanguage(code);
     // 住所の ?session= の接客を読み直せていない（通信が止まっていたなど）ときは、新しい接客を始めずに読み直す
     const restoring = restoringId.current;
@@ -287,7 +288,12 @@ export function LanguageStart() {
             const restoring = restoringId.current;
             // 住所の ?session= の接客を読み直せていないときは、新しい接客を始めずに、その接客を読み直す
             if (view === null && restoring !== null) void run(async () => applyRestored(await sessionApi.get(restoring)));
-            else void run(() => (view === null ? sessionApi.start(language) : sessionApi.get(view.id)));
+            else if (view === null) void run(() => sessionApi.start(language));
+            else {
+              // 読み直した状態に合わせて画面を出す（緊急を確認中なら緊急の確認に戻す）
+              const id = view.id;
+              void run(async () => applyRestored(await sessionApi.get(id)));
+            }
           }}
         />
       ) : (
