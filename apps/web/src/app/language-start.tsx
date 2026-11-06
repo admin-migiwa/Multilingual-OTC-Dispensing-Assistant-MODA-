@@ -124,7 +124,7 @@ export function LanguageStart() {
           restoreBasics(latest);
           const opened = latest.status === "emergency_review" ? latest : await sessionApi.openEmergency(id, { trigger: "staff" });
           setView(opened);
-          restoringId.current = null;
+          // restoringId はここでは消さない（画面が描き直される前に「緊急ではない」が押されても、新しい接客を始めないため）
           return opened;
         } catch {
           // 記録に残せなかった（通信が止まっている、接客が終わっているなど）。案内はこのまま出せる
@@ -140,6 +140,12 @@ export function LanguageStart() {
 
   function chooseLanguage(code: LanguageCode) {
     setLanguage(code);
+    // 住所の ?session= の接客を読み直せていない（通信が止まっていたなど）ときは、新しい接客を始めずに読み直す
+    const restoring = restoringId.current;
+    if (restoring !== null) {
+      void run(async () => applyRestored(await sessionApi.get(restoring)));
+      return;
+    }
     void run(() => sessionApi.start(code));
   }
 
@@ -212,9 +218,11 @@ export function LanguageStart() {
             // 押し間違い：119番の案内を取り消し、押す前の薬剤師の確認に戻る（11/6 依頼主の判断）。
             // 「緊急ではない」の判断ではないので、以降の緊急キーワードの確認はそのまま続く
             await show119Pending.current; // 記録の途中なら、記録が終わってから取り消す
-            if (!show119Recorded.current || view === null) return true; // 記録できていない（通信が止まっていた）ので画面だけ戻す
+            // 薬剤師の確認画面から開いて、押した時点で画面に接客がなかったときも、緊急の確認を記録した接客で取り消す
+            const id = view?.id ?? (await pendingOpen.current)?.id ?? null;
+            if (!show119Recorded.current || id === null) return true; // 記録できていない（通信が止まっていた）ので画面だけ戻す
             try {
-              setView(await sessionApi.cancelEmergency119(view.id));
+              setView(await sessionApi.cancelEmergency119(id));
               show119Recorded.current = false;
               return true;
             } catch {
@@ -242,6 +250,7 @@ export function LanguageStart() {
               return;
             }
             const id = view.id;
+            restoringId.current = null; // 画面に接客があるので、読み直しは済んでいる
             void run(async () => (await recordDecision("not_emergency")) ?? sessionApi.get(id));
           }}
         />
