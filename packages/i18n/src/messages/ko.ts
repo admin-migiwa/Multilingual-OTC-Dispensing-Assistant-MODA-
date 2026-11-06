@@ -108,7 +108,7 @@ export const ko: Messages = {
     staffHelp: "직원이 바로 도와드리겠습니다. 이 화면을 직원에게 보여 주세요.",
     consultLine: "구급차를 부를지 망설여질 때는 응급 상담 창구(#7119 등, 지역에 따라 번호가 다름)에 상담할 수 있습니다.",
     childLine: "어린이의 휴일·야간 상담은 #8000입니다.",
-    visitorHotline: "일본을 여행 중인 분은 일본정부관광국(JNTO)의 「Japan Visitor Hotline」 050-3816-2787로 상담할 수 있습니다(24시간·연중무휴, 영어·중국어·한국어, 질병이나 부상 등 비상시 지원).",
+    visitorHotline: "일본을 여행 중인 분은 일본정부관광국(JNTO)의 \"Japan Visitor Hotline\" 050-3816-2787로 상담할 수 있습니다(24시간·연중무휴, 영어·중국어·한국어, 질병이나 부상 등 비상시 지원).",
   },
   emergencyFollowUp: {
     intro: "약사의 질문입니다. 해당하는 것을 선택해 주세요.",
