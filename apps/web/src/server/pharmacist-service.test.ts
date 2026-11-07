@@ -378,3 +378,23 @@ describe("選び直しても、前に選んでいた薬のために聞いた答�
     assert.equal(view.pastDrugNames.length, 1);
   });
 });
+
+// interview-items.md Q03a（☑）・contraindication-tests.md K04（☑。C は15歳未満で禁忌）。11/7 依頼主の判断（C-17）
+describe("残した「妊娠している」の続き（Q03a）が足りないまま薬剤師の確認に進まない", () => {
+  it("11歳の女性が A と C で「妊娠している」と答え、Q03a の前に C だけに選び直すと、Q03a を聞き、そのあと薬剤師の画面が判定を出せる", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 11, sex: "female" });
+    chooseRoute(deps, id, "product");
+    answer(deps, id, { weightKg: 30 });
+    chooseDrugs(deps, id, ["A", "C"]);
+    answer(deps, id, { pregnancy: "pregnant" });
+    const reselected = chooseDrugs(deps, id, ["C"]);
+    assert.equal(reselected.snapshot.status, "interview");
+    answer(deps, id, { dueWithin12Weeks: "no", breastfeeding: "no", asthmaHistory: "no", conditions: [], drugAllergy: "no", currentMedications: [], drivingAfter: false, alcohol: false });
+    openPharmacistReview(deps, id);
+    const view = pharmacistView(getSession(deps, id), NOW);
+    assert.equal(view.drugs[0]?.drugId, "C");
+    assert.equal(view.drugs[0]?.judgment.verdict, "contraindicated");
+  });
+});

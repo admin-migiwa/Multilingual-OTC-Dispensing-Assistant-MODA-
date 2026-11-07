@@ -386,6 +386,20 @@ describe("答えの受け取り方（聞かない・聞き直すときの決ま�
     assert.deepEqual(keptQuestionsFromPastDrugs(toG), ["Q11"]);
   });
 
+  // interview-items.md Q03a（☑。聞く条件「Q03 で妊娠している」。11/7 依頼主の判断で、残した答えにも当てはめる）
+  it("11歳の女性が A と C を選んで「妊娠している」と答え、出産予定日（Q03a）の前に C だけに選び直しても、Q03a を聞いてから問診を終える", () => {
+    const start = applyAnswers({ answers: {}, selectedDrugs: [], route: "product" }, { age: 11, sex: "female", weightKg: 30 });
+    const both = applyAnswers(selectDrugs(start, ["A", "C"]), { pregnancy: "pregnant" });
+    assert.equal(nextQuestion(both), "Q03a");
+    const onlyC = selectDrugs(both, ["C"]);
+    assert.equal(onlyC.answers.pregnancy, "pregnant");
+    assert.equal(nextQuestion(onlyC), "Q03a");
+    const answered = applyAnswers(onlyC, { dueWithin12Weeks: "no", asthmaHistory: "no", conditions: [], currentMedications: [], alcohol: false });
+    assert.equal(nextQuestion(answered), null);
+    // 判定は答えが足りないエラーで止まらない（C は15歳未満で禁忌：contraindication-tests.md K04 と同じ決まり）
+    assert.equal(judgeDrug("C", factsForJudgment(answered)).verdict, "contraindicated");
+  });
+
   it("前に選んでいた薬のために聞いた答えでも、答えの訂正でどの薬でも聞かなくなったら消す（男性に直すと妊娠・授乳の答えを消す）", () => {
     const withA = withAnswers({ ...basicOk }, ["A"]);
     const toJ = selectDrugs(withA, ["J"]);

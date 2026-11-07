@@ -347,9 +347,10 @@ export function keptQuestionsFromPastDrugs(
 ): QuestionId[] {
   const now = contextOf(state, settings);
   const past: AskContext = { ...now, selectedDrugs: drugsWithPast(state) };
-  return QUESTIONS.filter((q) => !isAsked(q, now) && isAsked(q, past) && q.answerKeys.some((k) => state.answers[k] !== undefined)).map(
-    (q) => q.id,
-  );
+  // 指定濫用防止の追加の問診（R01〜R04）は禁忌の判定に使わないので出さない（販売手順は、いま選んでいる薬で決まる）
+  return QUESTIONS.filter(
+    (q) => !q.id.startsWith("R") && !isAsked(q, now) && isAsked(q, past) && q.answerKeys.some((k) => state.answers[k] !== undefined),
+  ).map((q) => q.id);
 }
 
 export { findQuestion };
