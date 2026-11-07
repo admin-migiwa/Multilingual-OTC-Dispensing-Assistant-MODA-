@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>MODA デモ動画 締め（2:50〜3:00）</title>
+<style>
+  html, body { margin: 0; background: #ffffff; }
+  canvas { display: block; width: 100vw; height: auto; }
+</style>
+</head>
+<body>
+<canvas id="c" width="1920" height="1080"></canvas>
+<script src="lib/common.js"></script>
+<script>
+/*
+ * デモ動画の締め（10秒）。絵コンテの場面8。
+ * 勤務先・店舗数・地域は出さない（決まったこと #20）。
+ */
+const DURATION = 10;
+window.DURATION = DURATION;
+window.SOUND_EVENTS = [{ t: 0.8, kind: "pop" }, { t: 2.0, kind: "stamp" }];
+window.MUSIC = [{ t: 0, len: DURATION, part: "outro" }];
+window.NARRATION = [
+  { t: 0.7, max: 2.9, text: "{言葉がちがっても}、同じ安全を。" },
+  { t: 3.3, max: 6.0, text: "薬局薬剤師が企画し、{試験運用}に向けて準備を進めています。" },
+];
+
+window.draw = function (t) {
+  GT = t;
+  ctx.clearRect(0, 0, W, H);
+  room(false);
+  // 2人が並んで手を振る
+  const wave = (ph) => [2.6 + Math.sin(t * 6 + ph) * 0.25, 0.4];
+  const inK = easeOut(prog(t, 0.3, 0.8));
+  alpha(inK, () => {
+    person(720, 520 + (1 - inK) * 60, { ...PATIENT, scale: 0.6, armL: [0.15, 0.1], armR: wave(0), mood: "happy" });
+    person(1200, 520 + (1 - inK) * 60, { ...PHARMACIST, scale: 0.6, armL: wave(1.5), armR: [0.2, 0.15], mood: "happy" });
+    counter();
+  });
+  const k1 = easeOut(prog(t, 0.8, 0.6));
+  alpha(k1, () => text("言葉がちがっても、同じ安全を。", W / 2, 170 + (1 - k1) * 24, 76, C.ink, 800));
+  const k2 = pop(t, 2.0, 0.5);
+  if (k2 > 0) { ctx.save(); ctx.translate(W / 2, 330); ctx.scale(k2, k2); text("MODA", 0, 0, 110, C.teal, 800); ctx.restore(); }
+  alpha(prog(t, 3.0, 0.6), () => text("薬局薬剤師が企画 ／ 試験運用に向けて準備中", W / 2, 950, 34, C.muted, 700));
+  const dark = Math.max(1 - prog(t, 0, 0.4), prog(t, DURATION - 0.6, 0.6));
+  if (dark > 0) { ctx.fillStyle = `rgba(${C.fade},${dark})`; ctx.fillRect(0, 0, W, H); }
+};
+
+window.__rendering = false;
+document.fonts.ready.then(() => {
+  const start = performance.now();
+  (function loop() {
+    if (window.__rendering) return;
+    window.draw(((performance.now() - start) / 1000) % DURATION);
+    requestAnimationFrame(loop);
+  })();
+});
+</script>
+</body>
+</html>
