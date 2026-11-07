@@ -161,4 +161,15 @@ export const vi: Messages = {
     title: "Thanh toán",
     body: "Vui lòng thanh toán tại quầy. Chúc bạn mau khỏe.",
   },
+  guide: {
+    language: "Hãy chạm vào ngôn ngữ của bạn.",
+    steps: { questions: "Trả lời câu hỏi", review: "Dược sĩ kiểm tra", explain: "Giải thích về thuốc", checkout: "Thanh toán" },
+    start: "Hãy chạm vào lựa chọn phù hợp với bạn.",
+    search: "Hãy tìm loại thuốc bạn muốn và chọn.",
+    question: "Hãy trả lời từng câu một rồi chuyển sang câu tiếp theo. Nếu không rõ, hãy hỏi nhân viên.",
+    symptom: "Hãy mô tả triệu chứng bằng lời của bạn.",
+    waiting: "Vui lòng cho nhân viên xem chiếc iPad này.",
+    guidance: "Hãy đọc phần giải thích, rồi trả lời câu hỏi bên dưới.",
+    checkout: "Cuối cùng, hãy cho chúng tôi biết cảm nhận của bạn về phần giải thích hôm nay.",
+  },
 };

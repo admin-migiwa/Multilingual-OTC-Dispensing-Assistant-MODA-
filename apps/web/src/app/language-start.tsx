@@ -5,6 +5,19 @@ import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "rea
 import { STOCKED_DRUGS, detectEmergency, type InterviewAnswers, type QuestionId, type StockedDrugId } from "@moda/domain";
 import { LANGUAGES, getMessages, isSupportedLanguage, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
 
+import { LanguageBadge, ModaBrand } from "./decor";
+import {
+  IllustLeaflet,
+  IllustMedicine,
+  IllustPharmacist,
+  IllustQuestion,
+  IllustSymptom,
+  IllustThanks,
+  IllustWelcome,
+  ScreenGuide,
+  StepBar,
+  type Step as ProgressStep,
+} from "./illustrations";
 import { EMPTY_FOLLOW_UP, type FollowUpState } from "./emergency-follow-up";
 import { EmergencyGuide, type EmergencyTrigger } from "./emergency-guide";
 import { ProductFinder } from "./product-finder";
@@ -478,7 +491,7 @@ function StaffEmergencyButton({ onOpen }: { onOpen: () => void }) {
       type="button"
       lang="ja"
       onClick={onOpen}
-      className="fixed right-3 top-3 z-10 rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
+      className="fixed right-3 top-3 z-50 rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
     >
       薬剤師用：緊急の確認を開く
     </button>
@@ -488,11 +501,17 @@ function StaffEmergencyButton({ onOpen }: { onOpen: () => void }) {
 function LanguageSelect({ onSelect }: { onSelect: (code: LanguageCode) => void }) {
   return (
     <>
-      <header className="space-y-2 text-center">
-        <p className="text-sm font-semibold tracking-widest text-teal-700">MODA</p>
+      <header className="space-y-3 text-center">
+        <ModaBrand size="lg" />
+        <IllustWelcome className="mx-auto h-32 w-44 [@media(max-height:820px)]:h-20 [@media(max-height:820px)]:w-28" />
         <h1 className="text-3xl font-bold">{getMessages("ja").languageSelect.title}</h1>
         <p lang="en" className="text-lg text-slate-600">
           {getMessages("en").languageSelect.title}
+        </p>
+        <p className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-base font-semibold text-teal-800">
+          <span aria-hidden="true">👆</span>
+          <span>{getMessages("ja").guide.language}</span>
+          <span lang="en">{getMessages("en").guide.language}</span>
         </p>
       </header>
       <ul className="grid grid-cols-2 gap-4 sm:grid-cols-3">
@@ -502,9 +521,10 @@ function LanguageSelect({ onSelect }: { onSelect: (code: LanguageCode) => void }
               type="button"
               lang={lang.code}
               onClick={() => onSelect(lang.code)}
-              className="flex min-h-20 w-full items-center justify-center rounded-2xl border-2 border-slate-200 px-4 text-xl font-semibold transition hover:border-teal-600 hover:bg-teal-50 focus-visible:outline-4 focus-visible:outline-teal-600"
+              className="flex min-h-24 w-full items-center gap-3 rounded-2xl border-2 border-slate-200 bg-white px-4 text-left text-xl font-semibold shadow-sm transition hover:border-teal-600 hover:bg-teal-50 active:scale-[0.98] focus-visible:outline-4 focus-visible:outline-teal-600"
             >
-              {lang.nativeName}
+              <LanguageBadge code={lang.code} />
+              <span className="min-w-0 break-words">{lang.nativeName}</span>
             </button>
           </li>
         ))}
@@ -517,9 +537,12 @@ function PatientFrame({ language, children }: { language: LanguageCode; children
   const t = getMessages(language);
   return (
     <section lang={language} className="space-y-8">
-      <header className="space-y-1 text-center">
-        <p className="text-sm font-semibold tracking-widest text-teal-700">MODA</p>
-        <p className="text-base text-slate-500">{t.languageSelect.selected}</p>
+      <header className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-4">
+        <ModaBrand />
+        <p className="flex items-center gap-2 text-base text-slate-500">
+          <LanguageBadge code={language} />
+          <span>{t.languageSelect.selected}</span>
+        </p>
       </header>
       {children}
       {needsAiTranslationNotice(language) ? (
@@ -598,13 +621,32 @@ function PatientBody({
       onFreeText={onFreeText}
     />
   );
+  // いまどの段階か（見た目の補足だけ。画面の切り替えは上の body が決める）
+  const step = patientStep(view, mode);
+  const withSteps =
+    step === null ? (
+      body
+    ) : (
+      <>
+        <StepBar
+          current={step}
+          labels={[
+            getMessages(language).guide.steps.questions,
+            getMessages(language).guide.steps.review,
+            getMessages(language).guide.steps.explain,
+            getMessages(language).guide.steps.checkout,
+          ]}
+        />
+        {body}
+      </>
+    );
   // 翻訳のチャット（患者さんと薬剤師が一緒に使う。日本語の見出し・たたんでおく。backlog C-09）。
   // 接客が始まっていて、終わっていないときだけ出す
   const chatOpen = view !== null && mode !== "not_for_sale" && !["completed", "declined", "emergency_ended", "emergency_review"].includes(view.status);
-  if (!chatOpen) return body;
+  if (!chatOpen) return withSteps;
   return (
     <>
-      {body}
+      {withSteps}
       <details lang="ja" className="rounded-2xl border border-slate-200 p-3">
         <summary className="cursor-pointer text-sm font-semibold text-slate-700">
           翻訳のチャットを開く（薬剤師と一緒に使う）
@@ -622,6 +664,22 @@ function PatientBody({
       </details>
     </>
   );
+}
+
+/**
+ * 段階のしるし（1 質問に答える → 2 薬剤師が確認 → 3 お薬の説明 → 4 お会計）の、いまの段階。
+ * 見た目の補足だけで、画面の切り替えや販売の手続きには使わない。受診の案内・緊急・販売しないときは出さない
+ */
+function patientStep(view: PatientView | null, mode: Mode): ProgressStep | null {
+  if (view === null || mode === "not_for_sale") return null;
+  if (["declined", "emergency_review", "emergency_ended"].includes(view.status)) return null;
+  if (view.status === "checkout" || view.status === "completed") return 4;
+  if (view.status === "approved" || view.status === "counseling") return 3;
+  if (mode === "reselect" || view.nextQuestion !== null) return 1;
+  const waitingStatus = view.status === "drug_selection" || view.status === "pharmacist_review";
+  const noDrug = view.selectedDrugs.length === 0;
+  if (view.interviewComplete || (view.route === "symptom" && waitingStatus && noDrug)) return 2;
+  return 1;
 }
 
 function PatientBodyMain({
@@ -672,7 +730,12 @@ function PatientBodyMain({
     view.selectedDrugs.length > 0 &&
     (!view.interviewComplete || view.status === "drug_selection");
   if (mode === "reselect" && canReselect) {
-    return <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={() => onMode("questions")} />;
+    return (
+      <>
+        <ScreenGuide illustration={<IllustMedicine />} text={t.guide.search} />
+        <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={() => onMode("questions")} />
+      </>
+    );
   }
 
   // 「戻る」で戻った画面（問診を進めてよい状態の間だけ出す）
@@ -708,6 +771,7 @@ function PatientBodyMain({
   if (view.nextQuestion !== null && !choosing) {
     return (
       <>
+        <ScreenGuide illustration={<IllustQuestion />} text={t.guide.question} />
         {view.status === "attributes" ? <p className="text-lg text-slate-600">{t.interview.intro}</p> : null}
         <QuestionInput
           key={view.nextQuestion}
@@ -739,8 +803,17 @@ function PatientBodyMain({
   if (!choosing && (view.interviewComplete || (view.route === "symptom" && waitingStatus && noDrug))) {
     return (
       <div className="space-y-4 rounded-2xl bg-teal-50 px-5 py-6">
-        <p className="text-2xl font-bold">{t.interview.done}</p>
-        <p className="text-lg">{t.pharmacist.waiting}</p>
+        <div className="flex items-center gap-4">
+          <IllustPharmacist className="h-24 w-24 shrink-0" />
+          <div className="min-w-0 space-y-2">
+            <p className="text-2xl font-bold">{t.interview.done}</p>
+            <p className="text-lg">{t.pharmacist.waiting}</p>
+          </div>
+        </div>
+        <p className="rounded-xl bg-white px-4 py-3 text-lg font-semibold text-teal-900 ring-1 ring-teal-100">
+          <span aria-hidden="true">👉 </span>
+          {t.guide.waiting}
+        </p>
         {/* 薬剤師用（日本語・小さく）。いまは同じ iPad で開くので、仮にここに置く（T8a） */}
         <a
           lang="ja"
@@ -767,34 +840,44 @@ function PatientBodyMain({
 
   // 症状から探す：症状を入力（送る前に緊急キーワードを確かめる）→ 基本の項目を1問ずつ
   if (mode === "symptom" && !choosing) {
-    return <SymptomInput language={language} onSubmit={onSymptom} onBack={onBack ?? (() => onMode("choose"))} />;
+    return (
+      <>
+        <ScreenGuide illustration={<IllustSymptom />} text={t.guide.symptom} />
+        <SymptomInput language={language} onSubmit={onSymptom} onBack={onBack ?? (() => onMode("choose"))} />
+      </>
+    );
   }
 
   // ほしい薬がある：薬を探して選ぶ → その薬の判定に使う項目だけを1問ずつ（11/6 の判断）
   if (!choosing && view.route === "product" && noDrug && mode !== "choose") {
-    return <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={onBack ?? (() => onMode("choose"))} />;
+    return (
+      <>
+        <ScreenGuide illustration={<IllustMedicine />} text={t.guide.search} />
+        <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={onBack ?? (() => onMode("choose"))} />
+      </>
+    );
   }
 
   // 年齢・性別を答えた → ほしい薬がある／症状から探す
+  const startChoice =
+    "flex min-h-36 flex-col items-center justify-center gap-2 rounded-2xl border-2 border-slate-200 bg-white px-5 py-5 text-center shadow-sm transition hover:border-teal-600 hover:bg-teal-50 active:scale-[0.98] disabled:opacity-50";
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold">{t.start.title}</h1>
+      <div className="space-y-2">
+        <h1 className="text-3xl font-bold">{t.start.title}</h1>
+        <p className="text-lg font-semibold text-teal-800">
+          <span aria-hidden="true">👆 </span>
+          {t.guide.start}
+        </p>
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onChooseProduct}
-          className="flex min-h-28 flex-col items-start justify-center gap-1 rounded-2xl border-2 border-slate-200 px-5 py-4 text-left transition hover:border-teal-600 hover:bg-teal-50 disabled:opacity-50"
-        >
+        <button type="button" disabled={busy} onClick={onChooseProduct} className={startChoice}>
+          <IllustMedicine className="h-20 w-20" />
           <span className="text-xl font-semibold">{t.start.haveProduct}</span>
           <span className="text-sm text-slate-600">{t.start.haveProductHint}</span>
         </button>
-        <button
-          type="button"
-          disabled={busy}
-          onClick={onStartSymptom}
-          className="flex min-h-28 flex-col items-start justify-center gap-1 rounded-2xl border-2 border-slate-200 px-5 py-4 text-left transition hover:border-teal-600 hover:bg-teal-50 disabled:opacity-50"
-        >
+        <button type="button" disabled={busy} onClick={onStartSymptom} className={startChoice}>
+          <IllustSymptom className="h-20 w-20" />
           <span className="text-xl font-semibold">{t.start.findBySymptom}</span>
           <span className="text-sm text-slate-600">{t.start.findBySymptomHint}</span>
         </button>
@@ -1052,7 +1135,7 @@ function AfterApprovalPatient({
   /** 会計案内・お礼の画面から、説明書をもう一度見る（見るだけ。承認・販売記録・状態は変えない） */
   const [leafletAgain, setLeafletAgain] = useState(false);
   const choice =
-    "w-full rounded-2xl border-2 border-slate-200 px-5 py-4 text-left text-xl font-semibold hover:border-teal-600 hover:bg-teal-50 disabled:opacity-50";
+    "flex w-full items-center gap-4 rounded-2xl border-2 border-slate-200 bg-white px-5 py-4 text-left text-xl font-semibold shadow-sm transition hover:border-teal-600 hover:bg-teal-50 active:scale-[0.98] disabled:opacity-50";
   const guidanceAgain = view.guidance;
   if (leafletAgain && guidanceAgain && (view.status === "checkout" || view.status === "completed")) {
     return (
@@ -1085,7 +1168,10 @@ function AfterApprovalPatient({
   if (view.status === "approved") {
     return (
       <div className="space-y-4 rounded-2xl bg-teal-50 px-5 py-6">
-        <p className="text-lg">{t.pharmacist.waiting}</p>
+        <div className="flex items-center gap-4">
+          <IllustPharmacist className="h-20 w-20 shrink-0" />
+          <p className="min-w-0 text-lg">{t.pharmacist.waiting}</p>
+        </div>
         {pharmacistLink}
       </div>
     );
@@ -1096,6 +1182,7 @@ function AfterApprovalPatient({
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">{t.guidance.title}</h1>
+        <ScreenGuide illustration={<IllustLeaflet />} text={t.guide.guidance} />
         {guidance ? (
           <>
             {guidance.printed ? <p className="text-lg">{t.guidance.printed}</p> : null}
@@ -1114,13 +1201,16 @@ function AfterApprovalPatient({
           <div className="space-y-3">
             <h2 className="text-2xl font-bold">{t.guidance.understandQuestion}</h2>
             <button type="button" disabled={busy} onClick={() => onUnderstanding("understood")} className={choice}>
-              {t.guidance.understandOptions.understood}
+              <span aria-hidden="true" className="text-3xl">😊</span>
+              <span>{t.guidance.understandOptions.understood}</span>
             </button>
             <button type="button" disabled={busy} onClick={() => onUnderstanding("partly")} className={choice}>
-              {t.guidance.understandOptions.partly}
+              <span aria-hidden="true" className="text-3xl">🤔</span>
+              <span>{t.guidance.understandOptions.partly}</span>
             </button>
             <button type="button" disabled={busy} onClick={() => onUnderstanding("not_understood")} className={choice}>
-              {t.guidance.understandOptions.notUnderstood}
+              <span aria-hidden="true" className="text-3xl">😟</span>
+              <span>{t.guidance.understandOptions.notUnderstood}</span>
             </button>
             <p className="text-base text-slate-600">{t.guidance.askAgain}</p>
           </div>
@@ -1135,17 +1225,24 @@ function AfterApprovalPatient({
     return (
       <div className="space-y-6">
         <h1 className="text-3xl font-bold">{t.checkout.title}</h1>
-        <p className="text-xl">{t.checkout.body}</p>
+        <div className="flex items-center gap-4">
+          <IllustThanks className="h-20 w-20 shrink-0" />
+          <p className="min-w-0 text-xl">{t.checkout.body}</p>
+        </div>
+        <ScreenGuide illustration={<IllustQuestion className="h-12 w-12" />} text={t.guide.checkout} />
         <div className="space-y-3">
           <h2 className="text-2xl font-bold">{t.feedback.question}</h2>
           <button type="button" disabled={busy} onClick={() => onFeedback("good")} className={choice}>
-            {t.feedback.options.good}
+            <span aria-hidden="true" className="text-3xl">😊</span>
+            <span>{t.feedback.options.good}</span>
           </button>
           <button type="button" disabled={busy} onClick={() => onFeedback("fair")} className={choice}>
-            {t.feedback.options.fair}
+            <span aria-hidden="true" className="text-3xl">🙂</span>
+            <span>{t.feedback.options.fair}</span>
           </button>
           <button type="button" disabled={busy} onClick={() => onFeedback("poor")} className={choice}>
-            {t.feedback.options.poor}
+            <span aria-hidden="true" className="text-3xl">😟</span>
+            <span>{t.feedback.options.poor}</span>
           </button>
         </div>
         {leafletAgainButton}
@@ -1155,7 +1252,8 @@ function AfterApprovalPatient({
 
   // completed
   return (
-    <div className="space-y-4 rounded-2xl bg-teal-50 px-5 py-6">
+    <div className="flex flex-col items-center gap-4 rounded-2xl bg-teal-50 px-5 py-8 text-center">
+      <IllustThanks className="h-28 w-28" />
       <p className="text-2xl font-bold">{t.feedback.title}</p>
       <p className="text-xl">{t.checkout.body}</p>
       {leafletAgainButton}

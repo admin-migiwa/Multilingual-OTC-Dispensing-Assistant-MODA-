@@ -161,4 +161,15 @@ export const es: Messages = {
     title: "Pago",
     body: "Pague en la caja, por favor. Que se mejore.",
   },
+  guide: {
+    language: "Toque su idioma.",
+    steps: { questions: "Responder preguntas", review: "Revisión del farmacéutico", explain: "Sobre su medicamento", checkout: "Pago" },
+    start: "Toque la opción que corresponda.",
+    search: "Busque el medicamento que desea y selecciónelo.",
+    question: "Responda una pregunta a la vez y continúe. Si tiene dudas, pregunte al personal.",
+    symptom: "Describa sus síntomas con sus propias palabras.",
+    waiting: "Muestre este iPad al personal, por favor.",
+    guidance: "Lea la explicación y luego responda la pregunta de abajo.",
+    checkout: "Por último, díganos qué le pareció la explicación de hoy.",
+  },
 };

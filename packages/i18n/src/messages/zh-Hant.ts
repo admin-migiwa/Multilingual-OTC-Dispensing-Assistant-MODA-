@@ -161,4 +161,15 @@ export const zhHant: Messages = {
     title: "結帳",
     body: "請到收銀台結帳。祝您早日康復。",
   },
+  guide: {
+    language: "請點選您的語言。",
+    steps: { questions: "回答問題", review: "藥劑師確認", explain: "藥品說明", checkout: "結帳" },
+    start: "請點選符合您情況的一項。",
+    search: "請找到您想要的藥，然後選擇。",
+    question: "請逐一回答，然後進入下一步。如有不明白的地方，請詢問工作人員。",
+    symptom: "請用您自己的話寫下症狀。",
+    waiting: "請把這台 iPad 給工作人員看。",
+    guidance: "請先閱讀說明，然後回答下面的問題。",
+    checkout: "最後，請告訴我們您對今天說明的感受。",
+  },
 };

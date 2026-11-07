@@ -6,9 +6,10 @@ import { LanguageStart } from "./language-start";
  */
 export default function HomePage() {
   return (
-    <main className="mx-auto flex min-h-dvh max-w-3xl flex-col justify-center gap-10 px-6 py-12">
-      <LanguageStart />
-      <p className="text-center text-sm text-slate-400">開発中の画面です</p>
+    <main className="mx-auto flex min-h-dvh max-w-3xl flex-col justify-center gap-6 px-4 py-12 sm:px-6 [@media(max-height:820px)]:py-6">
+      <div className="flex flex-col gap-10 rounded-[2rem] bg-white px-5 py-8 shadow-xl ring-1 shadow-teal-900/10 ring-teal-900/5 sm:px-10 sm:py-10 print:rounded-none print:p-0 print:shadow-none print:ring-0">
+        <LanguageStart />
+      </div>
     </main>
   );
 }

@@ -161,4 +161,15 @@ export const ko: Messages = {
     title: "계산",
     body: "계산대에서 계산해 주세요. 몸조리 잘하세요.",
   },
+  guide: {
+    language: "언어를 눌러 주세요.",
+    steps: { questions: "질문에 답하기", review: "약사 확인", explain: "약 설명", checkout: "계산" },
+    start: "해당하는 것을 눌러 주세요.",
+    search: "원하는 약을 찾아서 선택해 주세요.",
+    question: "하나씩 답하고 다음으로 넘어가세요. 잘 모르겠으면 직원에게 물어보세요.",
+    symptom: "증상을 자유롭게 적어 주세요.",
+    waiting: "이 iPad를 직원에게 보여 주세요.",
+    guidance: "설명을 읽은 뒤, 아래 질문에 답해 주세요.",
+    checkout: "마지막으로, 오늘 설명에 대해 알려 주세요.",
+  },
 };
