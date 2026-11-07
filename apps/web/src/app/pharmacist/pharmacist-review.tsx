@@ -277,6 +277,10 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
         緊急の確認を開く
       </a>
       <header className="space-y-2">
+        {/* どの状態でも、患者さんの画面に戻れる（画面を移るだけ。確認の状態は変えない） */}
+        <a href={patientUrl} className="inline-flex min-h-11 items-center text-lg text-slate-600 underline underline-offset-4">
+          ← 患者さんの画面に戻る
+        </a>
         <div className="flex items-center gap-3">
           <ModaBrand />
           <span className="rounded-full bg-teal-700 px-3 py-1 text-sm font-bold text-white">薬剤師用</span>

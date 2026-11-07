@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import { STOCKED_DRUGS, detectEmergency, type InterviewAnswers, type StockedDrugId } from "@moda/domain";
+import { STOCKED_DRUGS, detectEmergency, type InterviewAnswers, type QuestionId, type StockedDrugId } from "@moda/domain";
 import { LANGUAGES, getMessages, isSupportedLanguage, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
 
 import { LanguageBadge, ModaBrand } from "./decor";
@@ -16,7 +16,7 @@ import {
   IllustWelcome,
   ScreenGuide,
   StepBar,
-  type Step,
+  type Step as ProgressStep,
 } from "./illustrations";
 import { EMPTY_FOLLOW_UP, type FollowUpState } from "./emergency-follow-up";
 import { EmergencyGuide, type EmergencyTrigger } from "./emergency-guide";
@@ -41,6 +41,16 @@ import { TranslationChat, type ChatEmergency } from "./translation-chat";
 /** 画面だけで持つ切り替え（流れの選び直し・症状の入力・受診の案内）。どこまで進んだかはサーバーが持つ */
 /** reselect：「ほしい薬がある」で、薬を選んだあとの問診の途中から薬を選び直す */
 type Mode = "questions" | "choose" | "symptom" | "reselect" | "not_for_sale";
+
+/**
+ * 「戻る」（11/7 依頼主の依頼）：患者さんが通ってきた画面を端末の中だけで覚え、1つずつ戻る。
+ * - 戻った質問に答え直すと、サーバーの「訂正」として記録に残る（answer の corrected・answers_cleared）。
+ *   次に聞く項目はこれまでどおりサーバーが決める（ルール3）。前の答えは画面に出さない（もう一度答えてもらう）。
+ * - 問診を進めてよい状態（attributes・interview・drug_selection）の間だけ戻れる。薬剤師が確認を始めたあと・承認のあと・
+ *   緊急の確認のあとは、ここでは戻らない（承認と販売記録を守るため。ルール1・6）。
+ */
+type Step = { kind: "question"; id: QuestionId } | { kind: "choose" } | { kind: "symptom" } | { kind: "drug" };
+const EDITABLE_STATUSES: readonly string[] = ["attributes", "interview", "drug_selection"];
 
 export function LanguageStart() {
   const [language, setLanguage] = useState<LanguageCode | null>(null);
@@ -75,14 +85,19 @@ export function LanguageStart() {
    * （記録できなければ null）。薬剤師の判断は、この記録が終わってから残す（記録の順番を守るため）
    */
   const pendingOpen = useRef<Promise<PatientView | null> | null>(null);
+  /** 通ってきた画面（「戻る」で1つずつ戻る） */
+  const [trail, setTrail] = useState<readonly Step[]>([]);
+  /** 「戻る」で戻って、いま出している画面（null：サーバーが決めた画面をそのまま出す） */
+  const [revisit, setRevisit] = useState<Step | null>(null);
 
-  /** サーバーを呼び、結果で画面を進める。通信が止まったら「通信が止まりました」の画面にする */
-  async function run(action: () => Promise<PatientView>): Promise<void> {
+  /** サーバーを呼び、結果で画面を進める。通信が止まったら「通信が止まりました」の画面にする。onDone は受け付けられたときだけ呼ぶ */
+  async function run(action: () => Promise<PatientView>, onDone?: (next: PatientView) => void): Promise<void> {
     setBusy(true);
     setNotUnderstood(false);
     try {
       const next = await action();
       setView(next);
+      onDone?.(next);
       setRevision((r) => r + 1);
       // 緊急キーワードの確認に使う年齢は、サーバーが受け取った答えにそろえる（断られた値を端末に残さない。C-13）
       age.current = next.age ?? undefined;
@@ -122,6 +137,7 @@ export function LanguageStart() {
   function applyRestored(latest: PatientView): PatientView {
     restoreBasics(latest);
     restoringId.current = null;
+    clearSteps(); // 読み直した接客では、通ってきた画面がわからないので、ここから先だけを覚える
     if (latest.status === "emergency_review") setEmergency({ kind: "staff" });
     if (latest.status === "emergency_ended") setSessionLost(true);
     return latest;
@@ -174,6 +190,54 @@ export function LanguageStart() {
     }
     void run(() => sessionApi.start(code));
   }
+
+  /** 次の画面に進んだときに、いまの画面を覚える */
+  function stepForward(step: Step) {
+    setTrail((prev) => [...prev, step]);
+    setRevisit(null);
+  }
+
+  function clearSteps() {
+    setTrail([]);
+    setRevisit(null);
+  }
+
+  /** 最初の質問から「戻る」：言語の選択に戻る（始めた接客はそのまま置いておき、言語を選ぶと新しい接客を始める） */
+  function backToLanguage() {
+    clearSteps();
+    setView(null);
+    setMode("questions");
+    setNotUnderstood(false);
+    restoringId.current = null;
+    pendingOpen.current = null;
+    window.history.replaceState(null, "", "/");
+    setLanguage(null);
+  }
+
+  // 「戻る」：問診を進めてよい状態の間だけ。通ってきた画面がなければ、年齢・性別の質問からは言語の選択に戻る
+  const editable = view !== null && EDITABLE_STATUSES.includes(view.status);
+  const goBack: (() => void) | null = !editable
+    ? null
+    : trail.length > 0
+      ? () => {
+          if (busy) return; // 通信の途中に戻ると、覚えている画面の順番がずれるため
+          // 薬を選んだあとは、流れ（ほしい薬がある／症状から探す）を選び直せない（サーバーの chooseRoute が受け付けない）。
+          // その画面は飛ばして、さらに前に戻る
+          const drugChosen = view.selectedDrugs.length > 0;
+          let rest = trail;
+          let target: Step | undefined;
+          do {
+            target = rest[rest.length - 1];
+            rest = rest.slice(0, -1);
+          } while (drugChosen && target !== undefined && (target.kind === "choose" || target.kind === "symptom"));
+          setRevisit(target ?? null);
+          setTrail(rest);
+          setMode("questions");
+          setNotUnderstood(false);
+        }
+      : view.status === "attributes"
+        ? backToLanguage
+        : null;
 
   /** 緊急の確認を開く。表示はすぐに切り替え、記録は通信できれば残す */
   function openEmergency(trigger: EmergencyTrigger) {
@@ -313,6 +377,7 @@ export function LanguageStart() {
           onRestart={() => {
             setSessionLost(false);
             setView(null);
+            clearSteps();
             restoringId.current = null;
             pendingOpen.current = null;
             setMode("questions");
@@ -350,20 +415,38 @@ export function LanguageStart() {
             mode={mode}
             busy={busy}
             onMode={setMode}
+            revisit={revisit}
+            onBack={goBack}
+            onStartSymptom={() => {
+              stepForward({ kind: "choose" });
+              setRevisit({ kind: "symptom" });
+            }}
             onFreeText={checkFreeText}
             onAnswer={(answers: InterviewAnswers) => {
               if (view === null) return;
-              void run(() => sessionApi.answer(view.id, answers));
+              const asked = revisit?.kind === "question" ? revisit.id : view.nextQuestion;
+              void run(
+                () => sessionApi.answer(view.id, answers),
+                () => {
+                  if (asked !== null) stepForward({ kind: "question", id: asked });
+                },
+              );
             }}
             onChooseDrug={(id: StockedDrugId) => {
               if (view === null) return;
               setMode("questions");
-              void run(() => sessionApi.chooseDrugs(view.id, [id]));
+              void run(
+                () => sessionApi.chooseDrugs(view.id, [id]),
+                () => stepForward({ kind: "drug" }),
+              );
             }}
             onChooseProduct={() => {
               if (view === null) return;
               setMode("questions");
-              void run(() => sessionApi.chooseRoute(view.id, "product"));
+              void run(
+                () => sessionApi.chooseRoute(view.id, "product"),
+                () => stepForward({ kind: "choose" }),
+              );
             }}
             onChatEmergency={onChatEmergency}
             onUnderstanding={(answer) => {
@@ -384,7 +467,10 @@ export function LanguageStart() {
               if (view === null) return;
               if (checkFreeText(text)) return; // 緊急キーワードに当てはまったら、緊急の確認に切り替わる
               setMode("questions");
-              void run(() => sessionApi.chooseRoute(view.id, "symptom", text));
+              void run(
+                () => sessionApi.chooseRoute(view.id, "symptom", text),
+                () => stepForward({ kind: "symptom" }),
+              );
             }}
           />
         </PatientFrame>
@@ -482,12 +568,18 @@ function PatientBody({
   onFeedback,
   revision,
   onReload,
+  revisit,
+  onBack,
+  onStartSymptom,
 }: {
   language: LanguageCode;
   view: PatientView | null;
   mode: Mode;
   busy: boolean;
   onMode: (mode: Mode) => void;
+  revisit: Step | null;
+  onBack: (() => void) | null;
+  onStartSymptom: () => void;
   onAnswer: (answers: InterviewAnswers) => void;
   onChooseDrug: (id: StockedDrugId) => void;
   onChooseProduct: () => void;
@@ -519,6 +611,9 @@ function PatientBody({
       mode={mode}
       busy={busy}
       onMode={onMode}
+      revisit={revisit}
+      onBack={onBack}
+      onStartSymptom={onStartSymptom}
       onAnswer={onAnswer}
       onChooseDrug={onChooseDrug}
       onChooseProduct={onChooseProduct}
@@ -575,7 +670,7 @@ function PatientBody({
  * 段階のしるし（1 質問に答える → 2 薬剤師が確認 → 3 お薬の説明 → 4 お会計）の、いまの段階。
  * 見た目の補足だけで、画面の切り替えや販売の手続きには使わない。受診の案内・緊急・販売しないときは出さない
  */
-function patientStep(view: PatientView | null, mode: Mode): Step | null {
+function patientStep(view: PatientView | null, mode: Mode): ProgressStep | null {
   if (view === null || mode === "not_for_sale") return null;
   if (["declined", "emergency_review", "emergency_ended"].includes(view.status)) return null;
   if (view.status === "checkout" || view.status === "completed") return 4;
@@ -598,6 +693,9 @@ function PatientBodyMain({
   onChooseProduct,
   onSymptom,
   onFreeText,
+  revisit,
+  onBack,
+  onStartSymptom,
 }: {
   language: LanguageCode;
   view: PatientView | null;
@@ -609,8 +707,12 @@ function PatientBodyMain({
   onChooseProduct: () => void;
   onSymptom: (text: string) => void;
   onFreeText: (text: string) => boolean;
+  revisit: Step | null;
+  onBack: (() => void) | null;
+  onStartSymptom: () => void;
 }) {
   const t = getMessages(language);
+  const backButton = onBack ? <BackButton label={t.common.back} busy={busy} onBack={onBack} /> : null;
 
   // 受診をすすめる案内（T11）：薬剤師の確認画面で「販売しない」を選んだとき、
   // または通信が止まった画面で「受診をすすめる案内を出す」を押したとき（通信なしで出せる）
@@ -636,8 +738,37 @@ function PatientBodyMain({
     );
   }
 
+  // 「戻る」で戻った画面（問診を進めてよい状態の間だけ出す）
+  const editable = EDITABLE_STATUSES.includes(view.status);
+  if (revisit !== null && editable) {
+    if (revisit.kind === "question") {
+      return (
+        <>
+          <QuestionInput
+            key={`again-${revisit.id}`}
+            language={language}
+            questionId={revisit.id}
+            busy={busy}
+            onSubmit={onAnswer}
+            onFreeText={onFreeText}
+            packageOptions={view.nextQuestion === revisit.id ? view.packageOptions : null}
+          />
+          {backButton}
+        </>
+      );
+    }
+    if (revisit.kind === "symptom") {
+      return <SymptomInput language={language} onSubmit={onSymptom} onBack={onBack ?? (() => onMode("choose"))} />;
+    }
+    if (revisit.kind === "drug") {
+      return <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={onBack ?? (() => onMode("questions"))} />;
+    }
+  }
+  /** 「戻る」で「ほしい薬がある／症状から探す」に戻っている */
+  const choosing = revisit?.kind === "choose" && editable;
+
   // 問診（年齢・性別から、サーバーが決めた1問ずつ）
-  if (view.nextQuestion !== null) {
+  if (view.nextQuestion !== null && !choosing) {
     return (
       <>
         <ScreenGuide illustration={<IllustQuestion />} text={t.guide.question} />
@@ -661,6 +792,7 @@ function PatientBodyMain({
             {t.start.changeDrug}
           </button>
         ) : null}
+        {backButton}
       </>
     );
   }
@@ -668,7 +800,7 @@ function PatientBodyMain({
   // 選んだ薬の項目まで答え終えた、または「症状から探す」で基本の項目を答え終えた → 薬剤師の確認待ち
   const noDrug = view.selectedDrugs.length === 0;
   const waitingStatus = view.status === "drug_selection" || view.status === "pharmacist_review";
-  if (view.interviewComplete || (view.route === "symptom" && waitingStatus && noDrug)) {
+  if (!choosing && (view.interviewComplete || (view.route === "symptom" && waitingStatus && noDrug))) {
     return (
       <div className="space-y-4 rounded-2xl bg-teal-50 px-5 py-6">
         <div className="flex items-center gap-4">
@@ -700,26 +832,28 @@ function PatientBodyMain({
             {t.start.changeDrug}
           </button>
         ) : null}
+        {/* 薬剤師が確認を始める前なら、最後の質問に戻って答え直せる */}
+        {backButton}
       </div>
     );
   }
 
   // 症状から探す：症状を入力（送る前に緊急キーワードを確かめる）→ 基本の項目を1問ずつ
-  if (mode === "symptom") {
+  if (mode === "symptom" && !choosing) {
     return (
       <>
         <ScreenGuide illustration={<IllustSymptom />} text={t.guide.symptom} />
-        <SymptomInput language={language} onSubmit={onSymptom} onBack={() => onMode("choose")} />
+        <SymptomInput language={language} onSubmit={onSymptom} onBack={onBack ?? (() => onMode("choose"))} />
       </>
     );
   }
 
   // ほしい薬がある：薬を探して選ぶ → その薬の判定に使う項目だけを1問ずつ（11/6 の判断）
-  if (view.route === "product" && noDrug && mode !== "choose") {
+  if (!choosing && view.route === "product" && noDrug && mode !== "choose") {
     return (
       <>
         <ScreenGuide illustration={<IllustMedicine />} text={t.guide.search} />
-        <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={() => onMode("choose")} />
+        <DrugSearch language={language} busy={busy} onChoose={onChooseDrug} onBack={onBack ?? (() => onMode("choose"))} />
       </>
     );
   }
@@ -742,12 +876,29 @@ function PatientBodyMain({
           <span className="text-xl font-semibold">{t.start.haveProduct}</span>
           <span className="text-sm text-slate-600">{t.start.haveProductHint}</span>
         </button>
-        <button type="button" disabled={busy} onClick={() => onMode("symptom")} className={startChoice}>
+        <button type="button" disabled={busy} onClick={onStartSymptom} className={startChoice}>
           <IllustSymptom className="h-20 w-20" />
           <span className="text-xl font-semibold">{t.start.findBySymptom}</span>
           <span className="text-sm text-slate-600">{t.start.findBySymptomHint}</span>
         </button>
       </div>
+      {backButton}
+    </div>
+  );
+}
+
+/** 「戻る」のボタン（患者さんの言語。iPad で押しやすい高さにする） */
+function BackButton({ label, busy, onBack }: { label: string; busy: boolean; onBack: () => void }) {
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onBack}
+        className="min-h-11 px-1 text-lg text-slate-600 underline underline-offset-4 disabled:opacity-50"
+      >
+        ← {label}
+      </button>
     </div>
   );
 }
@@ -840,8 +991,8 @@ function DrugSearch({
           ))}
         </ul>
       )}
-      <button type="button" onClick={onBack} className="text-base text-slate-600 underline underline-offset-4">
-        {t.common.back}
+      <button type="button" onClick={onBack} className="min-h-11 px-1 text-lg text-slate-600 underline underline-offset-4">
+        ← {t.common.back}
       </button>
     </div>
   );
@@ -881,8 +1032,8 @@ function SymptomInput({
         >
           {t.common.next}
         </button>
-        <button type="button" onClick={onBack} className="text-base text-slate-600 underline underline-offset-4">
-          {t.common.back}
+        <button type="button" onClick={onBack} className="min-h-11 px-1 text-lg text-slate-600 underline underline-offset-4">
+          ← {t.common.back}
         </button>
       </div>
     </form>
@@ -981,8 +1132,29 @@ function AfterApprovalPatient({
   onReload: () => void;
 }) {
   const t = getMessages(language);
+  /** 会計案内・お礼の画面から、説明書をもう一度見る（見るだけ。承認・販売記録・状態は変えない） */
+  const [leafletAgain, setLeafletAgain] = useState(false);
   const choice =
     "flex w-full items-center gap-4 rounded-2xl border-2 border-slate-200 bg-white px-5 py-4 text-left text-xl font-semibold shadow-sm transition hover:border-teal-600 hover:bg-teal-50 active:scale-[0.98] disabled:opacity-50";
+  const guidanceAgain = view.guidance;
+  if (leafletAgain && guidanceAgain && (view.status === "checkout" || view.status === "completed")) {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">{t.guidance.title}</h1>
+        <p className="whitespace-pre-wrap rounded-2xl bg-slate-50 px-5 py-4 text-lg leading-relaxed">{guidanceAgain.translation}</p>
+        <BackButton label={t.common.back} busy={false} onBack={() => setLeafletAgain(false)} />
+      </div>
+    );
+  }
+  const leafletAgainButton = guidanceAgain ? (
+    <button
+      type="button"
+      onClick={() => setLeafletAgain(true)}
+      className="rounded-2xl border-2 border-slate-300 bg-white px-5 py-3 text-lg font-semibold hover:bg-slate-50"
+    >
+      {t.guidance.title}
+    </button>
+  ) : null;
   const pharmacistLink = (
     <a
       lang="ja"
@@ -1073,6 +1245,7 @@ function AfterApprovalPatient({
             <span>{t.feedback.options.poor}</span>
           </button>
         </div>
+        {leafletAgainButton}
       </div>
     );
   }
@@ -1083,6 +1256,7 @@ function AfterApprovalPatient({
       <IllustThanks className="h-28 w-28" />
       <p className="text-2xl font-bold">{t.feedback.title}</p>
       <p className="text-xl">{t.checkout.body}</p>
+      {leafletAgainButton}
     </div>
   );
 }

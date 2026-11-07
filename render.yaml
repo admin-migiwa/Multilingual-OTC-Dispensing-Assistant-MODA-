@@ -1,0 +1,25 @@
+# Render に置くための設定（ハッカソンの公開 URL 用。手順は docs/deploy-render.md）
+#
+# - 接客の記録はサーバーのメモリに置く作りなので、サーバーは「1台だけ」で動かす（台数を増やすと記録が引き継がれない。backlog S-03）。
+# - 秘密の値（薬剤師の PIN・AI のキー）はここに書かない。Render の画面の環境変数に入れる（sync: false）。
+services:
+  - type: web
+    name: moda-demo
+    runtime: node
+    plan: free
+    region: singapore
+    numInstances: 1
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
+    startCommand: pnpm --filter @moda/web start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      # 仮の AI（開発用）で動かすときは mock。本物の Claude を使うときは anthropic にして ANTHROPIC_API_KEY を入れる
+      - key: AI_PROVIDER
+        value: mock
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # 形は「P1:4〜8桁の数字,P2:4〜8桁の数字」。デモ用の値を Render の画面で入れる
+      - key: MODA_PHARMACIST_PINS
+        sync: false

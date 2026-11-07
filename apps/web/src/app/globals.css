@@ -4,6 +4,29 @@
   color-scheme: light;
 }
 
+/*
+ * iPad の Safari 向け（T14）
+ * - 入力欄の文字が 16px より小さいと、触れたときに画面が勝手に拡大されてずれる。小さい字の欄も 16px 以上にする
+ *   （base の層に置くので、text-xl などの大きい指定はそのまま効く）
+ * - ボタンをすばやく2回押したときに、画面が拡大されないようにする（ピンチでの拡大はそのまま使える）
+ */
+@layer base {
+  input,
+  select,
+  textarea {
+    font-size: max(1em, 16px);
+  }
+  button,
+  a,
+  label,
+  summary,
+  input,
+  select,
+  textarea {
+    touch-action: manipulation;
+  }
+}
+
 /* 説明書の印刷（T10）：印刷のときは説明書の部分だけを出す */
 @media print {
   body * {

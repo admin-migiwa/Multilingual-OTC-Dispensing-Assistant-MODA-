@@ -42,6 +42,14 @@ export function SaleRecords() {
   return (
     <>
       <header className="space-y-2">
+        {/* 前の画面（薬剤師の確認画面など）に戻る。前の画面がなければ最初の画面へ */}
+        <button
+          type="button"
+          onClick={() => (window.history.length > 1 ? window.history.back() : window.location.assign("/"))}
+          className="min-h-11 text-lg text-slate-600 underline underline-offset-4"
+        >
+          ← 戻る
+        </button>
         <div className="flex items-center gap-3">
           <ModaBrand />
           <span className="rounded-full bg-teal-700 px-3 py-1 text-sm font-bold text-white">薬剤師用</span>
