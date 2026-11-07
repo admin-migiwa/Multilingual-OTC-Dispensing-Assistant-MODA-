@@ -107,7 +107,7 @@ export const zhHant: Messages = {
   emergency: {
     title: "請立即呼叫救護車",
     body: "您的症狀可能需要馬上到醫院就診。",
-    call119: "請撥打119，並首先說「急救です（kyukyu desu）」（是急救）。",
+    call119: "請撥打119，並首先說「救急です（kyukyu desu）」（是急救）。",
     staffHelp: "工作人員會馬上為您提供協助。請把這個畫面給工作人員看。",
     consultLine: "如果不確定是否需要叫救護車，可以撥打急救諮詢電話（#7119 等，號碼依地區而異）。",
     childLine: "兒童在假日或夜間的諮詢電話是 #8000。",

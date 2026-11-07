@@ -86,6 +86,15 @@ describe("定型文（9言語）", () => {
     }
   });
 
+  it("119番の案内で電話口で言う日本語は、どの言語でも「救急です」（漢字なら字の順が逆の「急救」にしない）", () => {
+    for (const lang of LANGUAGES) {
+      const { call119 } = getMessages(lang.code).emergency;
+      assert.ok(call119.includes("救急です") || /kyukyu desu/i.test(call119), lang.code);
+      // 中国語の語注「（是急救）」の「急救」は正しい中国語なので直さない。間違いは日本語として書いた「急救です」だけ
+      assert.doesNotMatch(call119, /急救です/, lang.code);
+    }
+  });
+
   it("緊急案内の相談窓口の番号（#7119・#8000）が、どの言語でも同じ", () => {
     for (const lang of LANGUAGES) {
       const emergency = getMessages(lang.code).emergency;
