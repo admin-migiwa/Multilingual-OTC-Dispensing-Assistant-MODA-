@@ -290,12 +290,15 @@ describe("候補・代わりの薬を選んで、その薬の項目を聞く問�
     assert.equal(reopened.drugs[0]?.judgment.verdict, "ok");
   });
 
-  it("K01：いまの答えで禁忌と分かっている C は選べず、記録は変わらない", () => {
+  // 11/7 依頼主の判断で、前は「候補に選べない」だったのを「選べる（販売には解除が要る）」に変えた
+  it("K01：いまの答えで禁忌と分かっている C も候補に選べ、項目を答えて確認を開き直すと禁忌のまま出て、解除しないと販売する薬に選べない", () => {
     const deps = testDeps();
     const id = symptomReview(deps, basic30);
-    const before = getSession(deps, id);
-    assertError(() => chooseCandidateDrugs(deps, id, ["C"]), "CONTRAINDICATED_NOT_SELECTABLE");
-    assert.equal(getSession(deps, id), before);
+    assert.equal(chooseCandidateDrugs(deps, id, ["C"]).snapshot.status, "interview");
+    answer(deps, id, { alcohol: false });
+    openPharmacistReview(deps, id);
+    assert.equal(pharmacistView(getSession(deps, id), NOW).drugs[0]?.judgment.verdict, "contraindicated");
+    assertError(() => chooseSaleDrugs(deps, id, ["C"]), "CONTRAINDICATED_NOT_SELECTABLE");
   });
 
   it("薬剤師の確認中でなければ選べない", () => {

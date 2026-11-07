@@ -647,7 +647,7 @@ function CandidatesSection({
                   type="checkbox"
                   className="h-6 w-6"
                   checked={chosen.includes(c.drugId)}
-                  disabled={busy || contraindicated}
+                  disabled={busy}
                   onChange={(e) =>
                     setChosen(e.target.checked ? [...chosen, c.drugId] : chosen.filter((d) => d !== c.drugId))
                   }
@@ -658,7 +658,9 @@ function CandidatesSection({
                   <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-900">いま選んでいる薬</span>
                 ) : null}
                 <span className="text-sm">（{c.classification}）</span>
-                {contraindicated ? <span className="text-sm text-red-900">禁忌のため候補には選べません</span> : null}
+                {contraindicated ? (
+                  <span className="text-sm text-red-900">選ぶと、確認の画面で禁忌の解除（薬剤師の PIN と理由）ができます</span>
+                ) : null}
               </label>
               {known.length > 0 ? (
                 <ul className="list-disc pl-12 text-sm">
@@ -672,7 +674,7 @@ function CandidatesSection({
               <div className="pl-9">
                 <DrugInfo info={c.info} age={view.answers.age} />
               </div>
-              {c.status === "needs_questions" && !contraindicated ? (
+              {c.status === "needs_questions" ? (
                 <p className="pl-9 text-sm">選ぶと追加で聞く項目：{c.questionIds.map((q) => `${q} ${QUESTION_LABELS[q]}`).join("、")}</p>
               ) : null}
             </li>

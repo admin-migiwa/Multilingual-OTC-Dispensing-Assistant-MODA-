@@ -104,8 +104,11 @@ describe("候補の薬を選んで、その薬の項目を聞く問診に戻す"
     assert.equal(nextQuestion(state), "Q13");
   });
 
-  it("K01：いまの答えで禁忌と分かっている C は、候補として選べない", () => {
-    assertRuleError(() => selectCandidateDrugs(symptomState({ ...BASIC, asthmaHistory: "yes" }), ["C"]), "CONTRAINDICATED_NOT_SELECTABLE");
+  // 11/7 依頼主の判断で、前は「選べない」だったのを「選べる（販売には解除が要る）」に変えた
+  it("K01：いまの答えで禁忌と分かっている C も、候補としては選べ、その薬の項目（Q11）を聞く", () => {
+    const state = selectCandidateDrugs(symptomState({ ...BASIC, asthmaHistory: "yes" }), ["C"]);
+    assert.deepEqual(state.selectedDrugs, ["C"]);
+    assert.equal(nextQuestion(state), "Q11");
   });
 
   it("1つも選ばなければ止める", () => {
