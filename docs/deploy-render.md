@@ -21,6 +21,7 @@
 3. Render の画面で「New」→「**Blueprint**」→ このリポジトリを選ぶ。`render.yaml` が読まれ、`moda-demo` というサービスが出てくる。
 4. 秘密の値を入れる画面が出るので、次を入れて「Apply」：
    - `MODA_PHARMACIST_PINS`：`P1:（4〜8桁の数字）,P2:（4〜8桁の数字）`。デモで使う PIN です。手元の `.env.local` と同じでなくてもかまいません。
+   - `AI_PROVIDER`：最初は `mock`（仮の AI）。本物の AI を使うときは `anthropic`。
    - `ANTHROPIC_API_KEY`：仮の AI（`AI_PROVIDER=mock`）のままなら空でよい。
 5. 数分でビルドが終わると、`https://moda-demo-xxxx.onrender.com` のような URL が出る。iPad の Safari で開く。
 6. うまく動いたら、その URL を提出に使う。
@@ -28,6 +29,8 @@
 ## 本物の AI（Claude）を使うとき
 
 - Render の画面の「Environment」で、`AI_PROVIDER` を `anthropic` に変え、`ANTHROPIC_API_KEY` を入れる（保存すると自動で入れ直される）。
+- 変えたあと、画面の「Events」に「Deploy live」が出るまで待ってから試す（無料の枠では数分かかる）。
+- 以前の render.yaml は `AI_PROVIDER` を `mock` に決め打ちしていたため、main を更新するたびに画面で変えた値が `mock` に戻ることがあった。いまは画面の値に任せている。戻っていたら、Environment で `anthropic` に入れ直す。
 - 公開した URL では他人も AI を使えるので、Anthropic の管理画面で**使う金額の上限**を必ず決めておく。
 - デモが終わったら、`AI_PROVIDER` を `mock` に戻すと、お金はかかりません。
 
