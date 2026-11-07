@@ -12,7 +12,13 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-import { OVERRIDE_REASONS, type InterviewAnswers, type QuestionId, type SessionStatus, type StockedDrugId, type UndoStep } from "@moda/domain";
+import {
+  OVERRIDE_REASONS,
+  SYMPTOM_CATEGORIES,
+  matchingSymptomCategories,
+  visibleCandidates,
+  type SymptomCategoryId,
+  type InterviewAnswers, type QuestionId, type SessionStatus, type StockedDrugId, type UndoStep } from "@moda/domain";
 import { LANGUAGES } from "@moda/i18n";
 
 import { ModaBrand } from "../decor";
@@ -569,7 +575,8 @@ function ReviewBody({
         )}
       </Section>
 
-      <CandidatesSection view={view} busy={busy} onChoose={onChooseCandidates} />
+      {/* 接客ごとに作り直す（前の接客のチェックや絞り込みを、次の患者さんに持ち込まない） */}
+      <CandidatesSection key={view.id} view={view} busy={busy} onChoose={onChooseCandidates} />
 
       {/* 段階ごとに出す（11/8 依頼主の判断）：薬を選ぶまでは手順と承認を出さない。承認の欄は、承認の前の手順がそろってから出す
           （承認できるかは、いままでどおりサーバーが確かめる。ルール1・5） */}
@@ -711,9 +718,20 @@ function CandidatesSection({
   onChoose: (drugIds: StockedDrugId[]) => void;
 }) {
   const [chosen, setChosen] = useState<readonly StockedDrugId[]>([]);
+  // 絞り込み（backlog C-16）。表示のためだけで、記録もサーバーへの送信もしない
+  const [query, setQuery] = useState("");
+  const [symptomIds, setSymptomIds] = useState<readonly SymptomCategoryId[]>([]);
   if (view.candidates.length === 0) return null;
   const symptom = view.route === "symptom";
   const noDrug = view.drugs.length === 0;
+  const filtering = query.trim() !== "" || symptomIds.length > 0;
+  // チェックした薬・いま選んでいる薬は、絞り込みで隠さない（選んだまま見えなくならないように）
+  const visible = visibleCandidates(view.candidates, {
+    symptomIds,
+    query,
+    keepDrugIds: [...chosen, ...view.drugs.map((d) => d.drugId)],
+  });
+  const hiddenCount = view.candidates.length - visible.length;
   const body = (
     <>
       <p className="text-sm text-slate-600">
@@ -721,8 +739,57 @@ function CandidatesSection({
         症状から薬を自動で選ぶ仕組みはありません。症状の原文を見て選んでください。
         {noDrug ? "" : "チェックした薬の組み合わせに選び直します（いま選んでいる薬も、残すならチェックしてください）。"}
       </p>
+      <div className="space-y-2 rounded-xl bg-slate-50 p-3">
+        <p className="text-sm font-semibold text-slate-700">
+          絞り込み（薬剤師が症状の原文を見て押してください。仕組みは症状の文から分類を決めません。印は効き目の分類が合うことだけを示し、禁忌の判定は変わりません）
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {SYMPTOM_CATEGORIES.map((sc) => {
+            const on = symptomIds.includes(sc.id);
+            return (
+              <button
+                key={sc.id}
+                type="button"
+                aria-pressed={on}
+                onClick={() => setSymptomIds(on ? symptomIds.filter((id) => id !== sc.id) : [...symptomIds, sc.id])}
+                className={`min-h-11 rounded-full border-2 px-3 py-1 text-sm ${
+                  on ? "border-indigo-700 bg-indigo-700 font-semibold text-white" : "border-slate-300 bg-white text-slate-800"
+                }`}
+              >
+                {sc.label}
+              </button>
+            );
+          })}
+        </div>
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="薬の名前・成分・効き目の分類・区分で探す（例：ペイン、N1、抗ヒスタミン、第1類）"
+          className="w-full rounded-xl border-2 border-slate-300 bg-white px-3 py-2"
+        />
+        {filtering ? (
+          <p className="flex flex-wrap items-center gap-3 text-sm text-slate-700">
+            <span>
+              {visible.length}件を表示中（絞り込みで{hiddenCount}件を隠しています。チェックした薬・いま選んでいる薬は隠しません。隠した薬にも、仮の判定〈禁忌・注意〉はそのまま付いています）
+            </span>
+            <button
+              type="button"
+              onClick={() => {
+                setQuery("");
+                setSymptomIds([]);
+              }}
+              className="min-h-11 rounded-lg border-2 border-slate-300 bg-white px-3 py-1"
+            >
+              絞り込みを外す（すべて表示）
+            </button>
+          </p>
+        ) : null}
+      </div>
+      {visible.length === 0 ? <p className="rounded-xl bg-slate-100 px-3 py-2 text-sm">絞り込みに合う薬はありません。</p> : null}
       <ul className="space-y-2">
-        {view.candidates.map((c) => {
+        {visible.map((c) => {
+          const symptomMatches = matchingSymptomCategories(c.drugId, symptomIds);
           const known = c.status === "judged" ? c.judgment.reasons : c.knownReasons;
           const contraindicated = known.some((r) => r.verdict === "contraindicated");
           const style =
@@ -749,6 +816,11 @@ function CandidatesSection({
                   <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs text-indigo-900">いま選んでいる薬</span>
                 ) : null}
                 <span className="text-sm">（{c.classification}）</span>
+                {symptomMatches.map((sc) => (
+                  <span key={sc.id} className="rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-900">
+                    症状の分類「{sc.shortLabel}」と効き目の分類が合う
+                  </span>
+                ))}
                 {contraindicated ? (
                   <span className="text-sm text-red-900">選ぶと、確認の画面で禁忌の解除（薬剤師の PIN と理由）ができます</span>
                 ) : null}

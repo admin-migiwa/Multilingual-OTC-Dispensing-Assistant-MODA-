@@ -12,6 +12,7 @@
 | [contraindication-tests.md](contraindication-tests.md) | 禁忌判定のテスト表（デモの4場面を含む） | No.33 |
 | [sales-procedures.md](sales-procedures.md) | 区分ごとの販売手順と数量基準（施行日つきの版） | No.34 |
 | [emergency.md](emergency.md) | 緊急症状の判定基準とキーワード | No.32 |
+| [symptom-categories.md](symptom-categories.md) | 薬剤師の画面で押す「症状の分類」と効き目の分類の対応（候補の絞り込み。C-16） | 11/8 依頼主の判断 |
 | [referral.md](referral.md) | 受診をすすめる案内の決まった文（T11。11/7 依頼主が選んだ） | ハッカソン提出版の範囲（受診案内は固定の文だけ） |
 
 ## 確認のしかた（薬剤師の方へ）
