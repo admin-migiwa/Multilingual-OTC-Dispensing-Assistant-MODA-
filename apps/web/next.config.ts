@@ -4,6 +4,12 @@ const nextConfig: NextConfig = {
   // ワークスペース内の TypeScript パッケージをそのまま取り込む
   transpilePackages: ["@moda/domain", "@moda/i18n"],
   poweredByHeader: false,
+  // 開発サーバー（pnpm dev）を同じ Wi-Fi の iPad から開くときだけ、PC の住所を環境変数で足す
+  // （例 MODA_DEV_ORIGINS=192.168.x.x。ふだんは空。住所はリポジトリに書かない）
+  allowedDevOrigins: (process.env.MODA_DEV_ORIGINS ?? "")
+    .split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean),
   // ビルドごとの番号。Service Worker の保存の名前に使い、古い保存がたまらないようにする（秘密の値ではない）
   env: { MODA_BUILD_ID: String(Date.now()) },
   async headers() {
