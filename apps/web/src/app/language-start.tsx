@@ -1201,15 +1201,12 @@ function AfterApprovalPatient({
           <div className="space-y-3">
             <h2 className="text-2xl font-bold">{t.guidance.understandQuestion}</h2>
             <button type="button" disabled={busy} onClick={() => onUnderstanding("understood")} className={choice}>
-              <span aria-hidden="true" className="text-3xl">😊</span>
               <span>{t.guidance.understandOptions.understood}</span>
             </button>
             <button type="button" disabled={busy} onClick={() => onUnderstanding("partly")} className={choice}>
-              <span aria-hidden="true" className="text-3xl">🤔</span>
               <span>{t.guidance.understandOptions.partly}</span>
             </button>
             <button type="button" disabled={busy} onClick={() => onUnderstanding("not_understood")} className={choice}>
-              <span aria-hidden="true" className="text-3xl">😟</span>
               <span>{t.guidance.understandOptions.notUnderstood}</span>
             </button>
             <p className="text-base text-slate-600">{t.guidance.askAgain}</p>
