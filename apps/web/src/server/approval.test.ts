@@ -162,7 +162,7 @@ describe("PIN での承認と販売記録（T9a）", () => {
     assert.equal(listSaleRecords(deps.store.all()).length, 1);
   });
 
-  it("K01：禁忌の薬は、承認の処理でも止まる（販売する薬の選択を通らずに送られても）", () => {
+  it("K01：禁忌の薬は販売する薬に選べないので、承認もできない（選択がないことで止まる）", () => {
     const deps = testDeps();
     const id = reviewing(deps, ["C"], { asthmaHistory: "yes" });
     // 販売する薬の選択（chooseSaleDrugs）は禁忌で止まるので、選択がないまま承認しようとすると、選択がないことで止まる
@@ -195,6 +195,11 @@ describe("薬剤師の PIN", () => {
     assert.equal(verifier.verify("P2", "5678", NOW).id, "P2");
     // 時間がたてば使える
     assert.equal(verifier.verify("P1", "1234", new Date(NOW.getTime() + 6 * 60_000)).id, "P1");
+  });
+
+  it("一覧にいる薬剤師の PIN が設定にないときは、設定の誤りとして止め、失敗の回数に数えない", () => {
+    const verifier = createPinVerifier("P1:1234");
+    for (let i = 0; i < PIN_MAX_FAILURES + 1; i += 1) assertError(() => verifier.verify("P2", "5678", NOW), "PIN_NOT_CONFIGURED");
   });
 
   it("一覧にない薬剤師は止める", () => {

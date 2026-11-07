@@ -130,10 +130,12 @@ export function approveSale(
   const selections = saleSelectionsFor(drugIds, abusePreventionAnswers(record.interview));
   const items: SaleItem[] = selections.map(({ drug, quantity }) => {
     const stocked = STOCKED_DRUGS.find((d) => d.id === drug.id);
+    // 取扱薬にない薬は、ここまでの判定で止まっているはず。万一のときも推測で埋めずに止める（ルール7）
+    if (!stocked) throw new DomainRuleError("UNKNOWN_DRUG", `取扱薬 ${drug.id} が見つかりません`);
     return {
-      drugId: drug.id as StockedDrugId,
-      name: stocked?.name ?? drug.id,
-      classification: stocked?.classification ?? "",
+      drugId: stocked.id,
+      name: stocked.name,
+      classification: stocked.classification,
       packageAmount: drug.packageAmount ?? null,
       quantity,
     };
