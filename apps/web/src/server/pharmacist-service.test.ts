@@ -398,3 +398,30 @@ describe("残した「妊娠している」の続き（Q03a）が足りないま
     assert.equal(view.drugs[0]?.judgment.verdict, "contraindicated");
   });
 });
+
+// docs/demo-data/drugs.md（取扱薬・成分・年齢別の用量の表 ☑）と contraindication-tests.md K20a（☑：5歳の F は1回1/3包を表示）
+describe("薬の基本の情報（成分・効き目の分類・用法用量）を薬剤師の画面に出す", () => {
+  it("K20a：5歳の候補の F には、年齢に当たる1回量（1/3包）を出す。C には成分 N1 と服用できない年齢（15歳未満）を出す", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 5, sex: "female" });
+    chooseRoute(deps, id, "symptom", "stomach");
+    answer(deps, id, {
+      weightKg: 18,
+      asthmaHistory: "no",
+      conditions: [],
+      drugAllergy: "no",
+      currentMedications: [],
+      drivingAfter: false,
+    });
+    openPharmacistReview(deps, id);
+    const view = pharmacistView(getSession(deps, id), NOW);
+    const f = view.candidates.find((c) => c.drugId === "F");
+    assert.deepEqual(f?.info.doseForPatient, { dose: "1/3包" });
+    assert.equal(f?.info.category, "胃腸薬（制酸）");
+    const c = view.candidates.find((x) => x.drugId === "C");
+    assert.deepEqual(c?.info.ingredients.map((i) => i.name), ["架空成分 N1"]);
+    assert.equal(c?.info.minAge, 15);
+    assert.equal(c?.info.doseForPatient, null); // 年齢別の用量の表がない薬
+  });
+});
