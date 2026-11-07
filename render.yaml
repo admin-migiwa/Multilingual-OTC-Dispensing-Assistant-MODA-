@@ -15,9 +15,10 @@ services:
     envVars:
       - key: NODE_VERSION
         value: "22"
-      # 仮の AI（開発用）で動かすときは mock。本物の Claude を使うときは anthropic にして ANTHROPIC_API_KEY を入れる
+      # mock（仮の AI）か anthropic（本物の Claude。ANTHROPIC_API_KEY も入れる）。Render の画面の Environment で入れる。
+      # ここに値を書くと、main を更新するたびに画面で変えた値が書き戻されるので、書かない（sync: false）
       - key: AI_PROVIDER
-        value: mock
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
       # 形は「P1:4〜8桁の数字,P2:4〜8桁の数字」。デモ用の値を Render の画面で入れる
