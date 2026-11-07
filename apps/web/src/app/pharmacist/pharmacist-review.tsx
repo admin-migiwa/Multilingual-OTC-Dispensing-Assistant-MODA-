@@ -3,14 +3,14 @@
 /**
  * 薬剤師の確認画面（T8a。日本語だけ。患者さんには見せない）。
  *
- * - 患者さんの答えの日本語のまとめ（自由に入力された文は原文のまま。翻訳は T13）
+ * - 患者さんの答えの日本語のまとめ（自由に入力された文は原文。「日本語に訳す」で翻訳のチャットの欄に入れ、訳すと原文の下に参考訳を出す）
  * - 選んだ薬ごとに、その薬のために聞いた項目と、禁忌の判定
  * - 販売する薬を選ぶ（禁忌の薬は選べない。サーバーでも止める。CLAUDE.md 絶対に守るルール4。解除は T9）
  * - 区分ごとの販売手順のチェックリスト（✓ は記録に足していく。✓ がそろうまで承認できない関所は T9）
  * - 「戻る」（薬の選択へ）と「販売しない」（理由は必須。受診案内の画面は T11）
  */
 
-import { useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 
 import { OVERRIDE_REASONS, type InterviewAnswers, type QuestionId, type SessionStatus, type StockedDrugId, type UndoStep } from "@moda/domain";
 import { LANGUAGES } from "@moda/i18n";
@@ -111,11 +111,42 @@ const ERROR_MESSAGES: Record<string, string> = {
 };
 
 /** 自由に入力された文（原文のまま出す。翻訳は T13） */
-function FreeText({ children }: { children: ReactNode }) {
+/**
+ * 患者さんが自由に入力した文を日本語に訳すための窓口（翻訳のチャットがあるときだけ）。
+ * 訳はチャットと同じ道で行う（緊急の照合・AI の答えの検証・記録。CLAUDE.md ルール2・7・8）。ここからは送らず、チャットの欄に入れるだけ
+ */
+interface FreeTextTranslation {
+  /** 原文（前後の空白を除く） → 日本語の参考訳 */
+  readonly translations: ReadonlyMap<string, string>;
+  /** チャットの欄にその文を入れて開く */
+  readonly request: (text: string) => void;
+}
+
+const FreeTextContext = createContext<FreeTextTranslation | null>(null);
+
+function FreeText({ text }: { text: string }) {
+  const translation = useContext(FreeTextContext);
+  const original = text.trim();
+  const translated = translation?.translations.get(original);
   return (
     <span>
-      <span className="rounded bg-yellow-50 px-1">「{children}」</span>
-      <span className="ml-2 text-xs text-slate-500">原文のまま（翻訳は T13）</span>
+      <span className="rounded bg-yellow-50 px-1">「{text}」</span>
+      {translated !== undefined ? (
+        <span className="mt-1 block font-normal">
+          <span className="text-xs text-slate-500">日本語の参考訳（AI の訳）：</span>
+          {translated}
+        </span>
+      ) : translation ? (
+        <button
+          type="button"
+          onClick={() => translation.request(original)}
+          className="ml-2 rounded-lg border border-teal-600 bg-white px-2 py-0.5 text-xs font-semibold text-teal-800 hover:bg-teal-50"
+        >
+          日本語に訳す
+        </button>
+      ) : (
+        <span className="ml-2 text-xs text-slate-500">原文のまま</span>
+      )}
     </span>
   );
 }
@@ -152,7 +183,7 @@ function AnswerText({ id, answers }: { id: QuestionId; answers: InterviewAnswers
           {answers.conditions === undefined ? "（答えなし）" : list.length > 0 ? list.join("、") : answers.otherConditionText ? "" : "なし"}
           {answers.otherConditionText ? (
             <span className="block">
-              その他：<FreeText>{answers.otherConditionText}</FreeText>
+              その他：<FreeText text={answers.otherConditionText} />
             </span>
           ) : null}
         </>
@@ -165,7 +196,7 @@ function AnswerText({ id, answers }: { id: QuestionId; answers: InterviewAnswers
           {answers.drugAllergy === "yes" ? (
             (answers.allergyDrugNames ?? []).length > 0 ? (
               <span className="block">
-                アレルギーが出た薬の名前：<FreeText>{(answers.allergyDrugNames ?? []).join("、")}</FreeText>
+                アレルギーが出た薬の名前：<FreeText text={(answers.allergyDrugNames ?? []).join("、")} />
               </span>
             ) : (
               <span className="block text-sm text-amber-800">薬の名前は入力されていません（口頭で確かめてください）</span>
@@ -181,7 +212,7 @@ function AnswerText({ id, answers }: { id: QuestionId; answers: InterviewAnswers
           {answers.currentMedications === undefined ? "（答えなし）" : list.length > 0 ? list.join("、") : "なし"}
           {names.length > 0 ? (
             <span className="block">
-              処方薬の名前：<FreeText>{names.join("、")}</FreeText>
+              処方薬の名前：<FreeText text={names.join("、")} />
             </span>
           ) : null}
         </>
@@ -204,9 +235,9 @@ function AnswerText({ id, answers }: { id: QuestionId; answers: InterviewAnswers
         ? `複数個（${answers.multipleCount ?? "?"}個）`
         : label(PACKAGES, answers.packageChoice);
     case "R03":
-      return answers.reasonText ? <FreeText>{answers.reasonText}</FreeText> : "（答えなし）";
+      return answers.reasonText ? <FreeText text={answers.reasonText} /> : "（答えなし）";
     case "R04":
-      return answers.purposeText ? <FreeText>{answers.purposeText}</FreeText> : "（答えなし）";
+      return answers.purposeText ? <FreeText text={answers.purposeText} /> : "（答えなし）";
   }
 }
 
@@ -226,6 +257,11 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
   const [error, setError] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const patientUrl = `/?session=${encodeURIComponent(sessionId)}`;
+  /** 翻訳のチャットの欄に入れる文（「日本語に訳す」から。送るのは薬剤師が「訳す」を押したとき） */
+  const [chatPrefill, setChatPrefill] = useState<{ key: number; text: string } | undefined>(undefined);
+  /** チャットで訳した患者さんの文（原文 → 日本語の参考訳）。まとめの原文の下に出す */
+  const [chatTranslations, setChatTranslations] = useState<ReadonlyMap<string, string>>(new Map());
+  const chatRef = useRef<HTMLDetailsElement>(null);
 
   async function run(action: () => Promise<PharmacistView>): Promise<PharmacistView | null> {
     setBusy(true);
@@ -268,8 +304,24 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
   // 状態は変えずに移り、移った先ですぐに緊急の確認を出してから記録する
   const emergencyUrl = `${patientUrl}&emergency=staff${view ? `&lang=${encodeURIComponent(view.language)}` : ""}`;
 
+  // 翻訳のチャットを出す状態か（緊急の確認中・終わった接客では出さない）
+  const chatShown = view !== null && !["completed", "declined", "emergency_ended", "emergency_review"].includes(view.status);
+  const freeTextTranslation: FreeTextTranslation | null = chatShown
+    ? {
+        translations: chatTranslations,
+        request: (text) => {
+          setChatPrefill((previous) => ({ key: (previous?.key ?? 0) + 1, text }));
+          const details = chatRef.current;
+          if (details) {
+            details.open = true;
+            details.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        },
+      }
+    : null;
+
   return (
-    <>
+    <FreeTextContext.Provider value={freeTextTranslation}>
       <a
         href={emergencyUrl}
         className="fixed right-3 top-3 z-10 rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
@@ -307,8 +359,8 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
       {view !== null ? <EmergencyRecords sessionId={sessionId} refreshKey={view.status} /> : null}
 
       {/* 緊急の確認中は出さない（確認は患者さんの画面で行う。チャットのキーワードで画面が移ってしまわないように） */}
-      {view !== null && !["completed", "declined", "emergency_ended", "emergency_review"].includes(view.status) ? (
-        <details className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
+      {view !== null && chatShown ? (
+        <details ref={chatRef} className="scroll-mt-4 rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
           <summary className="cursor-pointer font-semibold">翻訳のチャット（患者さんに画面を見せて、くわしいことをたずねる）</summary>
           <div className="mt-3">
             <TranslationChat
@@ -317,6 +369,8 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
               age={view.answers.age}
               emergencyCleared={view.emergencyCleared}
               emergencyReviewOpen={view.status === "emergency_review"}
+              prefill={chatPrefill}
+              onTranslations={setChatTranslations}
               onEmergency={(found: ChatEmergency) => {
                 // 緊急の確認は患者さんの画面で出す（患者さんの言語の案内と、通信がなくても出せる画面がそこにあるため。ルール2）。
                 // サーバーが開いたとき（server）は、開き済みなので患者さんの画面に移るだけ（/emergency をもう一度呼ばない）。
@@ -376,7 +430,7 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
           }}
         />
       )}
-    </>
+    </FreeTextContext.Provider>
   );
 }
 
@@ -465,9 +519,12 @@ function ReviewBody({
   return (
     <>
       <Section title="患者さんの答えのまとめ">
+        <p className="text-sm text-slate-500">
+          患者さんが書いた文（「」の中）は原文です。「日本語に訳す」を押すと翻訳のチャットの欄に入るので、「訳す」を押してください。訳すと、ここにも参考訳が出ます（チャットの記録にも残ります）。
+        </p>
         {view.symptomText ? (
           <p>
-            症状：<FreeText>{view.symptomText}</FreeText>
+            症状：<FreeText text={view.symptomText} />
           </p>
         ) : null}
         <table className="w-full text-left">
