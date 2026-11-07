@@ -50,6 +50,7 @@ import {
 import type { LanguageCode } from "@moda/i18n";
 
 import type { SaleRecord } from "./approval.ts";
+import { completedStepsAfterApproval, currentGuidance, procedureAtApproval, type GuidanceRecord } from "./guidance.ts";
 import type { PinVerifier } from "./pin.ts";
 import { japanDate } from "./japan-date.ts";
 import {
@@ -441,6 +442,17 @@ export interface PharmacistView {
   readonly emergencyCleared: boolean;
   /** 承認したときの販売記録（承認していなければ null。T9a） */
   readonly saleRecord: SaleRecord | null;
+  /** 今の説明書（販売する薬・承認した品目と同じもの。なければ null。T10） */
+  readonly guidance: GuidanceRecord | null;
+  /** 承認のあと：会計の前の手順と、理解の確認・評価（T10） */
+  readonly afterApproval: {
+    readonly steps: readonly { readonly id: string; readonly label: string; readonly done: boolean; readonly byPatient: boolean }[];
+    readonly understanding: "not_yet" | "confirmed";
+    /** 最後の「わかった」以外の答え（もう一度説明するため。なければ null） */
+    readonly lastNotUnderstood: string | null;
+    readonly printed: boolean;
+    readonly feedback: string | null;
+  } | null;
   /**
    * 候補の薬・代わりの薬（取扱薬すべて。いま選んでいる薬も含む）の、いまの答えでの仮の判定（薬剤師の確認中だけ。backlog C-03）。
    * 禁忌にならない薬が先。選ぶと、その薬の項目を聞く問診に戻る
@@ -525,7 +537,38 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
     declinedReason: round?.declinedReason ?? null,
     emergencyCleared: patientView(record).emergencyCleared,
     saleRecord: record.saleRecord ?? null,
+    guidance: guidanceForView(record, reviewing ? saleDrugIds : null),
+    afterApproval: afterApprovalOf(record),
     candidates: reviewing ? candidatesOf(record) : [],
+  };
+}
+
+/** 今の説明書。確認中は今の「販売する薬」と同じもの、承認のあとは承認した品目と同じもの（T10） */
+function guidanceForView(record: SessionRecord, reviewingDrugIds: readonly StockedDrugId[] | null): GuidanceRecord | null {
+  if (record.saleRecord) return currentGuidance(record);
+  if (reviewingDrugIds === null || reviewingDrugIds.length === 0) return null;
+  const latest = record.guidances?.at(-1);
+  if (!latest || latest.language !== record.language) return null;
+  const same = latest.drugIds.length === reviewingDrugIds.length && latest.drugIds.every((d) => reviewingDrugIds.includes(d));
+  return same ? latest : null;
+}
+
+function afterApprovalOf(record: SessionRecord): PharmacistView["afterApproval"] {
+  const sale = record.saleRecord;
+  const latest = sale?.versions.at(-1);
+  if (!sale || !latest) return null;
+  const done = new Set(completedStepsAfterApproval(record));
+  const steps = procedureAtApproval(record)
+    .steps.filter((s) => s.gate === "before_checkout")
+    .map((s) => ({ id: s.id, label: s.label, done: done.has(s.id), byPatient: s.id === "understanding_check" }));
+  const answers = record.events.filter((e) => e.type === "understanding_answered").map((e) => e.detail[0] ?? "");
+  const last = answers.at(-1) ?? null;
+  return {
+    steps,
+    understanding: latest.understanding,
+    lastNotUnderstood: last !== null && last !== "understood" ? last : null,
+    printed: record.events.some((e) => e.type === "guidance_printed"),
+    feedback: record.feedback?.rating ?? null,
   };
 }
 

@@ -37,6 +37,7 @@ import { isSupportedLanguage, type LanguageCode } from "@moda/i18n";
 
 import { japanDate } from "./japan-date.ts";
 import type { SaleRecord } from "./approval.ts";
+import type { FeedbackRating, GuidanceRecord, PostApprovalCheck } from "./guidance.ts";
 import type { PharmacistReviewRound } from "./pharmacist-service";
 
 /** セッションが見つからないなど、ルール以外の理由で処理できないとき */
@@ -135,7 +136,13 @@ export type SessionEventType =
   // 薬剤師が PIN で承認し、販売記録を作った（薬剤師 ID と販売記録 ID だけ。T9a）
   | "approved"
   // 薬剤師が PIN で再認証して禁忌を解除した（薬の記号・理由の種類・薬剤師 ID だけ。自由記述は入れない。T9b）
-  | "contraindication_overridden";
+  | "contraindication_overridden"
+  // 服薬指導（T10）：説明書を作った・印刷した、理解の確認の答え（種類だけ）、販売記録に版を足した、評価（種類だけ）
+  | "guidance_created"
+  | "guidance_printed"
+  | "understanding_answered"
+  | "sale_record_versioned"
+  | "feedback_given";
 
 export interface SessionEvent {
   readonly at: string;
@@ -160,6 +167,12 @@ export interface SessionRecord {
    * データベースがないので接客の記録の中に持ち、承認と販売記録を1回の書き込みで残す
    */
   readonly saleRecord?: SaleRecord;
+  /** 作った説明書（作るたびに足す。最後が今のもの。T10。中身は guidance.ts） */
+  readonly guidances?: readonly GuidanceRecord[];
+  /** 承認の後・会計の前の手順の ✓（足すだけ。T10） */
+  readonly postApprovalChecks?: readonly PostApprovalCheck[];
+  /** 患者さんの評価（会計案内の画面で。T10。販売記録には入れない） */
+  readonly feedback?: { readonly at: string; readonly rating: FeedbackRating };
   /** 翻訳のチャットの記録（起きた順。なければ空。backlog S-13） */
   readonly chatLog?: readonly ChatLogEntry[];
   readonly events: readonly SessionEvent[];
@@ -191,6 +204,18 @@ export interface PatientView {
    * 次の質問が R02（買いたい個数・包装）のときだけ：選べる選択肢と注意文（18歳未満の大容量・複数個。backlog M-12）。
    * 年齢・個数は販売手順の版のデータの値（画面の注意文に差し込む。ルール5）
    */
+  /**
+   * 服薬指導の間と会計案内のときだけ：患者さんの言語の説明書（参考訳）と日本語の原文（T10）。
+   * 承認の前には返さない（ルール1）
+   */
+  readonly guidance: {
+    readonly translation: string;
+    readonly japanese: string;
+    readonly provider: "mock" | "anthropic";
+    readonly printed: boolean;
+  } | null;
+  /** 理解の確認が済んだか（販売記録の版から作る写し。T10） */
+  readonly understandingConfirmed: boolean;
   readonly packageOptions: {
     readonly allowed: readonly PackageChoice[];
     readonly noticeByChoice: Readonly<Partial<Record<PackageChoice, QuantityNoticeKind>>>;
@@ -290,6 +315,8 @@ export function patientView(record: SessionRecord, now: Date = new Date()): Pati
     interviewComplete: isInterviewComplete(record.interview),
     emergencyCleared: record.emergencies.some((e) => e.decision === "not_emergency"),
     age: record.interview.answers.age ?? null,
+    guidance: patientGuidance(record),
+    understandingConfirmed: record.snapshot.understandingConfirmed,
     packageOptions,
   };
 }
@@ -338,6 +365,23 @@ export function enforcePackageLimit(deps: ServiceDeps, record: SessionRecord): S
   const interview = selectInterviewDrugs({ ...record.interview, answers }, record.interview.selectedDrugs);
   const cleared = ["R02", ...(hadReason && interview.answers.reasonText === undefined ? ["R03"] : [])];
   return { ...record, interview, events: [...record.events, event(deps, "answers_cleared", cleared)] };
+}
+
+function patientGuidance(record: SessionRecord): PatientView["guidance"] {
+  const status = record.snapshot.status;
+  if (status !== "counseling" && status !== "checkout" && status !== "completed") return null;
+  const latest = record.guidances?.at(-1);
+  const v1 = record.saleRecord?.versions[0];
+  // 承認した品目・接客の言語と同じ説明書だけを出す（guidance.ts の currentGuidance と同じ決まり）
+  if (!latest || !v1 || latest.language !== record.language) return null;
+  const sold = v1.items.map((i) => i.drugId);
+  if (latest.drugIds.length !== sold.length || !latest.drugIds.every((d) => sold.includes(d))) return null;
+  return {
+    translation: latest.translation,
+    japanese: latest.japanese,
+    provider: latest.provider,
+    printed: record.events.some((e) => e.type === "guidance_printed"),
+  };
 }
 
 /** 言語を選んで接客を始める。言語選択はここで済んだことになり、年齢・性別を聞く状態から始める */

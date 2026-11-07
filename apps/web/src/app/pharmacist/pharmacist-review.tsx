@@ -85,6 +85,9 @@ const STATUS_LABELS: Partial<Record<SessionStatus, string>> = {
   emergency_ended: "緊急で終了",
   declined: "販売しないで終了",
   approved: "承認済み",
+  counseling: "服薬指導中",
+  checkout: "会計案内",
+  completed: "完了",
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
@@ -339,6 +342,23 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
           onDecline={() => void run(() => pharmacistApi.decline(sessionId, reason))}
           onApprove={(pharmacistId, pin) => void run(() => pharmacistApi.approve(sessionId, pharmacistId, pin))}
           onOverride={(input) => void run(() => pharmacistApi.override(sessionId, input))}
+          onGuidance={(action) => {
+            void (async () => {
+              const actions = {
+                create: () => pharmacistApi.createGuidance(sessionId),
+                print: () => pharmacistApi.printGuidance(sessionId),
+                counsel: () => pharmacistApi.startCounseling(sessionId),
+                checkout: () => pharmacistApi.checkout(sessionId),
+              } as const;
+              const next = await run(actions[action]);
+              if (next === null) return;
+              // 印刷は、サーバーで承認のあとか確かめてから（ルール1）、ブラウザの印刷を開く
+              if (action === "print") window.print();
+              // 服薬指導・会計案内は患者さんの画面で行う
+              if (action === "counsel" || action === "checkout") window.location.assign(patientUrl);
+            })();
+          }}
+          onPostStep={(stepId, checked) => void run(() => pharmacistApi.checkPostStep(sessionId, stepId, checked))}
           onChooseCandidates={async (drugIds) => {
             // 候補の薬を選ぶと、その薬の項目を聞く問診に戻る（聞く項目がなければ、そのまま薬剤師の確認をやり直す）
             const next = await run(() => pharmacistApi.chooseCandidates(sessionId, drugIds));
@@ -373,6 +393,8 @@ function ReviewBody({
   onChooseCandidates,
   onApprove,
   onOverride,
+  onGuidance,
+  onPostStep,
 }: {
   view: PharmacistView;
   busy: boolean;
@@ -386,9 +408,16 @@ function ReviewBody({
   onChooseCandidates: (drugIds: StockedDrugId[]) => void;
   onApprove: (pharmacistId: string, pin: string) => void;
   onOverride: (input: OverrideInput) => void;
+  onGuidance: (action: GuidanceAction) => void;
+  onPostStep: (stepId: string, checked: boolean) => void;
 }) {
-  if (view.status === "approved" || (view.saleRecord !== null && view.status !== "pharmacist_review")) {
-    return <ApprovedSummary view={view} patientUrl={patientUrl} />;
+  if (view.saleRecord !== null && view.status !== "pharmacist_review") {
+    return (
+      <>
+        <ApprovedSummary view={view} patientUrl={patientUrl} />
+        <AfterApprovalSection view={view} busy={busy} onGuidance={onGuidance} onPostStep={onPostStep} />
+      </>
+    );
   }
   if (view.status === "declined") {
     return (
@@ -599,6 +628,8 @@ function ReviewBody({
           <p className="text-xs text-slate-500">受診をすすめる患者さん向けの画面は、次の作業（T11）で作ります。</p>
         </div>
       </Section>
+
+      <GuidancePreview view={view} busy={busy} onCreate={() => onGuidance("create")} />
 
       <ApproveSection view={view} busy={busy} onApprove={onApprove} />
     </>
@@ -841,7 +872,7 @@ function ApprovedSummary({ view, patientUrl }: { view: PharmacistView; patientUr
             </p>
           ) : null}
           <p className="text-sm text-slate-600">
-            理解の確認：{v.understanding === "confirmed" ? "済み" : "未（説明書を渡して確認したら、記録に版を足します。T10）"}
+            理解の確認：{v.understanding === "confirmed" ? "済み" : "未（患者さんが「わかった」と答えたら、記録に版を足します）"}
           </p>
         </>
       ) : (
@@ -977,5 +1008,177 @@ function OverrideForm({
         </div>
       </div>
     </details>
+  );
+}
+
+type GuidanceAction = "create" | "print" | "counsel" | "checkout";
+
+/** 説明書の中身（日本語の原文・患者さんの言語の参考訳・訳し戻し）。印刷のときは参考訳と原文だけを出す */
+function GuidanceText({ guidance }: { guidance: NonNullable<PharmacistView["guidance"]> }) {
+  return (
+    <div className="space-y-3">
+      {guidance.provider === "mock" ? (
+        <p className="text-sm text-slate-500">仮の AI（開発用）の訳です。本番では Claude が訳します。</p>
+      ) : null}
+      <div className="print-leaflet space-y-4">
+        <div>
+          <p className="text-xs text-slate-500">参考訳（AI の訳）</p>
+          <p lang={guidance.language} className="whitespace-pre-wrap rounded-lg bg-white p-3">
+            {guidance.translation}
+          </p>
+        </div>
+        <div>
+          <p className="text-xs text-slate-500">原文（日本語）</p>
+          <p lang="ja" className="whitespace-pre-wrap rounded-lg bg-white p-3">
+            {guidance.japanese}
+          </p>
+        </div>
+      </div>
+      <details className="text-sm text-slate-600">
+        <summary>確認用：日本語に訳し戻した文（訳の意味がずれていないか、薬剤師が確かめる）</summary>
+        <p className="mt-2 whitespace-pre-wrap">{guidance.backTranslation}</p>
+      </details>
+    </div>
+  );
+}
+
+/**
+ * 承認の前に説明書を作って中身を確かめる（手順「書面の準備」のため。T10）。
+ * 印刷と患者さんへの表示は承認のあとだけ（ルール1）
+ */
+function GuidancePreview({ view, busy, onCreate }: { view: PharmacistView; busy: boolean; onCreate: () => void }) {
+  if (view.saleDrugIds.length === 0) return null;
+  return (
+    <Section title="説明書（書面の準備）">
+      <p className="text-sm text-slate-600">
+        販売する薬の説明書を作り、日本語の原文と参考訳を確かめてから、チェックリストの「書面の準備」に ✓ を付けてください。印刷は承認のあとです。
+      </p>
+      {view.guidance ? <GuidanceText guidance={view.guidance} /> : null}
+      <button
+        type="button"
+        disabled={busy}
+        onClick={onCreate}
+        className="rounded-xl border-2 border-teal-600 px-4 py-2 font-semibold text-teal-800 disabled:opacity-50"
+      >
+        {view.guidance ? "説明書を作り直す" : "説明書を作る（AI で患者さんの言語に訳す）"}
+      </button>
+    </Section>
+  );
+}
+
+/** 承認のあと：説明書の印刷・服薬指導・理解の確認・承認の後の手順・会計案内（T10） */
+function AfterApprovalSection({
+  view,
+  busy,
+  onGuidance,
+  onPostStep,
+}: {
+  view: PharmacistView;
+  busy: boolean;
+  onGuidance: (action: GuidanceAction) => void;
+  onPostStep: (stepId: string, checked: boolean) => void;
+}) {
+  const after = view.afterApproval;
+  if (after === null) return null;
+  const status = view.status;
+  const canCounsel = status === "approved" || status === "counseling";
+  const allDone = after.steps.every((s) => s.done);
+  return (
+    <Section title="服薬指導と会計案内">
+      {status === "completed" ? (
+        <p className="font-semibold">
+          接客を終えました。患者さんの評価：
+          {after.feedback === "good" ? "わかりやすかった" : after.feedback === "fair" ? "ふつう" : after.feedback === "poor" ? "わかりにくかった" : "なし"}
+        </p>
+      ) : null}
+      {status === "checkout" ? <p className="font-semibold">会計案内中です。患者さんの画面で評価をお願いしてください。</p> : null}
+
+      {canCounsel ? (
+        <>
+          {view.guidance ? <GuidanceText guidance={view.guidance} /> : <p>説明書がまだありません。作ってください。</p>}
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onGuidance("create")}
+              className="rounded-xl border-2 border-teal-600 px-4 py-2 font-semibold text-teal-800 disabled:opacity-50"
+            >
+              {view.guidance ? "説明書を作り直す" : "説明書を作る"}
+            </button>
+            <button
+              type="button"
+              disabled={busy || view.guidance === null}
+              onClick={() => onGuidance("print")}
+              className="rounded-xl border-2 border-slate-400 px-4 py-2 font-semibold disabled:opacity-50"
+            >
+              説明書を印刷する{after.printed ? "（印刷済み）" : ""}
+            </button>
+            {status === "approved" ? (
+              <button
+                type="button"
+                disabled={busy || view.guidance === null}
+                onClick={() => onGuidance("counsel")}
+                className="rounded-xl bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
+              >
+                患者さんの画面で説明を始める
+              </button>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <p className="font-semibold">
+              理解の確認：
+              {after.understanding === "confirmed"
+                ? "済み（患者さんが「わかった」と答えました。販売記録に版を足しました）"
+                : status === "counseling"
+                  ? "まだ（患者さんの画面で答えてもらいます）"
+                  : "まだ（説明を始めると、患者さんの画面に出ます）"}
+            </p>
+            {after.lastNotUnderstood && after.understanding !== "confirmed" ? (
+              <p className="text-amber-900">
+                患者さんの答え：{after.lastNotUnderstood === "partly" ? "少しわからないところがある" : "わからなかった"}。もう一度説明してください（翻訳のチャットも使えます）。
+              </p>
+            ) : null}
+          </div>
+
+          <div className="space-y-2">
+            <p className="font-semibold">会計の前の手順</p>
+            <ul className="space-y-2">
+              {after.steps.map((step) => (
+                <li key={step.id}>
+                  <label className="flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-2">
+                    <input
+                      type="checkbox"
+                      className="mt-1 h-6 w-6"
+                      checked={step.done}
+                      disabled={busy || step.byPatient}
+                      onChange={(e) => onPostStep(step.id, e.target.checked)}
+                    />
+                    <span>
+                      {step.label}
+                      {step.byPatient ? <span className="ml-2 text-xs text-slate-500">（患者さんの答えで記録します）</span> : null}
+                    </span>
+                  </label>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {status === "counseling" ? (
+            <button
+              type="button"
+              disabled={busy || !allDone}
+              onClick={() => onGuidance("checkout")}
+              className="rounded-xl bg-teal-700 px-5 py-2 font-semibold text-white disabled:opacity-50"
+            >
+              会計案内に進む（患者さんの画面へ）
+            </button>
+          ) : null}
+          {status === "counseling" && !allDone ? (
+            <p className="text-sm text-amber-900">会計の前の手順と理解の確認がそろうまで、会計案内に進めません。</p>
+          ) : null}
+        </>
+      ) : null}
+    </Section>
   );
 }

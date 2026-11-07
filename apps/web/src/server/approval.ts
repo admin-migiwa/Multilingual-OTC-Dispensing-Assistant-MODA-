@@ -50,8 +50,8 @@ export interface SaleItem {
 export interface SaleRecordVersion {
   readonly version: number;
   readonly at: string;
-  /** この版を作った理由（v1 は承認） */
-  readonly reason: "approved";
+  /** この版を作った理由（v1 は承認、理解の確認が済んだら understanding_confirmed。T10） */
+  readonly reason: "approved" | "understanding_confirmed";
   /** 販売日時（承認した時刻） */
   readonly soldAt: string;
   /** 販売・情報提供をした薬剤師（架空の一覧の ID と表示名） */

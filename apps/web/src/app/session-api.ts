@@ -30,6 +30,15 @@ export interface PatientView {
   readonly emergencyCleared: boolean;
   /** 年齢の答え（緊急キーワードの確認で子どもの項目を使うかを決める）。まだなら null */
   readonly age: number | null;
+  /** 服薬指導の間と会計案内のときだけ：患者さんの言語の説明書（参考訳）と日本語の原文（T10） */
+  readonly guidance: {
+    readonly translation: string;
+    readonly japanese: string;
+    readonly provider: "mock" | "anthropic";
+    readonly printed: boolean;
+  } | null;
+  /** 理解の確認が済んだか（T10） */
+  readonly understandingConfirmed: boolean;
   /** 次の質問が R02 のときだけ：選べる選択肢と注意文（18歳未満の大容量・複数個。年齢・個数は販売手順の版のデータの値。backlog M-12） */
   readonly packageOptions: {
     readonly allowed: readonly PackageChoice[];
@@ -96,6 +105,11 @@ export const sessionApi = {
     followUp: { answers: Record<string, string>; scale: number | null; observedRuleIds: readonly string[] },
   ) => call(`/api/sessions/${encodeURIComponent(id)}/emergency/follow-up`, followUp),
   /** 「119番の案内を出す」を押し間違いとして取り消す */
+  /** 患者さんの「説明はわかりましたか？」の答え（T10） */
+  answerUnderstanding: (id: string, answer: "understood" | "partly" | "not_understood") =>
+    call(`/api/sessions/${encodeURIComponent(id)}/understanding`, { answer }),
+  /** 患者さんの評価（T10）。評価すると接客を終える */
+  giveFeedback: (id: string, rating: "good" | "fair" | "poor") => call(`/api/sessions/${encodeURIComponent(id)}/feedback`, { rating }),
   cancelEmergency119: (id: string) => call(`/api/sessions/${encodeURIComponent(id)}/emergency/cancel`, {}),
   decideEmergency: (id: string, decision: "show_119" | "not_emergency") =>
     call(`/api/sessions/${encodeURIComponent(id)}/emergency/decision`, { decision }),

@@ -309,3 +309,45 @@ function openEmergencyIfNeeded(
   openEmergency(deps, id, { trigger, matchedRuleIds: ruleIds, inputText: text });
   return true;
 }
+
+// --- 説明書の訳（T10） -----------------------------------------------------------
+
+/** 説明書の日本語の長さの上限（チャットの1文より長い。薬を2〜3種類まとめても収まる長さ） */
+export const MAX_LEAFLET_LENGTH = 2500;
+
+/**
+ * 薬剤師側の日本語（説明書）を患者さんの言語に訳し、日本語に訳し戻す（T10）。
+ * - チャットとは別：チャットの記録・履歴には足さず、緊急の照合もしない（患者さんの文ではないため）。
+ * - 訳す文は、サーバーがデータから組み立てた日本語だけ。AI は訳すだけで、文を足さない（CLAUDE.md ルール10）。
+ * - AI の答えは決められた形かを確かめ、外れていたら止める（ルール7・8）。
+ */
+export async function translateLeaflet(
+  ai: AiClient,
+  language: LanguageCode,
+  japanese: string,
+): Promise<{ translation: string; backTranslation: string; provider: AiClient["provider"] }> {
+  if (japanese.trim() === "" || japanese.length > MAX_LEAFLET_LENGTH) {
+    throw new SessionServiceError("INVALID_REQUEST", "説明書の文の長さが範囲の外です");
+  }
+  const translation = parseOrThrow(
+    leafletTranslationSchema,
+    await ai.generateJson({
+      task: "translate",
+      system: staffSystemPrompt(language),
+      content: [{ type: "text", text: japanese }],
+      schema: PLAIN_TRANSLATION_JSON_SCHEMA,
+    }),
+  ).translation;
+  const backTranslation = parseOrThrow(
+    leafletTranslationSchema,
+    await ai.generateJson({
+      task: "back_translate",
+      system: backTranslationSystemPrompt(language, "ja"),
+      content: [{ type: "text", text: translation }],
+      schema: PLAIN_TRANSLATION_JSON_SCHEMA,
+    }),
+  ).translation;
+  return { translation, backTranslation, provider: ai.provider };
+}
+
+const leafletTranslationSchema = z.object({ translation: z.string().trim().min(1).max(MAX_LEAFLET_LENGTH * 3) }).strict();

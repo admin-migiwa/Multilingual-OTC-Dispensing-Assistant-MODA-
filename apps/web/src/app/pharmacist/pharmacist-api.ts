@@ -58,6 +58,12 @@ export const pharmacistApi = {
   chooseCandidates: (id: string, drugIds: readonly StockedDrugId[]) => call(`${base(id)}/candidates`, { drugIds }),
   /** PIN で承認し、販売記録を作る（T9a）。PIN は画面に残さない */
   approve: (id: string, pharmacistId: string, pin: string) => call(`${base(id)}/approve`, { pharmacistId, pin }),
+  /** 説明書を作る・印刷する・服薬指導を始める・承認の後の手順の ✓・会計案内へ（T10） */
+  createGuidance: (id: string) => call(`${base(id)}/guidance`, {}),
+  printGuidance: (id: string) => call(`${base(id)}/print`, {}),
+  startCounseling: (id: string) => call(`${base(id)}/counsel`, {}),
+  checkPostStep: (id: string, stepId: string, checked: boolean) => call(`${base(id)}/post-steps`, { stepId, checked }),
+  checkout: (id: string) => call(`${base(id)}/checkout`, {}),
   /** 禁忌を解除する（T9b）。PIN は画面に残さない */
   override: (id: string, input: OverrideInput) => call(`${base(id)}/override`, input),
 };
