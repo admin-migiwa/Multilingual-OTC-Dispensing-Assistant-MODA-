@@ -11,6 +11,15 @@ import { OVERRIDE_REASONS } from "@moda/domain";
 
 import type { SaleRecord } from "@/server/approval";
 
+/** 版を足した理由の表示 */
+const REASON_LABELS: Record<string, string> = {
+  approved: "承認",
+  understanding_confirmed: "理解の確認：済み",
+  approval_cancelled: "承認の取り消し",
+  reapproved: "もう一度の承認",
+  understanding_reset: "理解の確認のやり直し",
+};
+
 function time(iso: string): string {
   return new Date(iso).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" });
 }
@@ -64,6 +73,7 @@ export function SaleRecords() {
             <li key={record.id} className="space-y-2 rounded-2xl border border-slate-200 p-4">
               <p className="font-semibold">
                 {latest ? time(latest.soldAt) : ""} ／ 販売記録 <span className="font-mono text-sm">{record.id}</span>（版{latest?.version}）
+                {latest?.reason === "approval_cancelled" ? <span className="ml-2 rounded bg-red-100 px-2 text-red-900">承認を取り消し中</span> : null}
               </p>
               {latest ? (
                 <>
@@ -95,7 +105,7 @@ export function SaleRecords() {
                       <ol className="list-decimal pl-6">
                         {record.versions.map((v) => (
                           <li key={v.version}>
-                            版{v.version}：{time(v.at)}（{v.reason === "approved" ? "承認" : v.reason}）
+                            版{v.version}：{time(v.at)}（{REASON_LABELS[v.reason] ?? v.reason}）
                           </li>
                         ))}
                       </ol>

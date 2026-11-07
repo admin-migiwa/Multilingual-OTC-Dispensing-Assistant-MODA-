@@ -19,6 +19,7 @@ import {
   assertInterviewComplete,
   assertSaleSelectable,
   saleSelectionsFor,
+  undoStep,
   type StockedDrugId,
 } from "@moda/domain";
 import type { LanguageCode } from "@moda/i18n";
@@ -26,6 +27,7 @@ import type { LanguageCode } from "@moda/i18n";
 import {
   currentRound,
   currentSaleDrugIds,
+  newReviewRound,
   japanDate,
   judgmentsOf,
   overriddenDrugIdsOf,
@@ -50,8 +52,12 @@ export interface SaleItem {
 export interface SaleRecordVersion {
   readonly version: number;
   readonly at: string;
-  /** この版を作った理由（v1 は承認、理解の確認が済んだら understanding_confirmed。T10） */
-  readonly reason: "approved" | "understanding_confirmed";
+  /**
+   * この版を作った理由（v1 は承認、理解の確認が済んだら understanding_confirmed。T10）。
+   * 工程を戻したとき（11/7 依頼主の判断）：承認の取り消し approval_cancelled、もう一度の承認 reapproved、
+   * 理解の確認のやり直し understanding_reset（sale-versions.ts）
+   */
+  readonly reason: "approved" | "understanding_confirmed" | "approval_cancelled" | "reapproved" | "understanding_reset";
   /** 販売日時（承認した時刻） */
   readonly soldAt: string;
   /** 販売・情報提供をした薬剤師（架空の一覧の ID と表示名） */
@@ -140,15 +146,22 @@ export function approveSale(
       quantity,
     };
   });
-  const saleRecord: SaleRecord = {
-    id: deps.newId(),
+  // 承認を取り消したあとの、もう一度の承認：前の販売記録に「reapproved」の版を足す（前の承認と取り消しを残す。ルール6）。
+  // 取り消していない販売記録があるのに承認に来ることはない（状態が承認のあとなので currentRound で止まる）が、念のため止める
+  const previous = record.saleRecord;
+  const previousLatest = previous?.versions.at(-1);
+  if (previous && previousLatest?.reason !== "approval_cancelled") {
+    throw new DomainRuleError("INVALID_TRANSITION", "取り消していない販売記録があります");
+  }
+  const created: SaleRecord = {
+    id: previous?.id ?? deps.newId(),
     sessionId: record.id,
-    createdAt: at,
+    createdAt: previous?.createdAt ?? at,
     versions: [
       {
-        version: 1,
+        version: (previousLatest?.version ?? 0) + 1,
         at,
-        reason: "approved",
+        reason: previous ? "reapproved" : "approved",
         soldAt: at,
         pharmacist: { id: pharmacist.id, name: pharmacist.name },
         items,
@@ -165,12 +178,45 @@ export function approveSale(
       },
     ],
   };
+  const saleRecord: SaleRecord = previous ? { ...previous, versions: [...previous.versions, ...created.versions] } : created;
   const closed = withRound(record, index, { ...round, closedAt: at, saleRecordId: saleRecord.id });
   const moved = moveTo(deps, closed, "approved");
   const next: SessionRecord = {
     ...moved,
     saleRecord,
     events: [...moved.events, event(deps, "approved", [pharmacist.id, saleRecord.id])],
+  };
+  deps.store.set(next);
+  return next;
+}
+
+/**
+ * 承認を取り消す（承認・服薬指導・会計案内 → 薬剤師の確認。11/7 依頼主の判断。PIN は求めない）。
+ * - 販売記録は消さず、「approval_cancelled」の版を足す（ルール6）。もう一度承認すると「reapproved」の版を足す
+ * - 薬剤師の確認を新しく開く（販売する薬・手順の ✓ は選び直し。前の確認は閉じたまま残る）
+ * - もう一度承認するまで、印刷・服薬指導・会計はできない（状態が承認の前に戻るので assertActionAllowed で止まる。ルール1）
+ */
+export function cancelApproval(deps: ServiceDeps, id: string): SessionRecord {
+  const record = load(deps, id);
+  const snapshot = undoStep(record.snapshot, "cancel_approval");
+  const sale = record.saleRecord;
+  const latest = sale?.versions.at(-1);
+  if (!sale || !latest || latest.reason === "approval_cancelled") {
+    throw new DomainRuleError("NOT_APPROVED", "取り消す承認がありません");
+  }
+  const at = deps.now().toISOString();
+  const cancelled: SaleRecordVersion = { ...latest, version: latest.version + 1, at, reason: "approval_cancelled", understanding: "not_yet" };
+  const next: SessionRecord = {
+    ...record,
+    snapshot,
+    saleRecord: { ...sale, versions: [...sale.versions, cancelled] },
+    pharmacistReviews: [...(record.pharmacistReviews ?? []), newReviewRound(at)],
+    events: [
+      ...record.events,
+      event(deps, "approval_cancelled", [sale.id]),
+      event(deps, "sale_record_versioned", [sale.id, String(cancelled.version)]),
+      event(deps, "status_changed", [snapshot.status]),
+    ],
   };
   deps.store.set(next);
   return next;

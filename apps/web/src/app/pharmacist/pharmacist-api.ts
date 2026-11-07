@@ -3,7 +3,7 @@
  * 通信が失敗したら NetworkError、ルールで止まったら RuleError（code つき）を投げる。画面は推測で続けない（ルール7）。
  */
 
-import type { StockedDrugId } from "@moda/domain";
+import type { StockedDrugId, UndoStep } from "@moda/domain";
 
 import type { PharmacistView } from "@/server/pharmacist-service";
 
@@ -55,6 +55,8 @@ export const pharmacistApi = {
   checkStep: (id: string, stepId: string, checked: boolean) => call(`${base(id)}/steps`, { stepId, checked }),
   back: (id: string) => call(`${base(id)}/back`, {}),
   decline: (id: string, reason: string) => call(`${base(id)}/decline`, { reason }),
+  /** 工程を1つ戻す（承認の取り消し・理解の確認のやり直し・会計案内から説明に戻る・「販売しない」の取り消し。11/7 依頼主の判断） */
+  undo: (id: string, step: UndoStep) => call(`${base(id)}/undo`, { step }),
   chooseCandidates: (id: string, drugIds: readonly StockedDrugId[]) => call(`${base(id)}/candidates`, { drugIds }),
   /** PIN で承認し、販売記録を作る（T9a）。PIN は画面に残さない */
   approve: (id: string, pharmacistId: string, pin: string) => call(`${base(id)}/approve`, { pharmacistId, pin }),

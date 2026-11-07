@@ -22,6 +22,7 @@ import {
   proceedToCheckout,
   saleSelectionsFor,
   transition,
+  undoStep,
   type DrugJudgment,
   type RequiredProcedure,
   type StockedDrugId,
@@ -31,6 +32,7 @@ import type { LanguageCode } from "@moda/i18n";
 import type { AiClient } from "./ai/index.ts";
 import type { SaleRecord, SaleRecordVersion } from "./approval.ts";
 import { currentRound, currentSaleDrugIds, judgmentsOf, overriddenDrugIdsOf } from "./pharmacist-service.ts";
+import { activeApproval } from "./sale-versions.ts";
 import { event, load, moveTo, SessionServiceError, type ServiceDeps, type SessionRecord } from "./session-service.ts";
 import { translateLeaflet } from "./translation.ts";
 
@@ -192,9 +194,13 @@ export type FeedbackRating = (typeof FEEDBACK_RATINGS)[number];
 
 // ---------------------------------------------------------------------------
 
+/**
+ * 販売記録と、今の承認の版（v1。承認を取り消してもう一度承認したときは、その版。sale-versions.ts）と、最後の版。
+ * 承認を取り消している間は、承認の前と同じに扱って止める（ルール1）
+ */
 function saleOf(record: SessionRecord): { sale: SaleRecord; v1: SaleRecordVersion; latest: SaleRecordVersion } {
   const sale = record.saleRecord;
-  const v1 = sale?.versions[0];
+  const v1 = activeApproval(sale);
   const latest = sale?.versions.at(-1);
   if (!sale || !v1 || !latest) throw new DomainRuleError("NOT_APPROVED", "販売記録がありません（承認の前です）");
   return { sale, v1, latest };
@@ -243,7 +249,7 @@ export function isGuidanceFresh(record: SessionRecord, guidance: GuidanceRecord)
 
 /** 説明書に書く「禁忌を解除した薬」：承認のあとは販売記録に残した解除、承認の前は今の確認の中の解除 */
 function overriddenForLeaflet(record: SessionRecord): StockedDrugId[] {
-  const v1 = record.saleRecord?.versions[0];
+  const v1 = activeApproval(record.saleRecord);
   if (v1) return [...new Set(v1.overrides.map((o) => o.drugId))];
   if (record.snapshot.status === "pharmacist_review") return overriddenDrugIdsOf(currentRound(record).round);
   return [];
@@ -257,8 +263,9 @@ export function currentGuidance(record: SessionRecord): GuidanceRecord | null {
   const latest = record.guidances?.at(-1);
   if (!latest) return null;
   let drugIds: readonly StockedDrugId[];
-  if (record.saleRecord) {
-    drugIds = record.saleRecord.versions[0]?.items.map((i) => i.drugId) ?? [];
+  const approval = activeApproval(record.saleRecord);
+  if (approval) {
+    drugIds = approval.items.map((i) => i.drugId);
   } else {
     if (record.snapshot.status !== "pharmacist_review") return null;
     drugIds = currentSaleDrugIds(currentRound(record).round);
@@ -391,10 +398,45 @@ export function checkPostApprovalStep(deps: ServiceDeps, id: string, stepId: str
 export function completedStepsAfterApproval(record: SessionRecord): string[] {
   const { v1, latest } = saleOf(record);
   const latestCheck = new Map<string, boolean>();
-  for (const c of record.postApprovalChecks ?? []) latestCheck.set(c.stepId, c.checked);
+  // 今の承認のあとの ✓ だけを見る（承認を取り消す前の ✓ は使わない）
+  for (const c of record.postApprovalChecks ?? []) if (c.at >= v1.at) latestCheck.set(c.stepId, c.checked);
   const done = [...v1.completedStepIds, ...[...latestCheck].filter(([, ok]) => ok).map(([stepId]) => stepId)];
   if (latest.understanding === "confirmed") done.push("understanding_check");
   return done;
+}
+
+/**
+ * 理解の確認をやり直す（服薬指導中で、確認が済んだあと。11/7 依頼主の判断。PIN は求めない）。
+ * 販売記録に「understanding_reset」の版を足し（理解の確認：未。ルール6）、状態の写しも未に戻す。会計案内には進めなくなる
+ */
+export function resetUnderstanding(deps: ServiceDeps, id: string): SessionRecord {
+  const record = load(deps, id);
+  assertActionAllowed(record.snapshot.status, "counsel");
+  const snapshot = undoStep(record.snapshot, "reset_understanding");
+  const { sale, latest } = saleOf(record);
+  if (latest.understanding !== "confirmed") {
+    throw new DomainRuleError("INVALID_TRANSITION", "理解の確認はまだ済んでいません");
+  }
+  const at = deps.now().toISOString();
+  const reset: SaleRecordVersion = { ...latest, version: latest.version + 1, at, reason: "understanding_reset", understanding: "not_yet" };
+  const next: SessionRecord = {
+    ...record,
+    snapshot,
+    saleRecord: { ...sale, versions: [...sale.versions, reset] },
+    events: [...record.events, event(deps, "understanding_reset"), event(deps, "sale_record_versioned", [sale.id, String(reset.version)])],
+  };
+  deps.store.set(next);
+  return next;
+}
+
+/** 会計案内から服薬指導に戻る（checkout → counseling。11/7 依頼主の判断）。理解の確認・販売記録はそのまま */
+export function backToCounseling(deps: ServiceDeps, id: string): SessionRecord {
+  const record = load(deps, id);
+  assertActionAllowed(record.snapshot.status, "checkout");
+  const snapshot = undoStep(record.snapshot, "back_to_counseling");
+  const next: SessionRecord = { ...record, snapshot, events: [...record.events, event(deps, "status_changed", [snapshot.status])] };
+  deps.store.set(next);
+  return next;
 }
 
 /** 会計案内に進む（counseling → checkout）。会計の前の手順と理解の確認がそろわないと止まる（S03・S05。C-01） */

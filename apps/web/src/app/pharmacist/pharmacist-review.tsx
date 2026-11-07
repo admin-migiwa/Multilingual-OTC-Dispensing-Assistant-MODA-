@@ -12,7 +12,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-import { OVERRIDE_REASONS, type InterviewAnswers, type QuestionId, type SessionStatus, type StockedDrugId } from "@moda/domain";
+import { OVERRIDE_REASONS, type InterviewAnswers, type QuestionId, type SessionStatus, type StockedDrugId, type UndoStep } from "@moda/domain";
 import { LANGUAGES } from "@moda/i18n";
 
 import { NetworkError, RuleError } from "../session-api";
@@ -344,6 +344,7 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
             if (done) window.location.assign(patientUrl);
           }}
           onDecline={() => void run(() => pharmacistApi.decline(sessionId, reason))}
+          onUndo={(step) => void run(() => pharmacistApi.undo(sessionId, step))}
           onApprove={(pharmacistId, pin) => void run(() => pharmacistApi.approve(sessionId, pharmacistId, pin))}
           onOverride={(input) => void run(() => pharmacistApi.override(sessionId, input))}
           onGuidance={(action) => {
@@ -399,6 +400,7 @@ function ReviewBody({
   onOverride,
   onGuidance,
   onPostStep,
+  onUndo,
 }: {
   view: PharmacistView;
   busy: boolean;
@@ -414,12 +416,14 @@ function ReviewBody({
   onOverride: (input: OverrideInput) => void;
   onGuidance: (action: GuidanceAction) => void;
   onPostStep: (stepId: string, checked: boolean) => void;
+  onUndo: (step: UndoStep) => void;
 }) {
   if (view.saleRecord !== null && ["approved", "counseling", "checkout", "completed"].includes(view.status)) {
     return (
       <>
         <ApprovedSummary view={view} patientUrl={patientUrl} />
         <AfterApprovalSection view={view} busy={busy} onGuidance={onGuidance} onPostStep={onPostStep} />
+        <UndoSection view={view} busy={busy} onUndo={onUndo} />
       </>
     );
   }
@@ -433,6 +437,7 @@ function ReviewBody({
         <a href={patientUrl} className="inline-block rounded-xl border-2 border-slate-300 px-4 py-2 font-semibold">
           患者さんの画面に戻る
         </a>
+        <UndoSection view={view} busy={busy} onUndo={onUndo} />
       </Section>
     );
   }
@@ -842,6 +847,51 @@ function ApproveSection({
         承認すると、同時に販売記録ができます（あとから書き換えず、直すときは新しい版を足します）。承認の後の手順（書面を渡す・理解の確認など）と説明書の印刷は、次の作業（T10）で作ります。
       </p>
     </Section>
+  );
+}
+
+/**
+ * 工程を1つ戻す（11/7 依頼主の判断：どの工程でも間違いは起こりうる。PIN は求めない）。
+ * どの状態から戻せるかはサーバー（packages/domain の undoStep）が決める。販売記録は消さずに版を足す（ルール6）
+ */
+function UndoSection({ view, busy, onUndo }: { view: PharmacistView; busy: boolean; onUndo: (step: UndoStep) => void }) {
+  const buttons: { step: UndoStep; label: string; confirm: string }[] = [];
+  if (view.status === "counseling" && view.afterApproval?.understanding === "confirmed") {
+    buttons.push({ step: "reset_understanding", label: "理解の確認をやり直す", confirm: "理解の確認を「未」に戻して、患者さんにもう一度聞きます。よろしいですか？" });
+  }
+  if (view.status === "checkout") {
+    buttons.push({ step: "back_to_counseling", label: "会計案内から説明に戻る", confirm: "会計案内をやめて、説明書と理解の確認の画面に戻ります。よろしいですか？" });
+  }
+  if (["approved", "counseling", "checkout"].includes(view.status)) {
+    buttons.push({
+      step: "cancel_approval",
+      label: "承認を取り消す（薬剤師の確認に戻る）",
+      confirm: "承認を取り消して、薬剤師の確認に戻ります。販売記録には「取り消し」の版が残ります。もう一度承認するまで、説明書の印刷や会計はできません。よろしいですか？",
+    });
+  }
+  if (view.status === "declined") {
+    buttons.push({ step: "cancel_decline", label: "「販売しない」を取り消す（薬剤師の確認に戻る）", confirm: "「販売しない」を取り消して、薬剤師の確認に戻ります。よろしいですか？" });
+  }
+  if (buttons.length === 0) return null;
+  return (
+    <div className="space-y-2 rounded-xl border border-slate-300 bg-slate-50 p-3">
+      <p className="text-sm font-semibold text-slate-700">工程を戻す（押し間違いのとき）</p>
+      <div className="flex flex-wrap gap-3">
+        {buttons.map((b) => (
+          <button
+            key={b.step}
+            type="button"
+            disabled={busy}
+            onClick={() => {
+              if (window.confirm(b.confirm)) onUndo(b.step);
+            }}
+            className="min-h-11 rounded-xl border-2 border-slate-400 bg-white px-4 py-2 font-semibold hover:bg-slate-100 disabled:opacity-50"
+          >
+            ← {b.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 
