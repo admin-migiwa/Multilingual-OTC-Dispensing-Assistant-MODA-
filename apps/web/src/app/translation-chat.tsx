@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 
 import { detectEmergency, type EmergencyHit } from "@moda/domain";
 import { getLanguage, type LanguageCode } from "@moda/i18n";
@@ -34,11 +34,30 @@ interface TranslationResponse {
   readonly view: SessionStatusView;
 }
 
+/** 画面に出す会話の1回分（いま訳したもの、またはサーバーの記録から読んだもの） */
 interface ChatEntry {
-  readonly id: number;
+  readonly id: string;
   readonly direction: "to_ja" | "to_patient";
   readonly original: string;
-  readonly result: TranslationResponse;
+  readonly translation: string;
+  readonly backTranslation: string;
+  readonly provider: "mock" | "anthropic";
+  readonly ruleIds: readonly string[];
+  readonly labelsJa: readonly string[];
+}
+
+/** サーバーに残したチャットの記録（/api/sessions/[id]/chat-log。backlog S-13） */
+interface ChatLogResponse {
+  readonly entries: readonly {
+    readonly at: string;
+    readonly direction: "to_ja" | "to_patient";
+    readonly original: string;
+    readonly translation: string;
+    readonly backTranslation: string;
+    readonly provider: "mock" | "anthropic";
+    readonly emergencyRuleIds: readonly string[];
+    readonly emergencyLabelsJa: readonly string[];
+  }[];
 }
 
 export type ChatEmergency =
@@ -77,6 +96,48 @@ export function TranslationChat({
   const [direction, setDirection] = useState<"to_ja" | "to_patient">("to_ja");
   const [text, setText] = useState("");
   const [entries, setEntries] = useState<readonly ChatEntry[]>([]);
+  /** 前の会話（サーバーの記録）を読めなかったとき */
+  const [historyFailed, setHistoryFailed] = useState(false);
+  /** 前の会話を読み終えたか（読み終えるまでは送らない。同じ文が二重に並ばないように） */
+  const [historyReady, setHistoryReady] = useState(false);
+
+  // 前の会話をサーバーの記録から読んで出す（画面を移っても会話が消えないように。11/7 依頼主の判断。backlog S-13）
+  useEffect(() => {
+    let cancelled = false;
+    // 接客が変わったら、前の接客の会話を出さない
+    setEntries([]);
+    setHistoryReady(false);
+    setHistoryFailed(false);
+    fetch(`/api/sessions/${encodeURIComponent(sessionId)}/chat-log`, { cache: "no-store" })
+      .then(async (response) => {
+        if (!response.ok) throw new Error(String(response.status));
+        return (await response.json()) as ChatLogResponse;
+      })
+      .then((data) => {
+        if (cancelled) return;
+        const loaded: ChatEntry[] = data.entries.map((e, i) => ({
+          id: `log-${i}`,
+          direction: e.direction,
+          original: e.original,
+          translation: e.translation,
+          backTranslation: e.backTranslation,
+          provider: e.provider,
+          ruleIds: e.emergencyRuleIds,
+          labelsJa: e.emergencyLabelsJa,
+        }));
+        setEntries(loaded);
+        setHistoryReady(true);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setHistoryFailed(true);
+          setHistoryReady(true); // 前の会話が読めなくても、新しい会話はできるようにする（読めなかったことは画面に出す）
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [sessionId]);
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const patientLanguage = getLanguage(language);
@@ -102,10 +163,16 @@ export function TranslationChat({
     if (!sent || sending) return;
     setError(null);
 
-    // 患者さんの文は、送る前に端末の中で緊急キーワードを照合する（通信に頼らない）
+    // 患者さんの文は、送る前に端末の中で緊急キーワードを照合する（通信に頼らない）。
+    // 前の会話を読み込んでいる途中でも、緊急の照合だけは先に行う（CLAUDE.md ルール2）
     if (direction === "to_ja" && !emergencyCleared) {
       const local = detectEmergency(sent, { language, age });
       if (local.isEmergency) onEmergency({ kind: "keyword", text: sent, hits: local.hits });
+    }
+    if (!historyReady) {
+      // 前の会話を読み終えるまでは訳さない（同じ文が二重に並ばないように）。入力した文は残す
+      setError("前の会話を読み込んでいます。少し待ってから、もう一度押してください。");
+      return;
     }
 
     setSending(true);
@@ -122,7 +189,19 @@ export function TranslationChat({
         return;
       }
       const result = body as TranslationResponse;
-      setEntries((previous) => [...previous, { id: previous.length + 1, direction, original: sent, result }]);
+      setEntries((previous) => [
+        ...previous,
+        {
+          id: `new-${previous.length + 1}`,
+          direction,
+          original: sent,
+          translation: result.translation,
+          backTranslation: result.backTranslation,
+          provider: result.provider,
+          ruleIds: result.emergency.ruleIds,
+          labelsJa: result.emergency.labelsJa,
+        },
+      ]);
       setText("");
       // この翻訳で止めたとき、またはすでに止まっていて緊急の項目が当てはまったとき（送り直しなど）
       const newlyInReview = result.view.status === "emergency_review" && !emergencyReviewOpen;
@@ -144,21 +223,24 @@ export function TranslationChat({
         <span className="rounded-full bg-amber-100 px-3 py-1 text-sm font-semibold text-amber-900">
           参考訳（AI の訳）
         </span>
-        {entries.some((entry) => entry.result.provider === "mock") ? (
+        {entries.some((entry) => entry.provider === "mock") ? (
           <span className="rounded-full bg-slate-200 px-3 py-1 text-sm text-slate-700">仮の AI（開発用）</span>
         ) : null}
       </header>
 
+      {historyFailed ? (
+        <p lang="ja" className="text-sm text-red-700">前の会話の記録を読み込めませんでした（新しい会話はできます）。</p>
+      ) : null}
       <ol className="space-y-3">
         {entries.map((entry) => (
           <li key={entry.id} className="space-y-2 rounded-xl bg-slate-50 p-3">
             {entry.direction === "to_ja" ? (
               <>
                 <Line label={`患者さん（${patientLanguage.japaneseName}）`} text={entry.original} lang={language} />
-                <Line label="日本語の参考訳（AI の訳）" text={entry.result.translation} lang="ja" strong />
+                <Line label="日本語の参考訳（AI の訳）" text={entry.translation} lang="ja" strong />
                 <Line
                   label={`確認用：${patientLanguage.japaneseName}に訳し戻した文（患者さんが見て確かめる）`}
-                  text={entry.result.backTranslation}
+                  text={entry.backTranslation}
                   lang={language}
                 />
               </>
@@ -167,16 +249,16 @@ export function TranslationChat({
                 <Line label="薬剤師（日本語）" text={entry.original} lang="ja" />
                 <Line
                   label={`${patientLanguage.japaneseName}の参考訳（AI の訳）`}
-                  text={entry.result.translation}
+                  text={entry.translation}
                   lang={language}
                   strong
                 />
-                <Line label="確認用：日本語に訳し戻した文（薬剤師が見て確かめる）" text={entry.result.backTranslation} lang="ja" />
+                <Line label="確認用：日本語に訳し戻した文（薬剤師が見て確かめる）" text={entry.backTranslation} lang="ja" />
               </>
             )}
-            {entry.result.emergency.ruleIds.length > 0 ? (
+            {entry.ruleIds.length > 0 ? (
               <p lang="ja" className="rounded-lg bg-red-100 px-3 py-2 text-sm font-semibold text-red-900">
-                緊急症状の可能性：{entry.result.emergency.ruleIds.join("・")}（{entry.result.emergency.labelsJa.join("／")}）
+                緊急症状の可能性：{entry.ruleIds.join("・")}（{entry.labelsJa.join("／")}）
               </p>
             ) : null}
           </li>
