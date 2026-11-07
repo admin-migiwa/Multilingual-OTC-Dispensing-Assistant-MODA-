@@ -207,8 +207,18 @@ export function LanguageStart() {
     ? null
     : trail.length > 0
       ? () => {
-          setRevisit(trail[trail.length - 1] ?? null);
-          setTrail(trail.slice(0, -1));
+          if (busy) return; // 通信の途中に戻ると、覚えている画面の順番がずれるため
+          // 薬を選んだあとは、流れ（ほしい薬がある／症状から探す）を選び直せない（サーバーの chooseRoute が受け付けない）。
+          // その画面は飛ばして、さらに前に戻る
+          const drugChosen = view.selectedDrugs.length > 0;
+          let rest = trail;
+          let target: Step | undefined;
+          do {
+            target = rest[rest.length - 1];
+            rest = rest.slice(0, -1);
+          } while (drugChosen && target !== undefined && (target.kind === "choose" || target.kind === "symptom"));
+          setRevisit(target ?? null);
+          setTrail(rest);
           setMode("questions");
           setNotUnderstood(false);
         }
@@ -422,11 +432,7 @@ export function LanguageStart() {
               setMode("questions");
               void run(
                 () => sessionApi.chooseRoute(view.id, "product"),
-                (next) => {
-                  stepForward({ kind: "choose" });
-                  // 前に選んだ薬が残っていれば、薬の選び直しの画面を出す（そのまま選べば問診の続きに進む）
-                  if (next.selectedDrugs.length > 0) setRevisit({ kind: "drug" });
-                },
+                () => stepForward({ kind: "choose" }),
               );
             }}
             onChatEmergency={onChatEmergency}
