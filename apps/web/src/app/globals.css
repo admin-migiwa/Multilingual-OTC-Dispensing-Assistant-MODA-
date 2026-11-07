@@ -4,6 +4,23 @@
   color-scheme: light;
 }
 
+/* 説明書の印刷（T10）：印刷のときは説明書の部分だけを出す */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-leaflet,
+  .print-leaflet * {
+    visibility: visible;
+  }
+  .print-leaflet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+  }
+}
+
 body {
   /* 9言語の文字をきれいに表示するため、各言語に対応したフォントを並べる */
   font-family:

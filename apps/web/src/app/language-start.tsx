@@ -349,6 +349,14 @@ export function LanguageStart() {
               void run(() => sessionApi.chooseRoute(view.id, "product"));
             }}
             onChatEmergency={onChatEmergency}
+            onUnderstanding={(answer) => {
+              if (view === null) return;
+              void run(() => sessionApi.answerUnderstanding(view.id, answer));
+            }}
+            onFeedback={(rating) => {
+              if (view === null) return;
+              void run(() => sessionApi.giveFeedback(view.id, rating));
+            }}
             onSymptom={(text: string) => {
               if (view === null) return;
               if (checkFreeText(text)) return; // 緊急キーワードに当てはまったら、緊急の確認に切り替わる
@@ -437,6 +445,8 @@ function PatientBody({
   onSymptom,
   onFreeText,
   onChatEmergency,
+  onUnderstanding,
+  onFeedback,
 }: {
   language: LanguageCode;
   view: PatientView | null;
@@ -449,8 +459,15 @@ function PatientBody({
   onSymptom: (text: string) => void;
   onFreeText: (text: string) => boolean;
   onChatEmergency: (found: ChatEmergency) => void;
+  onUnderstanding: (answer: "understood" | "partly" | "not_understood") => void;
+  onFeedback: (rating: "good" | "fair" | "poor") => void;
 }) {
-  const body = (
+  // 承認のあと（T10）：説明書・理解の確認・会計案内と評価。承認の前には出さない（状態はサーバーが決める。ルール1）
+  const afterApproval =
+    view !== null && ["approved", "counseling", "checkout", "completed"].includes(view.status) ? (
+      <AfterApprovalPatient language={language} view={view} busy={busy} onUnderstanding={onUnderstanding} onFeedback={onFeedback} />
+    ) : null;
+  const body = afterApproval ?? (
     <PatientBodyMain
       language={language}
       view={view}
@@ -831,5 +848,115 @@ function NetworkDown({
         </button>
       </div>
     </section>
+  );
+}
+
+/**
+ * 承認のあとの患者さんの画面（T10）。
+ * - approved：薬剤師が説明書を用意している間は「確認しています」
+ * - counseling：患者さんの言語の説明書（参考訳。日本語の原文も開ける）と「説明はわかりましたか？」
+ * - checkout：お会計の案内と評価。completed：お礼とお会計の案内
+ */
+function AfterApprovalPatient({
+  language,
+  view,
+  busy,
+  onUnderstanding,
+  onFeedback,
+}: {
+  language: LanguageCode;
+  view: PatientView;
+  busy: boolean;
+  onUnderstanding: (answer: "understood" | "partly" | "not_understood") => void;
+  onFeedback: (rating: "good" | "fair" | "poor") => void;
+}) {
+  const t = getMessages(language);
+  const choice =
+    "w-full rounded-2xl border-2 border-slate-200 px-5 py-4 text-left text-xl font-semibold hover:border-teal-600 hover:bg-teal-50 disabled:opacity-50";
+  const pharmacistLink = (
+    <a
+      lang="ja"
+      href={`/pharmacist/${encodeURIComponent(view.id)}`}
+      className="inline-block rounded-lg border border-teal-400 bg-white px-3 py-1.5 text-xs font-semibold text-teal-900 hover:bg-teal-100"
+    >
+      薬剤師用：確認の画面を開く
+    </a>
+  );
+
+  if (view.status === "approved") {
+    return (
+      <div className="space-y-4 rounded-2xl bg-teal-50 px-5 py-6">
+        <p className="text-lg">{t.pharmacist.waiting}</p>
+        {pharmacistLink}
+      </div>
+    );
+  }
+
+  if (view.status === "counseling") {
+    const guidance = view.guidance;
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">{t.guidance.title}</h1>
+        {guidance ? (
+          <>
+            {guidance.printed ? <p className="text-lg">{t.guidance.printed}</p> : null}
+            <p className="whitespace-pre-wrap rounded-2xl bg-slate-50 px-5 py-4 text-lg leading-relaxed">{guidance.translation}</p>
+            <details lang="ja" className="text-sm text-slate-600">
+              <summary>日本語の原文（説明書）</summary>
+              <p className="mt-2 whitespace-pre-wrap">{guidance.japanese}</p>
+            </details>
+          </>
+        ) : null}
+        {view.understandingConfirmed ? (
+          <div className="space-y-3 rounded-2xl bg-teal-50 px-5 py-4">
+            <p className="text-lg">{t.pharmacist.waiting}</p>
+            {pharmacistLink}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <h2 className="text-2xl font-bold">{t.guidance.understandQuestion}</h2>
+            <button type="button" disabled={busy} onClick={() => onUnderstanding("understood")} className={choice}>
+              {t.guidance.understandOptions.understood}
+            </button>
+            <button type="button" disabled={busy} onClick={() => onUnderstanding("partly")} className={choice}>
+              {t.guidance.understandOptions.partly}
+            </button>
+            <button type="button" disabled={busy} onClick={() => onUnderstanding("not_understood")} className={choice}>
+              {t.guidance.understandOptions.notUnderstood}
+            </button>
+            <p className="text-base text-slate-600">{t.guidance.askAgain}</p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (view.status === "checkout") {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-3xl font-bold">{t.checkout.title}</h1>
+        <p className="text-xl">{t.checkout.body}</p>
+        <div className="space-y-3">
+          <h2 className="text-2xl font-bold">{t.feedback.question}</h2>
+          <button type="button" disabled={busy} onClick={() => onFeedback("good")} className={choice}>
+            {t.feedback.options.good}
+          </button>
+          <button type="button" disabled={busy} onClick={() => onFeedback("fair")} className={choice}>
+            {t.feedback.options.fair}
+          </button>
+          <button type="button" disabled={busy} onClick={() => onFeedback("poor")} className={choice}>
+            {t.feedback.options.poor}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // completed
+  return (
+    <div className="space-y-4 rounded-2xl bg-teal-50 px-5 py-6">
+      <p className="text-2xl font-bold">{t.feedback.title}</p>
+      <p className="text-xl">{t.checkout.body}</p>
+    </div>
   );
 }
