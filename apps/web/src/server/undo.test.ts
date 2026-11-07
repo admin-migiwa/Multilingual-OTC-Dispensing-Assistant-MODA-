@@ -146,6 +146,23 @@ describe("承認を取り消す（11/7 依頼主の判断）", () => {
     assert.ok(!done.includes("understanding_check"));
     assertError(() => proceedCheckout(deps, id), "PROCEDURE_INCOMPLETE_FOR_CHECKOUT");
   });
+
+  it("取り消す前に印刷していても、もう一度承認して作った説明書は「印刷済み」にならない", async () => {
+    const deps = testDeps();
+    const id = await counseled(deps);
+    printGuidance(deps, id);
+    cancelApproval(deps, id);
+    chooseSaleDrugs(deps, id, ["C"]);
+    checkProcedureStep(deps, id, "written_information_prepared", true);
+    approve(deps, id);
+    await createGuidance(deps, ai, id);
+    startCounseling(deps, id);
+    const record = getSession(deps, id);
+    assert.equal(patientView(record).guidance?.printed, false);
+    assert.equal(pharmacistView(record, new Date()).afterApproval?.printed, false);
+    printGuidance(deps, id);
+    assert.equal(patientView(getSession(deps, id)).guidance?.printed, true);
+  });
 });
 
 describe("理解の確認をやり直す・会計案内から説明に戻る（11/7 依頼主の判断）", () => {

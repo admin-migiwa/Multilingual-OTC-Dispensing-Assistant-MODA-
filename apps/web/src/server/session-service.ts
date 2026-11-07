@@ -385,7 +385,8 @@ function patientGuidance(record: SessionRecord): PatientView["guidance"] {
     translation: latest.translation,
     japanese: latest.japanese,
     provider: latest.provider,
-    printed: record.events.some((e) => e.type === "guidance_printed"),
+    // 今の説明書を作ったあとの印刷だけを見る（承認を取り消す前の印刷を数えない）
+    printed: record.events.some((e) => e.type === "guidance_printed" && e.at >= latest.at),
   };
 }
 

@@ -585,7 +585,8 @@ function afterApprovalOf(record: SessionRecord): PharmacistView["afterApproval"]
     steps,
     understanding: latest.understanding,
     lastNotUnderstood: last !== null && last !== "understood" ? last : null,
-    printed: record.events.some((e) => e.type === "guidance_printed"),
+    // 今の説明書を作ったあとの印刷だけを見る（承認を取り消す前の印刷を数えない）
+    printed: printedSince(record, currentGuidance(record)?.at ?? null),
     feedback: record.feedback?.rating ?? null,
   };
 }
@@ -598,4 +599,9 @@ function candidatesOf(record: SessionRecord): PharmacistView["candidates"] {
     if (!drug) throw new DomainRuleError("UNKNOWN_DRUG", `取扱薬 ${preview.drugId} が見つかりません`);
     return { ...preview, name: drug.name, classification: drug.classification, info: drugInfoOf(drug.id, record.interview.answers.age) };
   });
+}
+
+/** その時刻（今の説明書を作った時刻）より後に印刷したか。説明書がなければ false */
+function printedSince(record: SessionRecord, since: string | null): boolean {
+  return since !== null && record.events.some((e) => e.type === "guidance_printed" && e.at >= since);
 }
