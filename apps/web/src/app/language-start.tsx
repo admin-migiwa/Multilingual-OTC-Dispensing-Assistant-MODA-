@@ -11,6 +11,7 @@ import { ProductFinder } from "./product-finder";
 import { QuestionInput } from "./question-input";
 import { ReferralGuide } from "./referral-guide";
 import { RuleError, sessionApi, type PatientView } from "./session-api";
+import { StaffAfterApprovalPanel } from "./staff-after-approval";
 import { TranslationChat, type ChatEmergency } from "./translation-chat";
 
 /**
@@ -33,6 +34,8 @@ export function LanguageStart() {
   const [view, setView] = useState<PatientView | null>(null);
   const [mode, setMode] = useState<Mode>("questions");
   const [busy, setBusy] = useState(false);
+  /** サーバーから新しい内容を受け取った回数（薬剤師用の欄に読み直しを知らせる） */
+  const [revision, setRevision] = useState(0);
   const [networkDown, setNetworkDown] = useState(false);
   const [notUnderstood, setNotUnderstood] = useState(false);
   /** 接客の記録がなくなった（サーバーの再起動など）か、終了済み。最初からやり直すしかない */
@@ -67,6 +70,7 @@ export function LanguageStart() {
     try {
       const next = await action();
       setView(next);
+      setRevision((r) => r + 1);
       // 緊急キーワードの確認に使う年齢は、サーバーが受け取った答えにそろえる（断られた値を端末に残さない。C-13）
       age.current = next.age ?? undefined;
       setNetworkDown(false);
@@ -357,6 +361,12 @@ export function LanguageStart() {
               if (view === null) return;
               void run(() => sessionApi.giveFeedback(view.id, rating));
             }}
+            revision={revision}
+            onReload={() => {
+              if (view === null) return;
+              const id = view.id;
+              void run(() => sessionApi.get(id));
+            }}
             onSymptom={(text: string) => {
               if (view === null) return;
               if (checkFreeText(text)) return; // 緊急キーワードに当てはまったら、緊急の確認に切り替わる
@@ -447,6 +457,8 @@ function PatientBody({
   onChatEmergency,
   onUnderstanding,
   onFeedback,
+  revision,
+  onReload,
 }: {
   language: LanguageCode;
   view: PatientView | null;
@@ -461,11 +473,21 @@ function PatientBody({
   onChatEmergency: (found: ChatEmergency) => void;
   onUnderstanding: (answer: "understood" | "partly" | "not_understood") => void;
   onFeedback: (rating: "good" | "fair" | "poor") => void;
+  revision: number;
+  onReload: () => void;
 }) {
   // 承認のあと（T10）：説明書・理解の確認・会計案内と評価。承認の前には出さない（状態はサーバーが決める。ルール1）
   const afterApproval =
     view !== null && ["approved", "counseling", "checkout", "completed"].includes(view.status) ? (
-      <AfterApprovalPatient language={language} view={view} busy={busy} onUnderstanding={onUnderstanding} onFeedback={onFeedback} />
+      <AfterApprovalPatient
+        language={language}
+        view={view}
+        busy={busy}
+        onUnderstanding={onUnderstanding}
+        onFeedback={onFeedback}
+        revision={revision}
+        onReload={onReload}
+      />
     ) : null;
   const body = afterApproval ?? (
     <PatientBodyMain
@@ -854,7 +876,8 @@ function NetworkDown({
 /**
  * 承認のあとの患者さんの画面（T10）。
  * - approved：薬剤師が説明書を用意している間は「確認しています」
- * - counseling：患者さんの言語の説明書（参考訳。日本語の原文も開ける）と「説明はわかりましたか？」
+ * - counseling：患者さんの言語の説明書（参考訳。日本語の原文も開ける）と「説明はわかりましたか？」。
+ *   下に日本語の「薬剤師用」の欄を置き、薬剤師の画面に戻らずに会計の前の手順の ✓ と会計案内に進める（11/7 依頼主の判断）
  * - checkout：お会計の案内と評価。completed：お礼とお会計の案内
  */
 function AfterApprovalPatient({
@@ -863,12 +886,16 @@ function AfterApprovalPatient({
   busy,
   onUnderstanding,
   onFeedback,
+  revision,
+  onReload,
 }: {
   language: LanguageCode;
   view: PatientView;
   busy: boolean;
   onUnderstanding: (answer: "understood" | "partly" | "not_understood") => void;
   onFeedback: (rating: "good" | "fair" | "poor") => void;
+  revision: number;
+  onReload: () => void;
 }) {
   const t = getMessages(language);
   const choice =
@@ -910,7 +937,6 @@ function AfterApprovalPatient({
         {view.understandingConfirmed ? (
           <div className="space-y-3 rounded-2xl bg-teal-50 px-5 py-4">
             <p className="text-lg">{t.pharmacist.waiting}</p>
-            {pharmacistLink}
           </div>
         ) : (
           <div className="space-y-3">
@@ -927,6 +953,8 @@ function AfterApprovalPatient({
             <p className="text-base text-slate-600">{t.guidance.askAgain}</p>
           </div>
         )}
+        {/* 薬剤師用（日本語・たたんでおく）：薬剤師の画面に戻らずに、会計の前の手順の ✓ と会計案内に進む（11/7 依頼主の判断） */}
+        <StaffAfterApprovalPanel sessionId={view.id} refreshKey={String(revision)} onCheckout={onReload} />
       </div>
     );
   }
