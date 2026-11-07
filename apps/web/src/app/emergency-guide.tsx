@@ -237,7 +237,7 @@ export function EmergencyGuide({
  * 参考になるページ（docs/demo-data/emergency.md の EP01〜EP03。11/6 依頼主の判断）。
  * URL はどの言語でも同じなので、ここに1か所だけ置く。説明の文は packages/i18n の emergency にある。
  */
-const INFO_PAGES = [
+export const INFO_PAGES = [
   // EP01（EN01 の119番）：総務省消防庁「救急車利用マニュアル」
   { label: "ambulanceGuidePage", url: "https://www.fdma.go.jp/publication/portal/post2.html" },
   // EP02（EN04）：JNTO「Japan Visitor Hotline」の案内

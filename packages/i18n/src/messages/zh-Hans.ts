@@ -137,7 +137,13 @@ export const zhHans: Messages = {
   },
   pharmacist: {
     waiting: "药剂师正在确认内容，请稍候。",
-    notForSale: "非常抱歉。以您目前的状况，本店的非处方药无法满足您的需要。建议您到医院或诊所就诊。",
+  },
+  referral: {
+    title: "请到医院或诊所就诊",
+    body: "非常抱歉。以您目前的状况，本店的非处方药无法满足您的需要。建议您到医院或诊所就诊。",
+    tellDoctor: "就诊时，请告诉医生您今天的症状和目前正在服用的药。如有用药记录手册，请一并携带。",
+    consultTitle: "可以用日语以外的语言咨询的地方",
+    askStaff: "如有不明白的地方，请询问工作人员。",
   },
   guidance: {
     title: "用药说明",

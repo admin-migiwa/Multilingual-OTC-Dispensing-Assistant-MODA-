@@ -137,7 +137,13 @@ export const zhHant: Messages = {
   },
   pharmacist: {
     waiting: "藥劑師正在確認內容，請稍候。",
-    notForSale: "非常抱歉。以您目前的狀況，本店的成藥無法滿足您的需要。建議您到醫院或診所就診。",
+  },
+  referral: {
+    title: "請到醫院或診所就診",
+    body: "非常抱歉。以您目前的狀況，本店的成藥無法滿足您的需要。建議您到醫院或診所就診。",
+    tellDoctor: "就診時，請告訴醫師您今天的症狀和目前正在服用的藥。如有用藥紀錄手冊，請一併攜帶。",
+    consultTitle: "可以用日語以外的語言諮詢的地方",
+    askStaff: "如有不明白的地方，請詢問工作人員。",
   },
   guidance: {
     title: "用藥說明",

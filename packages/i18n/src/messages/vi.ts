@@ -137,7 +137,13 @@ export const vi: Messages = {
   },
   pharmacist: {
     waiting: "Dược sĩ đang kiểm tra câu trả lời của bạn. Vui lòng chờ một chút.",
-    notForSale: "Chúng tôi rất tiếc. Với tình trạng hiện tại của bạn, cửa hàng không thể cung cấp thuốc không kê đơn. Chúng tôi khuyên bạn nên đi khám tại bệnh viện hoặc phòng khám.",
+  },
+  referral: {
+    title: "Vui lòng đi khám tại bệnh viện hoặc phòng khám",
+    body: "Chúng tôi rất tiếc. Với tình trạng hiện tại của bạn, cửa hàng không thể cung cấp thuốc không kê đơn. Chúng tôi khuyên bạn nên đi khám tại bệnh viện hoặc phòng khám.",
+    tellDoctor: "Tại bệnh viện, vui lòng cho bác sĩ biết các triệu chứng hôm nay và các loại thuốc bạn đang dùng. Nếu có sổ theo dõi thuốc, vui lòng mang theo.",
+    consultTitle: "Nơi có thể được tư vấn bằng ngôn ngữ khác ngoài tiếng Nhật",
+    askStaff: "Nếu có điều gì chưa rõ, vui lòng hỏi nhân viên.",
   },
   guidance: {
     title: "Hướng dẫn về thuốc",

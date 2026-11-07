@@ -9,6 +9,7 @@ import { EMPTY_FOLLOW_UP, type FollowUpState } from "./emergency-follow-up";
 import { EmergencyGuide, type EmergencyTrigger } from "./emergency-guide";
 import { ProductFinder } from "./product-finder";
 import { QuestionInput } from "./question-input";
+import { ReferralGuide } from "./referral-guide";
 import { RuleError, sessionApi, type PatientView } from "./session-api";
 import { TranslationChat, type ChatEmergency } from "./translation-chat";
 
@@ -514,9 +515,10 @@ function PatientBodyMain({
 }) {
   const t = getMessages(language);
 
-  // 「販売しない」で終えた（薬剤師の確認画面で選んだ。受診案内の画面は T11）
+  // 受診をすすめる案内（T11）：薬剤師の確認画面で「販売しない」を選んだとき、
+  // または通信が止まった画面で「受診をすすめる案内を出す」を押したとき（通信なしで出せる）
   if (mode === "not_for_sale" || view?.status === "declined") {
-    return <p className="rounded-2xl bg-slate-50 px-5 py-6 text-2xl leading-relaxed">{t.pharmacist.notForSale}</p>;
+    return <ReferralGuide language={language} />;
   }
   if (view === null) {
     return <p className="text-center text-lg text-slate-500">…</p>;

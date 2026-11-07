@@ -137,7 +137,13 @@ export const pt: Messages = {
   },
   pharmacist: {
     waiting: "Um farmacêutico está verificando as suas respostas. Aguarde um momento, por favor.",
-    notForSale: "Sentimos muito. No seu estado atual, não podemos oferecer um remédio sem receita. Recomendamos que consulte um médico em um hospital ou clínica.",
+  },
+  referral: {
+    title: "Por favor, consulte um médico em um hospital ou clínica",
+    body: "Sentimos muito. No seu estado atual, não podemos oferecer um remédio sem receita. Recomendamos que consulte um médico em um hospital ou clínica.",
+    tellDoctor: "No hospital, informe ao médico os seus sintomas de hoje e os remédios que você está tomando agora. Se tiver uma caderneta de registro de medicamentos, leve-a.",
+    consultTitle: "Onde obter ajuda em idiomas além do japonês",
+    askStaff: "Se tiver alguma dúvida, pergunte à equipe.",
   },
   guidance: {
     title: "Sobre o seu remédio",
