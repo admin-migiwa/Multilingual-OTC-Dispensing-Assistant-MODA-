@@ -58,6 +58,28 @@ describe("定型文（9言語）", () => {
     }
   });
 
+  it("日本語以外の言語の文に、カタカナが残っていない（訳し忘れがない）", () => {
+    // 119番の案内だけは、電話口で言う日本語「救急です」をわざと書いている（ひらがなのテストと同じ）
+    const japaneseOnPurpose = new Set(["emergency.call119"]);
+    const katakana = /[ァ-ヺー]/;
+    for (const lang of LANGUAGES) {
+      if (lang.code === "ja") continue;
+      for (const [path, text] of flatten(MESSAGES[lang.code])) {
+        if (japaneseOnPurpose.has(path)) continue;
+        assert.doesNotMatch(text, katakana, `${lang.code}: ${path}`);
+      }
+    }
+  });
+
+  it("差し込みの名前（{age}・{max} など）が、どの言語でも日本語の原文と同じ", () => {
+    const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+    for (const lang of LANGUAGES) {
+      for (const [path, text] of flatten(MESSAGES[lang.code])) {
+        assert.deepEqual(placeholders(text), placeholders(japanese.get(path) ?? ""), `${lang.code}: ${path}`);
+      }
+    }
+  });
+
   it("緊急案内には、どの言語でも119番が書かれている", () => {
     for (const lang of LANGUAGES) {
       assert.match(getMessages(lang.code).emergency.call119, /119/, lang.code);
