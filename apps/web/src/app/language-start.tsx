@@ -405,7 +405,7 @@ function StaffEmergencyButton({ onOpen }: { onOpen: () => void }) {
       type="button"
       lang="ja"
       onClick={onOpen}
-      className="fixed right-3 top-3 z-10 rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
+      className="fixed right-3 top-3 z-50 rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
     >
       薬剤師用：緊急の確認を開く
     </button>
@@ -1062,15 +1062,15 @@ function AfterApprovalPatient({
           <h2 className="text-2xl font-bold">{t.feedback.question}</h2>
           <button type="button" disabled={busy} onClick={() => onFeedback("good")} className={choice}>
             <span aria-hidden="true" className="text-3xl">😊</span>
-              <span>{t.feedback.options.good}</span>
+            <span>{t.feedback.options.good}</span>
           </button>
           <button type="button" disabled={busy} onClick={() => onFeedback("fair")} className={choice}>
             <span aria-hidden="true" className="text-3xl">🙂</span>
-              <span>{t.feedback.options.fair}</span>
+            <span>{t.feedback.options.fair}</span>
           </button>
           <button type="button" disabled={busy} onClick={() => onFeedback("poor")} className={choice}>
             <span aria-hidden="true" className="text-3xl">😟</span>
-              <span>{t.feedback.options.poor}</span>
+            <span>{t.feedback.options.poor}</span>
           </button>
         </div>
       </div>
