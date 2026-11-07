@@ -753,7 +753,7 @@ function CandidatesSection({
                 aria-pressed={on}
                 onClick={() => setSymptomIds(on ? symptomIds.filter((id) => id !== sc.id) : [...symptomIds, sc.id])}
                 className={`min-h-11 rounded-full border-2 px-3 py-1 text-sm ${
-                  on ? "border-teal-700 bg-teal-700 font-semibold text-white" : "border-slate-300 bg-white text-slate-800"
+                  on ? "border-indigo-700 bg-indigo-700 font-semibold text-white" : "border-slate-300 bg-white text-slate-800"
                 }`}
               >
                 {sc.label}
@@ -818,7 +818,7 @@ function CandidatesSection({
                 <span className="text-sm">（{c.classification}）</span>
                 {symptomMatches.map((sc) => (
                   <span key={sc.id} className="rounded-full bg-sky-100 px-2 py-0.5 text-xs text-sky-900">
-                    症状の分類「{sc.label.split("（")[0]}」と効き目の分類が合う
+                    症状の分類「{sc.shortLabel}」と効き目の分類が合う
                   </span>
                 ))}
                 {contraindicated ? (

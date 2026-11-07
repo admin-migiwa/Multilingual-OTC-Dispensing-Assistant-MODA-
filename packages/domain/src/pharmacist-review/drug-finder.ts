@@ -15,18 +15,20 @@ export type SymptomCategory = {
   readonly id: SymptomCategoryId;
   /** 薬剤師の画面のボタンの文字 */
   readonly label: string;
+  /** 候補の薬に付ける印の短い名前 */
+  readonly shortLabel: string;
   /** 対応する効き目の分類（drugs.md の取扱薬の列） */
   readonly efficacyCategories: readonly EfficacyCategory[];
 };
 
 /** docs/demo-data/symptom-categories.md の表（11/8 薬剤師確認済み） */
 export const SYMPTOM_CATEGORIES: readonly SymptomCategory[] = [
-  { id: "SC1", label: "かぜの症状（熱・せき・鼻水・のどの痛み など）", efficacyCategories: ["かぜ薬（総合）", "かぜ薬（漢方）"] },
-  { id: "SC2", label: "熱・痛み（頭痛・歯痛・生理痛 など）", efficacyCategories: ["解熱鎮痛薬"] },
-  { id: "SC3", label: "胃の不快感（胸やけ・胃もたれ など）", efficacyCategories: ["胃腸薬（制酸）"] },
-  { id: "SC4", label: "目の症状（充血・疲れ目 など）", efficacyCategories: ["点眼薬"] },
-  { id: "SC5", label: "肩こり・腰痛・筋肉痛・打撲 など", efficacyCategories: ["外用消炎鎮痛薬"] },
-  { id: "SC6", label: "緊急避妊", efficacyCategories: ["緊急避妊薬"] },
+  { id: "SC1", label: "かぜの症状（熱・せき・鼻水・のどの痛み など）", shortLabel: "かぜの症状", efficacyCategories: ["かぜ薬（総合）", "かぜ薬（漢方）"] },
+  { id: "SC2", label: "熱・痛み（頭痛・歯痛・生理痛 など）", shortLabel: "熱・痛み", efficacyCategories: ["解熱鎮痛薬"] },
+  { id: "SC3", label: "胃の不快感（胸やけ・胃もたれ など）", shortLabel: "胃の不快感", efficacyCategories: ["胃腸薬（制酸）"] },
+  { id: "SC4", label: "目の症状（充血・疲れ目 など）", shortLabel: "目の症状", efficacyCategories: ["点眼薬"] },
+  { id: "SC5", label: "肩こり・腰痛・筋肉痛・打撲 など", shortLabel: "肩こり・腰痛など", efficacyCategories: ["外用消炎鎮痛薬"] },
+  { id: "SC6", label: "緊急避妊", shortLabel: "緊急避妊", efficacyCategories: ["緊急避妊薬"] },
 ];
 
 /** 取扱薬にない記号なら UNKNOWN_DRUG で止まる */
