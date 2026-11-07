@@ -11,7 +11,7 @@
  * - 出すのは日本語の手順の名前と「もう一度説明してください」の注意だけ。候補の薬・禁忌の判定などは出さない。
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { pharmacistApi, type PharmacistView } from "./pharmacist/pharmacist-api";
 import { NetworkError, RuleError } from "./session-api";
@@ -30,22 +30,23 @@ export function StaffAfterApprovalPanel({
   const [view, setView] = useState<PharmacistView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** いちばん新しい読み込みの番号（重なった読み込みで、古い答えがあとから届いても使わない） */
+  const latestLoad = useRef(0);
 
   async function run(action: () => Promise<PharmacistView>): Promise<PharmacistView | null> {
     setBusy(true);
     setError(null);
     try {
       const next = await action();
+      latestLoad.current += 1;
       setView(next);
       return next;
     } catch (e: unknown) {
       if (e instanceof RuleError) {
         setError(`いまの状態ではこの操作はできません（${e.code}）。手順と理解の確認がそろっているか確かめてください。`);
-        try {
-          setView(await pharmacistApi.get(sessionId));
-        } catch {
-          /* 読み直せなければ、前の表示のまま知らせる */
-        }
+        // 画面とサーバーの状態がずれた（別の画面で会計案内に進んだなど）。この欄も患者さんの画面も読み直す
+        await load();
+        onCheckout();
       } else if (e instanceof NetworkError) {
         setError("通信が止まりました。記録に残っていない可能性があります。通信を確かめて、もう一度押してください。");
       } else {
@@ -57,8 +58,19 @@ export function StaffAfterApprovalPanel({
     }
   }
 
+  async function load(): Promise<void> {
+    const mine = ++latestLoad.current;
+    setError(null);
+    try {
+      const next = await pharmacistApi.get(sessionId);
+      if (mine === latestLoad.current) setView(next);
+    } catch {
+      if (mine === latestLoad.current) setError("薬剤師用の内容を読み込めませんでした。通信を確かめて「読み直す」を押してください。");
+    }
+  }
+
   useEffect(() => {
-    void run(() => pharmacistApi.get(sessionId));
+    void load();
   }, [sessionId, refreshKey]);
 
   const after = view?.afterApproval ?? null;
@@ -67,7 +79,13 @@ export function StaffAfterApprovalPanel({
   const needsAgain = after !== null && after.understanding !== "confirmed" && after.lastNotUnderstood !== null;
 
   return (
-    <details lang="ja" open={needsAgain || after?.understanding === "confirmed"} className="rounded-2xl border border-teal-300 bg-white p-3">
+    <details
+      lang="ja"
+      // 理解の確認の答えが変わったら、開き直す（たたんだままにしない）
+      key={`${after?.understanding ?? "loading"}:${needsAgain}`}
+      open={needsAgain || after?.understanding === "confirmed"}
+      className="rounded-2xl border border-teal-300 bg-white p-3"
+    >
       <summary className="cursor-pointer text-sm font-semibold text-teal-900">薬剤師用：会計の前の手順と会計案内</summary>
       <div className="mt-3 space-y-3 text-sm">
         {error ? (
@@ -76,7 +94,17 @@ export function StaffAfterApprovalPanel({
           </p>
         ) : null}
         {view === null || after === null ? (
-          <p className="text-slate-500">読み込み中…</p>
+          error ? (
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="rounded-lg border border-slate-400 px-3 py-1.5 font-semibold"
+            >
+              読み直す
+            </button>
+          ) : (
+            <p className="text-slate-500">読み込み中…</p>
+          )
         ) : (
           <>
             <p className="font-semibold">
@@ -127,14 +155,14 @@ export function StaffAfterApprovalPanel({
             {view.status === "counseling" && !allDone ? (
               <p className="text-amber-900">会計の前の手順と理解の確認がそろうまで、会計案内に進めません。</p>
             ) : null}
-            <a
-              href={`/pharmacist/${encodeURIComponent(sessionId)}`}
-              className="inline-block rounded-lg border border-teal-400 px-3 py-1.5 text-xs font-semibold text-teal-900 hover:bg-teal-50"
-            >
-              薬剤師の確認の画面を開く（説明書の作り直し・印刷など）
-            </a>
           </>
         )}
+        <a
+          href={`/pharmacist/${encodeURIComponent(sessionId)}`}
+          className="inline-block rounded-lg border border-teal-400 px-3 py-1.5 text-xs font-semibold text-teal-900 hover:bg-teal-50"
+        >
+          薬剤師の確認の画面を開く（説明書の作り直し・印刷など）
+        </a>
       </div>
     </details>
   );
