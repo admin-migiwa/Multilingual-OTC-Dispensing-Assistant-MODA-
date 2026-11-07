@@ -346,3 +346,34 @@ describe("AI の接続先の切り替え（AI_PROVIDER）", () => {
     );
   });
 });
+
+// 11/7 依頼主の判断（backlog S-13）：チャットの履歴を接客の記録に残す
+describe("翻訳のチャットの記録", () => {
+  it("訳すたびに、原文・訳・訳し戻しを接客の記録に足していく（書き換えない）。履歴には向きだけを残し、文は入れない", async () => {
+    const deps = testDeps(simpleAi());
+    const id = startInterview(deps);
+    await translate(deps, id, { direction: "to_ja", text: "My head hurts" });
+    await translate(deps, id, { direction: "to_patient", text: "いつからですか" });
+    const record = getSession(deps, id);
+    assert.equal(record.chatLog?.length, 2);
+    assert.equal(record.chatLog?.[0]?.direction, "to_ja");
+    assert.equal(record.chatLog?.[0]?.original, "My head hurts");
+    assert.equal(typeof record.chatLog?.[0]?.translation, "string");
+    assert.equal(typeof record.chatLog?.[0]?.backTranslation, "string");
+    assert.equal(record.chatLog?.[1]?.original, "いつからですか");
+    const chatEvents = record.events.filter((e) => e.type === "chat_translated");
+    assert.deepEqual(chatEvents.map((e) => e.detail), [["to_ja"], ["to_patient"]]);
+    assert.equal(JSON.stringify(record.events).includes("My head hurts"), false);
+  });
+
+  it("AI が失敗して訳せなかった文は、チャットの記録に足さない（仮の訳を残さない）", async () => {
+    const deps = testDeps(
+      fakeAi(() => {
+        throw new AiError("AI_UNAVAILABLE", "x");
+      }),
+    );
+    const id = startInterview(deps);
+    await assertRejects(translate(deps, id, { direction: "to_ja", text: "My head hurts" }), "AI_UNAVAILABLE");
+    assert.equal(getSession(deps, id).chatLog, undefined);
+  });
+});

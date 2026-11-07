@@ -91,6 +91,23 @@ export interface EmergencyEvent {
   readonly cancelledAt: string | null;
 }
 
+/**
+ * 翻訳のチャットの1回分（原文・訳・訳し戻し）。接客の記録に足していき、書き換えない（11/7 依頼主の判断。backlog S-13）。
+ * 健康情報が入るので、ログ・履歴（events）には出さない（CLAUDE.md ルール9）
+ */
+export interface ChatLogEntry {
+  readonly at: string;
+  /** to_ja：患者さんの文 → 日本語／to_patient：薬剤師の日本語 → 患者さんの言語 */
+  readonly direction: "to_ja" | "to_patient";
+  readonly original: string;
+  readonly translation: string;
+  readonly backTranslation: string;
+  /** 訳した AI（mock は開発用の仮の AI） */
+  readonly provider: "mock" | "anthropic";
+  /** この文で当てはまった緊急症状の表の ID（なければ空） */
+  readonly emergencyRuleIds: readonly string[];
+}
+
 /** 何が起きたかの履歴。中身（答えや入力）は入れず、種類と項目 ID だけを残す */
 export type SessionEventType =
   | "created"
@@ -111,7 +128,9 @@ export type SessionEventType =
   | "procedure_step_checked"
   | "sale_declined"
   // 候補・代わりの薬を薬剤師が選び、その薬の項目を聞く問診に戻した（T8b。backlog C-03）
-  | "candidate_drugs_chosen";
+  | "candidate_drugs_chosen"
+  // 翻訳のチャットで1回訳した（中身は chatLog にだけ残す。backlog S-13）
+  | "chat_translated";
 
 export interface SessionEvent {
   readonly at: string;
@@ -131,6 +150,8 @@ export interface SessionRecord {
   readonly emergencies: readonly EmergencyEvent[];
   /** 薬剤師の確認（T8a）。確認の画面を開くたびに1つ足す（なければ空。中身は pharmacist-service.ts） */
   readonly pharmacistReviews?: readonly PharmacistReviewRound[];
+  /** 翻訳のチャットの記録（起きた順。なければ空。backlog S-13） */
+  readonly chatLog?: readonly ChatLogEntry[];
   readonly events: readonly SessionEvent[];
 }
 

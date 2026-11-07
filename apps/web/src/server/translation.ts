@@ -27,10 +27,12 @@ import { AiError, type AiClient } from "./ai/index.ts";
 import {
   MAX_TEXT_LENGTH,
   SessionServiceError,
+  event,
   getSession,
   openEmergency,
   patientView,
   type PatientView,
+  type ChatLogEntry,
   type ServiceDeps,
 } from "./session-service.ts";
 
@@ -256,6 +258,23 @@ export async function translate(
       schema: PLAIN_TRANSLATION_JSON_SCHEMA,
     }),
   ).translation;
+
+  // チャットの記録に足す（書き換えない。履歴には向きだけを残し、中身は入れない。backlog S-13）
+  const latest = getSession(deps, id);
+  const entry: ChatLogEntry = {
+    at: deps.now().toISOString(),
+    direction: input.direction,
+    original: text,
+    translation,
+    backTranslation,
+    provider: deps.ai.provider,
+    emergencyRuleIds: ruleIds,
+  };
+  deps.store.set({
+    ...latest,
+    chatLog: [...(latest.chatLog ?? []), entry],
+    events: [...latest.events, event(deps, "chat_translated", [input.direction])],
+  });
 
   return {
     direction: input.direction,
