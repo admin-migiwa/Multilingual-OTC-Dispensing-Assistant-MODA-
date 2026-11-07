@@ -142,6 +142,44 @@ export function cancelEmergencyEnd(current: SessionSnapshot): SessionSnapshot {
   return { ...rest, status: "emergency_review", emergencyReturnTo: returnTo };
 }
 
+/**
+ * 薬剤師が工程を1つ戻す操作（11/7 依頼主の判断：どの工程でも間違いは起こりうるので戻せるようにする。PIN は求めない）。
+ * ふだんの遷移（ALLOWED_TRANSITIONS）とは分け、この関数でだけ後ろに戻す（承認の前へ勝手に戻らないように）。
+ * - cancel_approval：承認を取り消す（承認・服薬指導・会計案内 → 薬剤師の確認）。理解の確認も「未」に戻す。
+ *   販売記録は消さず、呼び出す側が「取り消した」版を足す（ルール6）。もう一度承認するまで印刷・服薬指導・会計はできない（ルール1）
+ * - reset_understanding：理解の確認をやり直す（服薬指導中で、確認が済んだあと）。呼び出す側が販売記録に版を足す
+ * - back_to_counseling：会計案内から服薬指導に戻る（理解の確認はそのまま）
+ * - cancel_decline：「販売しない」を取り消して、薬剤師の確認に戻す（終了した状態から抜けるのはここと cancelEmergencyEnd だけ）
+ * - 完了（completed）からは戻さない（販売を終えたあと。直すときは販売記録に新しい版を足す）
+ */
+export type UndoStep = "cancel_approval" | "reset_understanding" | "back_to_counseling" | "cancel_decline";
+
+const UNDO_FROM: Readonly<Record<UndoStep, readonly SessionStatus[]>> = {
+  cancel_approval: ["approved", "counseling", "checkout"],
+  reset_understanding: ["counseling"],
+  back_to_counseling: ["checkout"],
+  cancel_decline: ["declined"],
+};
+
+export function undoStep(current: SessionSnapshot, step: UndoStep): SessionSnapshot {
+  if (!UNDO_FROM[step].includes(current.status)) {
+    throw new DomainRuleError("INVALID_TRANSITION", `${current.status} の状態では ${step} で戻せません`);
+  }
+  switch (step) {
+    case "cancel_approval":
+      return { ...current, status: "pharmacist_review", understandingConfirmed: false };
+    case "reset_understanding":
+      if (!current.understandingConfirmed) {
+        throw new DomainRuleError("INVALID_TRANSITION", "理解の確認はまだ済んでいません");
+      }
+      return { ...current, understandingConfirmed: false };
+    case "back_to_counseling":
+      return { ...current, status: "counseling" };
+    case "cancel_decline":
+      return { ...current, status: "pharmacist_review" };
+  }
+}
+
 function withoutReturn(snapshot: SessionSnapshot): SessionSnapshot {
   const rest: { -readonly [K in keyof SessionSnapshot]: SessionSnapshot[K] } = { ...snapshot };
   delete rest.emergencyReturnTo;

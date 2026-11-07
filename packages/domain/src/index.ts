@@ -7,10 +7,12 @@ export {
   isPostApproval,
   transition,
   cancelEmergencyEnd,
+  undoStep,
   assertActionAllowed,
   type SessionStatus,
   type SessionSnapshot,
   type PostApprovalAction,
+  type UndoStep,
 } from "./session/state.ts";
 export {
   SALES_CATEGORIES,

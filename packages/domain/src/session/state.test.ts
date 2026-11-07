@@ -7,6 +7,7 @@ import {
   TERMINAL_STATUSES,
   assertActionAllowed,
   cancelEmergencyEnd,
+  undoStep,
   transition,
   type SessionSnapshot,
   type SessionStatus,
@@ -218,5 +219,56 @@ describe("119番の案内の取り消し（押し間違い。11/6 依頼主の�
   it("同じ「119番の案内」は二度は取り消せない（取り消すと戻り先は消える）", () => {
     const back = cancelEmergencyEnd(endedFrom("interview"));
     assertRuleError(() => cancelEmergencyEnd(back), "INVALID_TRANSITION");
+  });
+});
+
+describe("工程を戻す（11/7 依頼主の判断）", () => {
+  it("承認のあと（承認・服薬指導・会計案内）は、承認を取り消して薬剤師の確認に戻れる。理解の確認も「未」に戻る", () => {
+    for (const status of ["approved", "counseling", "checkout"] as SessionStatus[]) {
+      const back = undoStep(at(status, true), "cancel_approval");
+      assert.equal(back.status, "pharmacist_review");
+      assert.equal(back.understandingConfirmed, false);
+    }
+  });
+
+  it("承認を取り消したあとは、もう一度承認するまで印刷・服薬指導・会計はできない", () => {
+    const back = undoStep(at("counseling", true), "cancel_approval");
+    assertRuleError(() => assertActionAllowed(back.status, "print"), "NOT_APPROVED");
+    assertRuleError(() => assertActionAllowed(back.status, "counsel"), "NOT_APPROVED");
+    assertRuleError(() => assertActionAllowed(back.status, "checkout"), "NOT_APPROVED");
+  });
+
+  it("承認の前・完了のあとは、承認を取り消せない", () => {
+    for (const status of ["interview", "drug_selection", "pharmacist_review", "completed", "declined"] as SessionStatus[]) {
+      assertRuleError(() => undoStep(at(status), "cancel_approval"), "INVALID_TRANSITION");
+    }
+  });
+
+  it("理解の確認は、服薬指導中で確認が済んだあとだけやり直せる。やり直すと会計に進めない", () => {
+    const reset = undoStep(at("counseling", true), "reset_understanding");
+    assert.equal(reset.status, "counseling");
+    assert.equal(reset.understandingConfirmed, false);
+    assertRuleError(() => transition(reset, "checkout"), "UNDERSTANDING_NOT_CONFIRMED");
+    assertRuleError(() => undoStep(at("counseling", false), "reset_understanding"), "INVALID_TRANSITION");
+    assertRuleError(() => undoStep(at("checkout", true), "reset_understanding"), "INVALID_TRANSITION");
+  });
+
+  it("会計案内から服薬指導に戻れる（理解の確認はそのまま）。会計案内のときだけ", () => {
+    const back = undoStep(at("checkout", true), "back_to_counseling");
+    assert.equal(back.status, "counseling");
+    assert.equal(back.understandingConfirmed, true);
+    assertRuleError(() => undoStep(at("counseling", true), "back_to_counseling"), "INVALID_TRANSITION");
+    assertRuleError(() => undoStep(at("completed", true), "back_to_counseling"), "INVALID_TRANSITION");
+  });
+
+  it("「販売しない」は取り消して薬剤師の確認に戻れる。ほかの終了（完了・緊急終了）は戻せない", () => {
+    assert.equal(undoStep(at("declined"), "cancel_decline").status, "pharmacist_review");
+    assertRuleError(() => undoStep(at("completed"), "cancel_decline"), "INVALID_TRANSITION");
+    assertRuleError(() => undoStep(at("emergency_ended"), "cancel_decline"), "INVALID_TRANSITION");
+  });
+
+  it("ふだんの遷移では、承認のあとから承認の前へ戻れない（戻すのは undoStep だけ）", () => {
+    assertRuleError(() => transition(at("counseling", true), "pharmacist_review"), "INVALID_TRANSITION");
+    assertRuleError(() => transition(at("checkout", true), "counseling"), "INVALID_TRANSITION");
   });
 });

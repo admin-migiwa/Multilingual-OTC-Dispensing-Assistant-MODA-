@@ -37,6 +37,7 @@ import { isSupportedLanguage, type LanguageCode } from "@moda/i18n";
 
 import { japanDate } from "./japan-date.ts";
 import type { SaleRecord } from "./approval.ts";
+import { activeApproval } from "./sale-versions.ts";
 import type { FeedbackRating, GuidanceRecord, PostApprovalCheck } from "./guidance.ts";
 import type { PharmacistReviewRound } from "./pharmacist-service";
 
@@ -142,7 +143,11 @@ export type SessionEventType =
   | "guidance_printed"
   | "understanding_answered"
   | "sale_record_versioned"
-  | "feedback_given";
+  | "feedback_given"
+  // 工程を戻した（11/7 依頼主の判断）：承認の取り消し（販売記録 ID だけ）、理解の確認のやり直し、「販売しない」の取り消し
+  | "approval_cancelled"
+  | "understanding_reset"
+  | "decline_cancelled";
 
 export interface SessionEvent {
   readonly at: string;
@@ -371,7 +376,7 @@ function patientGuidance(record: SessionRecord): PatientView["guidance"] {
   const status = record.snapshot.status;
   if (status !== "counseling" && status !== "checkout" && status !== "completed") return null;
   const latest = record.guidances?.at(-1);
-  const v1 = record.saleRecord?.versions[0];
+  const v1 = activeApproval(record.saleRecord);
   // 承認した品目・接客の言語と同じ説明書だけを出す（guidance.ts の currentGuidance と同じ決まり）
   if (!latest || !v1 || latest.language !== record.language) return null;
   const sold = v1.items.map((i) => i.drugId);

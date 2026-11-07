@@ -37,6 +37,7 @@ import {
   type CandidatePreview,
   questionsAskedForDrug,
   saleSelectionsFor,
+  undoStep,
   DEFAULT_INTERVIEW_SETTINGS,
   type DrugJudgment,
   type InterviewAnswers,
@@ -50,6 +51,7 @@ import {
 import type { LanguageCode } from "@moda/i18n";
 
 import type { SaleRecord } from "./approval.ts";
+import { activeApproval, sinceOfUnderstanding } from "./sale-versions.ts";
 import { completedStepsAfterApproval, currentGuidance, procedureAtApproval, type GuidanceRecord } from "./guidance.ts";
 import type { PinVerifier } from "./pin.ts";
 import { japanDate } from "./japan-date.ts";
@@ -174,18 +176,32 @@ export function openPharmacistReview(deps: ServiceDeps, id: string): SessionReco
     throw new DomainRuleError("INTERVIEW_INCOMPLETE", "問診が終わっていません");
   }
   const moved = moveTo(deps, record, "pharmacist_review");
-  const round: PharmacistReviewRound = {
-    openedAt: deps.now().toISOString(),
-    closedAt: null,
-    saleChoices: [],
-    stepChecks: [],
-    declinedReason: null,
-    declinedAt: null,
-  };
   const next: SessionRecord = {
     ...moved,
-    pharmacistReviews: [...(moved.pharmacistReviews ?? []), round],
+    pharmacistReviews: [...(moved.pharmacistReviews ?? []), newReviewRound(deps.now().toISOString())],
     events: [...moved.events, event(deps, "pharmacist_review_opened")],
+  };
+  deps.store.set(next);
+  return next;
+}
+
+/** 新しい薬剤師の確認（販売する薬・手順の ✓ は空から） */
+export function newReviewRound(openedAt: string): PharmacistReviewRound {
+  return { openedAt, closedAt: null, saleChoices: [], stepChecks: [], declinedReason: null, declinedAt: null };
+}
+
+/**
+ * 「販売しない」を取り消して、薬剤師の確認に戻す（declined → pharmacist_review。11/7 依頼主の判断。PIN は求めない）。
+ * 前の確認（販売しない理由を含む）は閉じたまま残し、新しい確認を開く
+ */
+export function cancelDecline(deps: ServiceDeps, id: string): SessionRecord {
+  const record = load(deps, id);
+  const snapshot = undoStep(record.snapshot, "cancel_decline");
+  const next: SessionRecord = {
+    ...record,
+    snapshot,
+    pharmacistReviews: [...(record.pharmacistReviews ?? []), newReviewRound(deps.now().toISOString())],
+    events: [...record.events, event(deps, "decline_cancelled"), event(deps, "status_changed", [snapshot.status])],
   };
   deps.store.set(next);
   return next;
@@ -545,19 +561,25 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
 
 /** 今の説明書。確認中は今の「販売する薬」と同じもの、承認のあとは承認した品目と同じもの（T10） */
 function guidanceForView(record: SessionRecord, reviewingDrugIds: readonly StockedDrugId[] | null): GuidanceRecord | null {
-  if (!record.saleRecord && (reviewingDrugIds === null || reviewingDrugIds.length === 0)) return null;
+  if (!activeApproval(record.saleRecord) && (reviewingDrugIds === null || reviewingDrugIds.length === 0)) return null;
   return currentGuidance(record);
 }
 
 function afterApprovalOf(record: SessionRecord): PharmacistView["afterApproval"] {
   const sale = record.saleRecord;
   const latest = sale?.versions.at(-1);
-  if (!sale || !latest) return null;
+  // 承認を取り消している間は出さない（もう一度承認するまで、承認のあとの手順はない）
+  const base = activeApproval(sale);
+  if (!sale || !latest || !base) return null;
   const done = new Set(completedStepsAfterApproval(record));
   const steps = procedureAtApproval(record)
     .steps.filter((s) => s.gate === "before_checkout")
     .map((s) => ({ id: s.id, label: s.label, done: done.has(s.id), byPatient: s.id === "understanding_check" }));
-  const answers = record.events.filter((e) => e.type === "understanding_answered").map((e) => e.detail[0] ?? "");
+  // 今の承認のあと、理解の確認をやり直したあとの答えだけを見る
+  const since = sinceOfUnderstanding(sale, base);
+  const answers = record.events
+    .filter((e) => e.type === "understanding_answered" && e.at >= since)
+    .map((e) => e.detail[0] ?? "");
   const last = answers.at(-1) ?? null;
   return {
     steps,
