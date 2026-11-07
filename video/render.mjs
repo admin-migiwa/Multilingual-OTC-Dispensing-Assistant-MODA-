@@ -1,13 +1,16 @@
 // 場面の HTML を Edge で開き、1コマずつ撮って MP4 にする。
-// 使い方：node render.mjs scenes/before-after.html out/before-after.mp4
-//         node render.mjs scenes/before-after.html out/preview --stills 3,8,12.5,16,20
+// 使い方：node render.mjs scenes/opening.html out/opening.mp4
+//         node render.mjs scenes/opening.html out/preview --stills 3,8,12.5
+//         node render.mjs scenes/opening.html out/opening.mp4 --no-voice（ナレーションなし）
 import { chromium } from "playwright-core";
 import { spawn } from "node:child_process";
-import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { makeWav } from "./sound.mjs";
-import { mixNarration } from "./narration.mjs";
+import { mixAudio } from "./narration.mjs";
+import { makeMusic } from "./music.mjs";
+import { findFfmpeg } from "./ffmpeg-path.mjs";
 
 const [, , sceneArg, outArg, flag, flagValue] = process.argv;
 if (!sceneArg || !outArg) {
@@ -16,23 +19,6 @@ if (!sceneArg || !outArg) {
 }
 const FPS = 30;
 
-function findFfmpeg() {
-  if (process.env.FFMPEG) return process.env.FFMPEG;
-  // winget で入れた FFmpeg は、PATH に入る前でも見つけられるようにする
-  const winget = join(process.env.LOCALAPPDATA ?? "", "Microsoft", "WinGet");
-  const link = join(winget, "Links", "ffmpeg.exe");
-  if (existsSync(link)) return link;
-  const pkgs = join(winget, "Packages");
-  if (existsSync(pkgs)) {
-    for (const p of readdirSync(pkgs).filter((d) => d.startsWith("Gyan.FFmpeg"))) {
-      for (const b of readdirSync(join(pkgs, p))) {
-        const exe = join(pkgs, p, b, "bin", "ffmpeg.exe");
-        if (existsSync(exe)) return exe;
-      }
-    }
-  }
-  return "ffmpeg";
-}
 
 const browser = await chromium.launch({ channel: "msedge" });
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
@@ -51,18 +37,24 @@ if (flag === "--stills") {
   process.exit(0);
 }
 
-const { duration, events, lines, voice } = await page.evaluate(() => ({
+const { duration, events, lines, voice, music } = await page.evaluate(() => ({
   duration: window.DURATION, events: window.SOUND_EVENTS ?? [],
-  lines: window.NARRATION ?? [], voice: window.NARRATION_VOICE,
+  lines: window.NARRATION ?? [], voice: window.NARRATION_VOICE, music: window.MUSIC ?? [],
 }));
 mkdirSync(dirname(resolve(outArg)), { recursive: true });
 const sfxPath = resolve(outArg).replace(/\.mp4$/, ".sfx.wav");
 writeFileSync(sfxPath, makeWav(events, duration));
-// --no-voice を付けると、ナレーションなし（効果音だけ）で書き出す
+// BGM（window.MUSIC があるとき）。--no-voice を付けると、ナレーションなしで書き出す
+let bgmPath = null;
+if (music.length) {
+  bgmPath = resolve(outArg).replace(/\.mp4$/, ".bgm.wav");
+  writeFileSync(bgmPath, makeMusic(music, duration));
+}
 const withVoice = flag !== "--no-voice";
-const wavPath = withVoice
-  ? mixNarration({ ffmpeg: findFfmpeg(), sfxWav: sfxPath, lines, voice, outWav: resolve(outArg).replace(/\.mp4$/, ".wav") })
-  : sfxPath;
+const wavPath = await mixAudio({
+  ffmpeg: findFfmpeg(), sfxWav: sfxPath, bgmWav: bgmPath, lines: withVoice ? lines : [], voice,
+  outWav: resolve(outArg).replace(/\.mp4$/, ".wav"),
+});
 
 const ff = spawn(findFfmpeg(), [
   "-y", "-loglevel", "error",

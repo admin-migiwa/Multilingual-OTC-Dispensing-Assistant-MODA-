@@ -7,8 +7,20 @@ const W = 1920, H = 1080;
 const ctx = document.getElementById("c").getContext("2d");
 const FONT = '"Segoe UI", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif';
 let GT = 0;
-// ナレーションの声（Windows に入っている日本語の音声。pitch：0〜2、rate：0.5〜6、どちらも1が標準）
-window.NARRATION_VOICE = { voice: "Ayumi", pitch: 0.85, rate: 1.4 };
+// ナレーションの声。engine で使う方を選ぶ（環境変数 VOICE_ENGINE で一時的に切り替えられる）
+//   azure：Azure AI Speech のニューラル音声。rate・pitch は「+5%」のような書き方
+//   windows：Windows に入っている声。pitch：0〜2、rate：0.5〜6（どちらも1が標準）
+window.NARRATION_VOICE = {
+  engine: "azure",
+  // 声は Mayu（Naoki 高めにするなら name を "ja-JP-NaokiNeural"、pitch を "+4%" に）。
+  // pause：文の間（ミリ秒）／ {…} の言葉は少しゆっくり・高め・emphasisGainDb だけ大きく／
+  // wobble：句ごとの速さ・高さの小さなずれ（%）／ drift：声の大きさのゆっくりした波
+  azure: {
+    name: "ja-JP-MayuNeural", rate: "+8%", pitch: "+0%", pause: 180,
+    emphasisPitch: "+5%", emphasisGainDb: 4, wobble: { rate: 4, pitch: 3 }, drift: true,
+  },
+  windows: { voice: "Ayumi", pitch: 0.85, rate: 1.4 },
+};
 
 // 配色：薬局・ドラッグストアらしい清潔感（白＋ミントグリーン、文字は濃い紺）。11/6 の依頼で暗い色をやめた
 const C = {

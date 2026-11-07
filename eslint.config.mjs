@@ -26,7 +26,7 @@ export default tseslint.config(
     // デモ動画の書き出し用（Node.js で動かし、一部はブラウザの中で実行する）。アプリ本体とは別
     files: ["video/*.mjs"],
     languageOptions: {
-      globals: { process: "readonly", Buffer: "readonly", window: "readonly", document: "readonly" },
+      globals: { process: "readonly", Buffer: "readonly", window: "readonly", document: "readonly", fetch: "readonly" },
     },
   },
 );

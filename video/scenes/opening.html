@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="utf-8">
-<title>MODA デモ動画 前半（0:00〜0:53）</title>
+<title>MODA デモ動画 前半（0:00〜1:09）</title>
 <style>
   html, body { margin: 0; background: #ffffff; }
   canvas { display: block; width: 100vw; height: auto; }
@@ -15,28 +15,30 @@
 <script src="lib/with.js"></script>
 <script>
 /*
- * デモ動画の前半（約53秒）。絵コンテの場面1〜4。このあとに実際の画面の録画（実演）が続く。
- *   場面1 つかみ・AI の役割   0〜8 秒（決まったこと #22 の文をそのまま出す）
- *   場面2 業務の手順         8〜25 秒（docs/demo-data/sales-procedures.md の P01〜P07 をもとにした図）
- *   場面3 課題（ないとき）   25〜45 秒
- *   場面4 変わること（あるとき） 45〜55 秒
+ * デモ動画の前半（約68秒）。絵コンテの場面1〜5（11/7 版）。このあとに実際の画面の録画（実演）が続く。
+ *   場面1 つかみ：だれのためのツールか  0〜13.5 秒（決まったこと #22 の文をそのまま出す）
+ *   場面2 背景：外国人の患者さんが来店   13.5〜21.5 秒
+ *   場面3 守るべき手順                21.5〜38.5 秒（docs/demo-data/sales-procedures.md の P01〜P07 をもとにした図）
+ *   場面4 今の困りごと（ないとき）     38.5〜56.5 秒（翻訳アプリは断定せず「もれるおそれ」と言う）
+ *   場面5 MODA があるとき              56.5〜68.5 秒（禁忌は「自動でチェックして薬剤師に知らせる」）
  * ナレーションは window.NARRATION の文を render.mjs が読み上げ音声にして重ねる。
  * 読み上げ用の文なので、MODA は「モダ」、濫用は「乱用」と書いている（読み間違いを防ぐため）。
  */
-const SEG = { title: 0, steps: 8, without: 25, with: 45 };
-const DURATION = 55;
+const SEG = { title: 0, arrival: 13.5, steps: 21.5, without: 38.5, with: 56.5 };
+const DURATION = 68.5;
 window.DURATION = DURATION;
 
-// 「ないとき」は11秒ぶんの動きを20秒に、「あるとき」は20.6秒ぶんを10秒にする
-const WARP_WITHOUT = makeWarp([[0, 0], [19.2, 11.0], [20, 11.9]]);
-const WARP_WITH = makeWarp([[0, 0], [3, 5], [5.5, 11.6], [7.3, 15.9], [10, 20.6]]);
+// 「ないとき」は11秒ぶんの動きを18秒に、「あるとき」は20.6秒ぶんを12秒にする
+const WARP_WITHOUT = makeWarp([[0, 0], [17.2, 11.0], [18, 11.9]]);
+const WARP_WITH = makeWarp([[0, 0], [3.4, 5], [6.6, 11.6], [8.8, 15.9], [12, 20.6]]);
 
 const CAPS_WITHOUT = [
-  [0.8, 7.5, "翻訳アプリでのやりとりは、時間がかかる。"],
-  [8.0, 13.5, "まとめて聞くと、答えがもれる。"],
-  [14.0, 18.8, "説明書も、日本語のまま。"],
+  [0.8, 6.8, "翻訳アプリでのやりとりは、時間がかかる。"],
+  [7.2, 12.2, "まとめて聞くと、答えがもれるおそれ。"],
+  [12.6, 16.9, "説明書も、日本語のまま。"],
 ];
-const CAPS_WITH = [[0.8, 9.8, "候補は薬剤師への提案。決めるのは薬剤師。"]];
+const CAPS_WITH = [[0.8, 11.6, "禁忌は自動でチェック。決めるのは薬剤師。"]];
+const CAPS_ARRIVAL = [[0.8, 7.6, "日本語が話せない患者さんも、市販薬を買いに来ます。"]];
 
 // ---- 場面1：タイトル ----
 const GREETINGS = ["Xin chào", "Hello", "你好", "안녕하세요", "Hola", "Olá", "Bonjour", "您好", "こんにちは"];
@@ -59,19 +61,56 @@ function drawTitle(t) {
     text("MODA", 0, 0, 150, C.teal, 800);
     ctx.restore();
   });
-  alpha(prog(t, 0.9, 0.5), () => text("Multilingual OTC Dispensing Assistant", W / 2, 440, 30, C.muted, 600));
+  alpha(prog(t, 0.9, 0.5), () => text("Multilingual OTC Dispensing Assistant", W / 2, 430, 30, C.muted, 600));
+  // だれのためのツールか（11/7 追加）
+  const kw = easeOut(prog(t, 1.4, 0.6));
+  alpha(kw, () => {
+    ctx.font = `800 44px ${FONT}`;
+    const w = ctx.measureText("外国人の患者さんと薬剤師をつなぐ、薬局の接客支援").width + 80;
+    ctx.fillStyle = C.tealSoft; rr(W / 2 - w / 2, 478 + (1 - kw) * 16, w, 76, 38); ctx.fill();
+    text("外国人の患者さんと薬剤師をつなぐ、薬局の接客支援", W / 2, 516 + (1 - kw) * 16, 44, C.teal, 800);
+  });
   const lines = [
-    [2.0, "言語の壁をなくす接客支援。", C.ink, 600],
-    [3.2, "AI は助言せず、訳して聞き取るだけ。", C.teal, 690],
-    [4.4, "薬の判断は薬剤師。", C.ink, 780],
+    [5.4, "言語の壁をなくす接客支援。", C.ink, 660],
+    [6.6, "AI は助言せず、訳して聞き取るだけ。", C.teal, 745],
+    [7.8, "薬の判断は薬剤師。", C.ink, 830],
   ];
   for (const [st, s2, col, y] of lines) {
     const k = easeOut(prog(t, st, 0.6));
-    alpha(k, () => text(s2, W / 2, y + (1 - k) * 24, 58, col, 800));
+    alpha(k, () => text(s2, W / 2, y + (1 - k) * 24, 52, col, 800));
+  }
+  alpha(prog(t, 9.0, 0.6), () => text("登場する人・薬はすべて架空です", W / 2, 935, 26, C.muted, 700));
+}
+
+// ---- 場面2：背景（外国人の患者さんが来店） ----
+function drawArrival(t) {
+  room(false);
+  const walk = easeInOut(prog(t, 0.2, 1.8));
+  const px = lerp(-220, PX, walk);
+  const step = walk < 1 ? Math.abs(Math.sin(t * 9)) * -10 : 0; // 歩くときの上下
+  const puzzled = t > 4.2;
+  person(px, PY + step, {
+    ...PATIENT, armL: [0.15, 0.1],
+    armR: t > 2.2 && t < 3.6 ? [2.5 + Math.sin(t * 10) * 0.2, 0.4] : [0.2, 0.15], // 手を振ってあいさつ
+    mood: t > 2.0 ? "happy" : "neutral", talk: t > 2.4 && t < 4.0, look: 10,
+  });
+  person(RX, RY, {
+    ...PHARMACIST, armL: [0.2, 0.15], armR: [0.2, 0.15],
+    mood: puzzled ? "neutral" : "happy", talk: t > 1.0 && t < 1.8, look: -10,
+    nod: t > 1.0 && t < 1.7 ? Math.sin(prog(t, 1.0, 0.7) * Math.PI) * 10 : 0,
+    tilt: puzzled ? -0.08 : 0,
+  });
+  counter();
+  bubble(RX - 140, 200, 330, 96, pop(t, 1.0) * (1 - prog(t, 3.6, 0.3)), "いらっしゃいませ", null, false);
+  bubble(PX + 200, 200, 520, 120, pop(t, 2.4), "Xin chào. Tôi muốn mua thuốc.", "（こんにちは。薬を買いたいのですが）");
+  const q = pop(t, 4.4);
+  if (q > 0) {
+    ctx.save(); ctx.translate(RX - 150, 300); ctx.rotate(Math.sin(GT * 4) * 0.1); ctx.scale(q, q);
+    text("？", 0, 0, 110, C.warn, 900); ctx.restore();
   }
 }
 
-// ---- 場面2：業務の手順 ----
+// ---- 場面3：業務の手順 ----
 const BIG_STEPS = [
   { t: 0.8, n: "①", title: "問診", sub: "体の状態を聞く" },
   { t: 1.6, n: "②", title: "禁忌の確認", sub: "飲んではいけない薬でないか" },
@@ -146,8 +185,18 @@ function drawSteps(t) {
   }
 }
 
+// BGM（music.mjs）：場面ごとに曲調を変える
+window.MUSIC = [
+  { t: 0, len: SEG.arrival, part: "intro" },
+  { t: SEG.arrival, len: SEG.steps - SEG.arrival, part: "arrival" },
+  { t: SEG.steps, len: SEG.without - SEG.steps, part: "steps" },
+  { t: SEG.without, len: SEG.with - SEG.without, part: "problem" },
+  { t: SEG.with, len: DURATION - SEG.with, part: "solution" },
+];
+
 window.SOUND_EVENTS = [
-  { t: 0.3, kind: "stamp" }, { t: 2.0, kind: "pop" }, { t: 3.2, kind: "pop" }, { t: 4.4, kind: "pop" },
+  { t: 0.3, kind: "stamp" }, { t: 1.4, kind: "pop" }, { t: 5.4, kind: "pop" }, { t: 6.6, kind: "pop" }, { t: 7.8, kind: "pop" },
+  { t: SEG.arrival + 1.0, kind: "pop" }, { t: SEG.arrival + 2.4, kind: "pop" }, { t: SEG.arrival + 4.4, kind: "huh" },
   ...BIG_STEPS.map((b) => ({ t: SEG.steps + b.t, kind: "pop" })),
   ...TIERS.map((tr) => ({ t: SEG.steps + tr.t, kind: "check" })),
   { t: SEG.steps + 6.2, kind: "pop" },
@@ -157,14 +206,16 @@ window.SOUND_EVENTS = [
 ];
 
 // ナレーション（t＝読み始める時刻、max＝読み終えるまでの上限秒。長いときは render.mjs が速さを上げて収める）
+// {…} で囲んだ言葉は、少しゆっくり・少し高め・少し大きく読む（強調）
 window.NARRATION = [
-  { t: 0.5, max: 7.2, text: "モダは、言語の壁をなくす接客支援。AIは助言せず、訳して聞き取るだけ。判断は薬剤師です。" },
-  { t: SEG.steps + 0.4, max: 6.0, text: "薬剤師は、体の状態を聞き、飲んではいけない薬でないかを確かめます。" },
-  { t: SEG.steps + 6.6, max: 10.0, text: "市販薬は、区分によって、確かめることや売り方が変わります。第1類などでは、書面での説明と記録も必要です。" },
-  { t: SEG.without + 0.8, max: 6.6, text: "翻訳アプリでの対応では、やりとりに時間がかかります。" },
-  { t: SEG.without + 8.0, max: 5.5, text: "まとめて聞くと、答えがもれてしまいます。" },
-  { t: SEG.without + 14.0, max: 5.6, text: "説明書も日本語のままで、患者さんは確かめられません。" },
-  { t: SEG.with + 0.6, max: 9.0, text: "モダでは、患者さんは母国語で1問ずつ答えるだけ。薬剤師は日本語で確かめ、薬を選んで承認します。" },
+  { t: 0.5, max: 12.8, text: "モダは、外国人の患者さんと薬剤師をつなぐ、薬局の接客支援アプリです。AIは助言せず、{訳して聞き取るだけ}。{判断は薬剤師}です。" },
+  { t: SEG.arrival + 0.6, max: 7.0, text: "薬局には、{日本語が話せない患者さん}も、市販薬を求めて来店します。" },
+  { t: SEG.steps + 0.4, max: 6.0, text: "薬剤師は、{体の状態}を聞き、{飲んではいけない薬}でないかを確かめます。" },
+  { t: SEG.steps + 6.6, max: 10.2, text: "市販薬は、{区分によって}、確かめることや売り方が変わります。相手が外国の方でも、{同じ手順}が必要です。" },
+  { t: SEG.without + 0.6, max: 6.4, text: "今は、翻訳アプリでの対応が多くあります。ただ、やりとりに{時間がかかります}。" },
+  { t: SEG.without + 7.2, max: 5.2, text: "まとめて聞くと、{答えがもれるおそれ}があります。" },
+  { t: SEG.without + 12.6, max: 4.8, text: "説明書も、{日本語のまま}です。" },
+  { t: SEG.with + 0.6, max: 11.2, text: "モダでは、患者さんは{母国語で}答えるだけ。{禁忌の薬は自動でチェック}し、薬剤師に知らせます。{判断は薬剤師}です。" },
 ];
 
 function captions(list, t, color) {
@@ -174,8 +225,11 @@ function captions(list, t, color) {
 window.draw = function (tg) {
   GT = tg;
   ctx.clearRect(0, 0, W, H);
-  if (tg < SEG.steps) {
+  if (tg < SEG.arrival) {
     drawTitle(tg - SEG.title);
+  } else if (tg < SEG.steps) {
+    drawArrival(tg - SEG.arrival);
+    captions(CAPS_ARRIVAL, tg - SEG.arrival, C.ink);
   } else if (tg < SEG.without) {
     drawSteps(tg - SEG.steps);
   } else if (tg < SEG.with) {
@@ -188,9 +242,10 @@ window.draw = function (tg) {
     drawWith(WARP_WITH.toScene(lt));
     captions(CAPS_WITH, lt, C.teal);
   }
-  // 場面1→2、2→3 は白くしてつなぐ（3→4 は円の切り替え）。最初と最後も白から・白へ
+  // 場面の切れ目は白くしてつなぐ（ないとき→あるときは円の切り替え）。最初と最後も白から・白へ
   const dark = Math.max(
     1 - prog(tg, 0, 0.4),
+    clamp(1 - Math.abs(tg - SEG.arrival) / 0.4),
     clamp(1 - Math.abs(tg - SEG.steps) / 0.4),
     clamp(1 - Math.abs(tg - SEG.without) / 0.4),
     prog(tg, DURATION - 0.4, 0.4),

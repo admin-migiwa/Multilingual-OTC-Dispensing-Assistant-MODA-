@@ -98,7 +98,7 @@ function cardSummary() {
   text("ぜんそく：なし", -180, 36, 26, C.ink, 700, "left");
 }
 function cardCandidates(t) {
-  text("薬の候補（薬剤師への提案）", -180, -52, 22, C.teal, 800, "left");
+  text("薬の候補（禁忌チェック済み・提案）", -180, -52, 22, C.teal, 800, "left");
   const picked = t > 12.3;
   [["モダペインS錠", "第1類", -6, true], ["モダねつさまし錠", "第2類", 38, false]].forEach(([name, cls, y, isPick]) => {
     const on = isPick && picked;

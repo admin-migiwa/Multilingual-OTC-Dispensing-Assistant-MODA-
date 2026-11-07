@@ -19,9 +19,10 @@
 const DURATION = 10;
 window.DURATION = DURATION;
 window.SOUND_EVENTS = [{ t: 0.8, kind: "pop" }, { t: 2.0, kind: "stamp" }];
+window.MUSIC = [{ t: 0, len: DURATION, part: "outro" }];
 window.NARRATION = [
-  { t: 0.7, max: 2.9, text: "言葉がちがっても、同じ安全を。" },
-  { t: 3.3, max: 6.0, text: "薬局薬剤師が企画し、試験運用に向けて準備を進めています。" },
+  { t: 0.7, max: 2.9, text: "{言葉がちがっても}、同じ安全を。" },
+  { t: 3.3, max: 6.0, text: "薬局薬剤師が企画し、{試験運用}に向けて準備を進めています。" },
 ];
 
 window.draw = function (t) {
