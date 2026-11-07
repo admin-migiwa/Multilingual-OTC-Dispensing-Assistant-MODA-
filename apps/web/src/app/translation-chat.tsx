@@ -104,6 +104,10 @@ export function TranslationChat({
   // 前の会話をサーバーの記録から読んで出す（画面を移っても会話が消えないように。11/7 依頼主の判断。backlog S-13）
   useEffect(() => {
     let cancelled = false;
+    // 接客が変わったら、前の接客の会話を出さない
+    setEntries([]);
+    setHistoryReady(false);
+    setHistoryFailed(false);
     fetch(`/api/sessions/${encodeURIComponent(sessionId)}/chat-log`, { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) throw new Error(String(response.status));
@@ -156,13 +160,19 @@ export function TranslationChat({
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const sent = text.trim();
-    if (!sent || sending || !historyReady) return;
+    if (!sent || sending) return;
     setError(null);
 
-    // 患者さんの文は、送る前に端末の中で緊急キーワードを照合する（通信に頼らない）
+    // 患者さんの文は、送る前に端末の中で緊急キーワードを照合する（通信に頼らない）。
+    // 前の会話を読み込んでいる途中でも、緊急の照合だけは先に行う（CLAUDE.md ルール2）
     if (direction === "to_ja" && !emergencyCleared) {
       const local = detectEmergency(sent, { language, age });
       if (local.isEmergency) onEmergency({ kind: "keyword", text: sent, hits: local.hits });
+    }
+    if (!historyReady) {
+      // 前の会話を読み終えるまでは訳さない（同じ文が二重に並ばないように）。入力した文は残す
+      setError("前の会話を読み込んでいます。少し待ってから、もう一度押してください。");
+      return;
     }
 
     setSending(true);
@@ -275,7 +285,7 @@ export function TranslationChat({
         <div lang="ja" className="flex items-center gap-4">
           <button
             type="submit"
-            disabled={sending || !historyReady || text.trim() === ""}
+            disabled={sending || text.trim() === ""}
             className="rounded-xl bg-slate-800 px-4 py-2 text-base font-semibold text-white hover:bg-slate-900 disabled:opacity-50"
           >
             {sending ? "訳しています…" : "訳す"}
