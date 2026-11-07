@@ -435,3 +435,78 @@ describe("119番の案内の取り消しと、確認済みの接客（11/6 依�
     assert.equal(patientView(cancelEmergency119(deps, id)).emergencyCleared, false);
   });
 });
+
+// sales-procedures.md S09・S10・S11（☑）。18歳未満の大容量・複数個を R02 の時点で止める（backlog M-12）
+describe("R02 の時点の個数・包装の制限（M-12）", () => {
+  /** 「ほしい薬がある」で E を選び、R02 の手前まで答える */
+  function toR02(deps: ServiceDeps, age: number): string {
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age, sex: "female" });
+    chooseRoute(deps, id, "product");
+    chooseDrugs(deps, id, ["E"]);
+    answer(deps, id, { ...basic, age, alcohol: false, otherStorePurchase: "no" });
+    assert.equal(patientView(getSession(deps, id)).nextQuestion, "R02");
+    return id;
+  }
+
+  it("S09・S10・S11：17歳の R02 では小箱1個だけが選べ、注意文を2つ出す（年齢・個数は版のデータの値）", () => {
+    const deps = testDeps();
+    const id = toR02(deps, 17);
+    assert.deepEqual(patientView(getSession(deps, id)).packageOptions, {
+      allowed: ["small_one"],
+      notices: ["minor_large_package", "minor_multiple_packages"],
+      minorAgeBelow: 18,
+      minorMaxQuantity: 1,
+    });
+  });
+
+  it("S09・S10：17歳が大箱1個・小箱2個を答えても受け取らず、記録は変わらない", () => {
+    const deps = testDeps();
+    const id = toR02(deps, 17);
+    const before = getSession(deps, id);
+    assertError(() => answer(deps, id, { packageChoice: "large_one" }), "QUANTITY_NOT_ALLOWED");
+    assertError(() => answer(deps, id, { packageChoice: "multiple", multipleCount: 2 }), "QUANTITY_NOT_ALLOWED");
+    assert.equal(getSession(deps, id), before);
+  });
+
+  it("S11：17歳が小箱1個を答えると受け取る", () => {
+    const deps = testDeps();
+    const id = toR02(deps, 17);
+    assert.equal(answer(deps, id, { packageChoice: "small_one" }).interview.answers.packageChoice, "small_one");
+  });
+
+  it("S07・S09：30歳で大箱1個と答えたあと年齢を17歳に直すと、R02 と R03 の答えを消して R02 を聞き直す", () => {
+    const deps = testDeps();
+    const id = toR02(deps, 30);
+    answer(deps, id, { packageChoice: "large_one" });
+    answer(deps, id, { reasonText: "family" });
+    const record = answer(deps, id, { age: 17 });
+    assert.equal(record.interview.answers.packageChoice, undefined);
+    assert.equal(record.interview.answers.reasonText, undefined);
+    assert.equal(patientView(record).nextQuestion, "R02");
+    assert.equal(record.events.some((e) => e.type === "answers_cleared" && e.detail.includes("R02")), true);
+  });
+
+  it("S11：17歳で小箱1個と答えたあと年齢を30歳に直しても、R02 の答えは消えない", () => {
+    const deps = testDeps();
+    const id = toR02(deps, 17);
+    answer(deps, id, { packageChoice: "small_one" });
+    assert.equal(answer(deps, id, { age: 30 }).interview.answers.packageChoice, "small_one");
+  });
+
+  it("決定12・S10：17歳が B と E を一緒に選ぼうとすると止まる（R02 にどの包装も選べないため）", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 17, sex: "female" });
+    chooseRoute(deps, id, "product");
+    const before = getSession(deps, id);
+    assertError(() => chooseDrugs(deps, id, ["B", "E"]), "QUANTITY_NOT_ALLOWED");
+    assert.equal(getSession(deps, id), before);
+  });
+
+  it("S06：30歳の R02 では、どれも選べて注意文は出さない", () => {
+    const deps = testDeps();
+    const id = toR02(deps, 30);
+    assert.deepEqual(patientView(getSession(deps, id)).packageOptions?.notices, []);
+  });
+});

@@ -94,6 +94,9 @@ export const zhHant: Messages = {
       R02: {
         text: "您想購買幾盒？",
         options: { smallOne: "小盒1盒", largeOne: "大盒1盒", multiple: "2盒以上" },
+        // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
+        minorLargePackage: "無法向未滿{age}歲的人販售大容量包裝。",
+        minorMultiplePackages: "未滿{age}歲的人最多可購買{max}盒。",
       },
       R03: { text: "請告訴我們需要大盒或2盒以上的原因。" },
       R04: { text: "您打算用於什麼症狀？" },

@@ -6,3 +6,4 @@ export {
   isKnownContraindicated,
   type CandidatePreview,
 } from "./candidates.ts";
+export { checkPackageAnswer, packageChoiceOptions, type PackageChoiceOptions } from "./package-options.ts";

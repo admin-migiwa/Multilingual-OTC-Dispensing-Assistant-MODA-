@@ -94,6 +94,9 @@ export const pt: Messages = {
       R02: {
         text: "Quantos você quer comprar?",
         options: { smallOne: "Uma caixa pequena", largeOne: "Uma caixa grande", multiple: "Duas ou mais" },
+        // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
+        minorLargePackage: "Não podemos vender embalagens grandes a menores de {age} anos.",
+        minorMultiplePackages: "Menores de {age} anos podem comprar até {max} caixa.",
       },
       R03: { text: "Diga por que você precisa de uma caixa grande ou de duas ou mais." },
       R04: { text: "Para quais sintomas você vai usar?" },

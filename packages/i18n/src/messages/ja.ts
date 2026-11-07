@@ -98,6 +98,9 @@ export const ja = {
       R02: {
         text: "いくつ買いたいですか？",
         options: { smallOne: "小さい箱を1つ", largeOne: "大きい箱を1つ", multiple: "2つ以上" },
+        // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
+        minorLargePackage: "{age}歳未満の方には大容量の包装を販売できません",
+        minorMultiplePackages: "{age}歳未満の方には{max}個まで販売できます",
       },
       R03: { text: "大きい箱や2つ以上が必要な理由を教えてください。" },
       R04: { text: "どんな症状に使いますか？" },

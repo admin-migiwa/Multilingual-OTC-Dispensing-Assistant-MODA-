@@ -324,3 +324,26 @@ describe("候補・代わりの薬を選んで、その薬の項目を聞く問�
     assert.equal(pharmacistView(getSession(deps, id), NOW).drugs[0]?.judgment.verdict, "contraindicated");
   });
 });
+
+// sales-procedures.md S10（☑）と demo-data/README.md の決定12：種類の違う指定濫用防止医薬品も合わせて数える
+describe("18歳未満に、R02 でどの包装も選べない組み合わせは候補として選べない（M-12）", () => {
+  it("決定12・S10：17歳に B と E を一緒に選ぶと止まり、記録は変わらない", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 17, sex: "female" });
+    chooseRoute(deps, id, "symptom", "cold");
+    answer(deps, id, {
+      pregnancy: "no",
+      breastfeeding: "no",
+      asthmaHistory: "no",
+      conditions: [],
+      drugAllergy: "no",
+      currentMedications: [],
+      drivingAfter: false,
+    });
+    openPharmacistReview(deps, id);
+    const before = getSession(deps, id);
+    assertError(() => chooseCandidateDrugs(deps, id, ["B", "E"]), "QUANTITY_NOT_ALLOWED");
+    assert.equal(getSession(deps, id), before);
+  });
+});

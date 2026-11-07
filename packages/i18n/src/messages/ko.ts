@@ -94,6 +94,9 @@ export const ko: Messages = {
       R02: {
         text: "몇 개를 사고 싶으세요?",
         options: { smallOne: "작은 상자 1개", largeOne: "큰 상자 1개", multiple: "2개 이상" },
+        // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
+        minorLargePackage: "{age}세 미만에게는 대용량 포장을 판매할 수 없습니다.",
+        minorMultiplePackages: "{age}세 미만은 {max}개까지 구입할 수 있습니다.",
       },
       R03: { text: "큰 상자나 2개 이상이 필요한 이유를 알려 주세요." },
       R04: { text: "어떤 증상에 사용하실 건가요?" },
