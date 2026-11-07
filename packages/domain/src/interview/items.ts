@@ -138,7 +138,7 @@ export const QUESTIONS: readonly QuestionDefinition[] = [
   },
   { id: "Q06", stage: "basic", answerKeys: ["asthmaHistory"], askWhen: always },
   { id: "Q07", stage: "basic", answerKeys: ["conditions"], optionalKeys: ["otherConditionText"], askWhen: always },
-  { id: "Q08", stage: "basic", answerKeys: ["drugAllergy"], askWhen: always },
+  { id: "Q08", stage: "basic", answerKeys: ["drugAllergy"], optionalKeys: ["allergyDrugNames"], askWhen: always },
   {
     id: "Q09",
     stage: "basic",

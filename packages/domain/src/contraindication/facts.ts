@@ -78,6 +78,8 @@ export type InterviewFacts = {
   otherConditionText?: string;
   /** Q08 薬でアレルギーが出たことがあるか */
   drugAllergy?: YesNoUnknown;
+  /** Q08 アレルギーが出た薬の名前（「はい」のときだけ）。判定には使わず、薬剤師の画面に出す（interview-items.md Q08。backlog S-11） */
+  allergyDrugNames?: readonly string[];
   /** Q09 いま飲んでいる薬（なしは []） */
   currentMedications?: readonly CurrentMedication[];
   /** Q09 処方薬の名前。判定には使わず、薬剤師の画面に出す（K39） */
@@ -166,6 +168,7 @@ const FACT_CHECKS: Readonly<Record<keyof InterviewFacts, { itemId: InterviewItem
   conditions: { itemId: "Q07", check: listOf(CONDITIONS) },
   otherConditionText: { itemId: "Q07", check: isString },
   drugAllergy: { itemId: "Q08", check: oneOf(YES_NO_UNKNOWN) },
+  allergyDrugNames: { itemId: "Q08", check: stringList },
   currentMedications: { itemId: "Q09", check: listOf(CURRENT_MEDICATIONS) },
   prescriptionDrugNames: { itemId: "Q09", check: stringList },
   drivingAfter: { itemId: "Q10", check: isBoolean },
@@ -191,5 +194,9 @@ export function assertValidFacts(facts: InterviewFacts): void {
       // message に答えの中身（健康情報）を入れない（項目 ID だけ）
       throw new DomainRuleError("FACT_INVALID", `問診の ${rule.itemId} の答えが決められた形ではありません`);
     }
+  }
+  // アレルギーが出た薬の名前は、Q08 で「はい」と答えたときだけ（「いいえ」「わからない」と一緒に名前が残らないように）
+  if (facts.allergyDrugNames !== undefined && facts.drugAllergy !== "yes") {
+    throw new DomainRuleError("FACT_INVALID", "問診の Q08 の答えが決められた形ではありません");
   }
 }

@@ -468,9 +468,10 @@ function AllergyQuestion({
         type="button"
         disabled={busy}
         onClick={() => {
-          if (name.trim() !== "" && onFreeText(name.trim())) return;
-          // 薬の名前は薬剤師が口頭で確かめる（ハッカソン版では記録に残さない。docs/backlog.md S-11）
-          onSubmit({ drugAllergy: "yes" });
+          const trimmed = name.trim();
+          if (trimmed !== "" && onFreeText(trimmed)) return;
+          // 薬の名前は記録に残し、薬剤師の画面に原文で出す（判定には使わない。docs/backlog.md S-11）
+          onSubmit({ drugAllergy: "yes", ...(trimmed !== "" ? { allergyDrugNames: [trimmed] } : {}) });
         }}
         className={primaryClass}
       >

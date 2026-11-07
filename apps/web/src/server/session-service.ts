@@ -61,6 +61,8 @@ export interface RecordedFollowUp extends EmergencyFollowUp {
 
 /** 自由に入力された文の長さの上限（メモリにため込みすぎないため） */
 export const MAX_TEXT_LENGTH = 500;
+/** 一覧で答える項目（薬の名前、選択肢の一覧）の数の上限 */
+export const MAX_NAME_LIST_LENGTH = 20;
 
 export type EmergencyDecision = "show_119" | "not_emergency";
 
@@ -269,6 +271,15 @@ export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers)
   for (const value of Object.values(answers)) {
     if (typeof value === "string" && value.length > MAX_TEXT_LENGTH) {
       throw new SessionServiceError("INVALID_REQUEST", "入力が長すぎます");
+    }
+    // 薬の名前（Q08・Q09）は文の一覧。数と、1つずつの長さに上限をかける（メモリにため込みすぎないため）
+    if (Array.isArray(value)) {
+      if (value.length > MAX_NAME_LIST_LENGTH) throw new SessionServiceError("INVALID_REQUEST", "入力が多すぎます");
+      for (const item of value as unknown[]) {
+        if (typeof item === "string" && item.length > MAX_TEXT_LENGTH) {
+          throw new SessionServiceError("INVALID_REQUEST", "入力が長すぎます");
+        }
+      }
     }
   }
   const before = record.interview.answers;
