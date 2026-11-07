@@ -282,9 +282,7 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
           <a href={patientUrl} className="inline-flex min-h-11 items-center text-lg text-slate-600 underline underline-offset-4">
             ← 患者さんの画面に戻る
           </a>
-          {/* 途中でやめる人のために、最初の画面（言語の選択）に戻れる（11/8 依頼主の判断）。記録は消さない。
-              緊急の確認中は出さない（薬剤師の判断を記録せずに接客を離れないため。確認は患者さんの画面で行う。ルール2） */}
-          {view?.status === "emergency_review" ? null : (
+          {/* 途中でやめる人のために、いつでも最初の画面（言語の選択）に戻れる（11/8 依頼主の判断。緊急の確認中も）。記録は消さない */}
           <button
             type="button"
             onClick={() => {
@@ -296,7 +294,6 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
           >
             最初の画面に戻る（接客をやめる）
           </button>
-          )}
         </div>
         <div className="flex items-center gap-3">
           <ModaBrand />
