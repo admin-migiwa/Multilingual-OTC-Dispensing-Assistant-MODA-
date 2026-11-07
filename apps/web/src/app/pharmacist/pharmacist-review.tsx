@@ -1125,6 +1125,11 @@ function AfterApprovalSection({
               </button>
             ) : null}
           </div>
+          {status === "approved" ? (
+            <p className="text-sm text-slate-600">
+              説明を始めたあとは、この画面に戻らなくても、患者さんの画面の下の「薬剤師用：会計の前の手順と会計案内」で手順の ✓ と会計案内に進めます。
+            </p>
+          ) : null}
 
           <div className="space-y-2">
             <p className="font-semibold">
