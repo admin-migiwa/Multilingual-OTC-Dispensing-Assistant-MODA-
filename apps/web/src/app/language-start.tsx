@@ -87,6 +87,9 @@ export function LanguageStart() {
   const pendingOpen = useRef<Promise<PatientView | null> | null>(null);
   /** 「最初の画面に戻る」を押した回数（押す前に始まった通信の結果を、あとから画面に使わないため） */
   const startOverCount = useRef(0);
+  /** いま画面に出している接客（チャットの通信の結果が、前の接客のものかを見分けるため） */
+  const currentViewId = useRef<string | null>(null);
+  currentViewId.current = view?.id ?? null;
   /** 通ってきた画面（「戻る」で1つずつ戻る） */
   const [trail, setTrail] = useState<readonly Step[]>([]);
   /** 「戻る」で戻って、いま出している画面（null：サーバーが決めた画面をそのまま出す） */
@@ -266,13 +269,16 @@ export function LanguageStart() {
     setRecordFailed(false);
     show119Recorded.current = false;
     if (view === null) return;
+    const startedAt = startOverCount.current;
     sessionApi
       .openEmergency(view.id, {
         trigger: trigger.kind,
         matchedRuleIds: trigger.kind === "keyword" ? trigger.hits.map((h) => h.id) : [],
         inputText: trigger.kind === "keyword" ? trigger.text : null,
       })
-      .catch(() => setRecordFailed(true));
+      .catch(() => {
+        if (startedAt === startOverCount.current) setRecordFailed(true);
+      });
   }
 
   /**
@@ -287,6 +293,8 @@ export function LanguageStart() {
     const next: EmergencyTrigger =
       found.kind === "keyword" ? { kind: "keyword", text: found.text, hits: found.hits } : { kind: "staff" };
     if (emergencyRef.current !== null) return;
+    // 「最初の画面に戻る」のあとに届いた、前の接客のチャットの知らせは使わない
+    if (view === null || view.id !== currentViewId.current) return;
     emergencyRef.current = next;
     setEmergency(next);
     setRecordFailed(false);
@@ -338,11 +346,15 @@ export function LanguageStart() {
           onFollowUpChange={setFollowUp}
           onShowGuide={() => {
             if (show119Recorded.current) return; // すでに記録した（2回目の押下）。案内はそのまま出す
+            const startedAt = startOverCount.current;
             show119Pending.current = recordDecision("show_119")
               .then((result) => {
+                // 途中で「最初の画面に戻る」を押していたら、次の接客の状態に持ち込まない
+                if (startedAt !== startOverCount.current) return;
                 if (result !== null) show119Recorded.current = true;
               })
               .catch(() => {
+                if (startedAt !== startOverCount.current) return;
                 // 通信の失敗でも、記録の順番のずれ（緊急の確認を開いた記録がまだ届いていない）でも、薬剤師に知らせる
                 setRecordFailed(true);
               });
@@ -350,9 +362,11 @@ export function LanguageStart() {
           onCancelGuide={async () => {
             // 押し間違い：119番の案内を取り消し、押す前の薬剤師の確認に戻る（11/6 依頼主の判断）。
             // 「緊急ではない」の判断ではないので、以降の緊急キーワードの確認はそのまま続く
+            const startedAt = startOverCount.current;
             await show119Pending.current; // 記録の途中なら、記録が終わってから取り消す
             // 薬剤師の確認画面から開いて、押した時点で画面に接客がなかったときも、緊急の確認を記録した接客で取り消す
             const id = view?.id ?? (await pendingOpen.current)?.id ?? null;
+            if (startedAt !== startOverCount.current) return true; // 途中で「最初の画面に戻る」を押した。前の接客には触れない
             if (!show119Recorded.current || id === null) return true; // 記録できていない（通信が止まっていた）ので画面だけ戻す
             try {
               setView(await sessionApi.cancelEmergency119(id));
