@@ -137,7 +137,13 @@ export const en: Messages = {
   },
   pharmacist: {
     waiting: "A pharmacist is checking your answers. Please wait a moment.",
-    notForSale: "We are sorry. With your current condition, we cannot offer an over-the-counter medicine. We recommend that you see a doctor at a hospital or clinic.",
+  },
+  referral: {
+    title: "Please see a doctor at a hospital or clinic",
+    body: "We are sorry. With your current condition, we cannot offer an over-the-counter medicine. We recommend that you see a doctor at a hospital or clinic.",
+    tellDoctor: "At the hospital, please tell the doctor about your symptoms today and the medicines you are taking now. If you have a medicine record book, please bring it.",
+    consultTitle: "Where you can get help in other languages",
+    askStaff: "If anything is unclear, please ask our staff.",
   },
   guidance: {
     title: "About your medicine",

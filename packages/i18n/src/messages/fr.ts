@@ -137,7 +137,13 @@ export const fr: Messages = {
   },
   pharmacist: {
     waiting: "Un pharmacien vérifie vos réponses. Veuillez patienter un instant.",
-    notForSale: "Nous sommes désolés. Dans votre état actuel, nous ne pouvons pas vous proposer de médicament sans ordonnance. Nous vous conseillons de consulter un médecin à l'hôpital ou dans une clinique.",
+  },
+  referral: {
+    title: "Veuillez consulter un médecin à l'hôpital ou dans une clinique",
+    body: "Nous sommes désolés. Dans votre état actuel, nous ne pouvons pas vous proposer de médicament sans ordonnance. Nous vous conseillons de consulter un médecin à l'hôpital ou dans une clinique.",
+    tellDoctor: "À l'hôpital, indiquez au médecin vos symptômes d'aujourd'hui et les médicaments que vous prenez actuellement. Si vous avez un carnet de suivi des médicaments, apportez-le.",
+    consultTitle: "Où obtenir de l'aide dans d'autres langues",
+    askStaff: "Si quelque chose n'est pas clair, demandez au personnel.",
   },
   guidance: {
     title: "À propos de votre médicament",

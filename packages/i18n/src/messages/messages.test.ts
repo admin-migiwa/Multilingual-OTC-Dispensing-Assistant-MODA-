@@ -92,6 +92,33 @@ describe("定型文（9言語）", () => {
   });
 });
 
+describe("受診をすすめる案内（docs/demo-data/referral.md の RF01〜RF05）", () => {
+  it("どの言語にも、見出し・受診をすすめる文・病院で伝えること・相談先の見出し・スタッフへの案内がそろっている", () => {
+    for (const lang of LANGUAGES) {
+      const referral = getMessages(lang.code).referral;
+      for (const key of ["title", "body", "tellDoctor", "consultTitle", "askStaff"] as const) {
+        assert.ok(referral[key].trim().length > 0, `${lang.code}: ${key}`);
+      }
+    }
+  });
+
+  it("日本語の原文は、依頼主が選んだ表（RF01〜RF03・RF05）の文と同じ", () => {
+    const referral = getMessages("ja").referral;
+    assert.equal(referral.title, "病院や診療所で診てもらってください");
+    assert.equal(referral.body, "申し訳ありません。今の状態では、お店の薬（市販薬）ではお応えできません。病院や診療所での受診をおすすめします。");
+    assert.equal(referral.tellDoctor, "病院では、今日の症状と、いま飲んでいる薬を伝えてください。お薬手帳があれば持って行ってください。");
+    assert.equal(referral.askStaff, "わからないことは、スタッフに聞いてください。");
+  });
+
+  it("受診をすすめる案内には119番を書かない（119番は薬剤師が緊急の確認をしてから出す）", () => {
+    for (const lang of LANGUAGES) {
+      for (const [path, text] of flatten(getMessages(lang.code).referral)) {
+        assert.doesNotMatch(text, /119/, `${lang.code}: ${path}`);
+      }
+    }
+  });
+});
+
 describe("訳の確認状態", () => {
   it("日本語は原文なので「AI が翻訳した文」の表示を出さない", () => {
     assert.equal(needsAiTranslationNotice("ja"), false);

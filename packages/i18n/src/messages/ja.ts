@@ -141,7 +141,15 @@ export const ja = {
   },
   pharmacist: {
     waiting: "薬剤師が内容を確認しています。少しお待ちください。",
-    notForSale: "申し訳ありません。今の状態では、お店の薬（市販薬）ではお応えできません。病院や診療所での受診をおすすめします。",
+  },
+  // 受診をすすめる案内（docs/demo-data/referral.md の RF01〜RF05。11/7 依頼主＝薬剤師が選んだ）。
+  // 外国語で相談できるところは、緊急案内と同じ emergency.visitorHotline・visitorHotlinePage・residentConsultationPage を使う
+  referral: {
+    title: "病院や診療所で診てもらってください",
+    body: "申し訳ありません。今の状態では、お店の薬（市販薬）ではお応えできません。病院や診療所での受診をおすすめします。",
+    tellDoctor: "病院では、今日の症状と、いま飲んでいる薬を伝えてください。お薬手帳があれば持って行ってください。",
+    consultTitle: "外国語で相談できるところ",
+    askStaff: "わからないことは、スタッフに聞いてください。",
   },
   guidance: {
     title: "お薬の説明",

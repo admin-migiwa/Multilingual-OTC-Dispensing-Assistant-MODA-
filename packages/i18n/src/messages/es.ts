@@ -137,7 +137,13 @@ export const es: Messages = {
   },
   pharmacist: {
     waiting: "Un farmacéutico está revisando sus respuestas. Espere un momento, por favor.",
-    notForSale: "Lo sentimos. Con su estado actual, no podemos ofrecerle un medicamento sin receta. Le recomendamos acudir a un hospital o una clínica.",
+  },
+  referral: {
+    title: "Por favor, consulte a un médico en un hospital o una clínica",
+    body: "Lo sentimos. Con su estado actual, no podemos ofrecerle un medicamento sin receta. Le recomendamos acudir a un hospital o una clínica.",
+    tellDoctor: "En el hospital, informe al médico de sus síntomas de hoy y de los medicamentos que toma actualmente. Si tiene una libreta de registro de medicamentos, llévela.",
+    consultTitle: "Dónde consultar en otros idiomas",
+    askStaff: "Si tiene alguna duda, pregunte al personal.",
   },
   guidance: {
     title: "Sobre su medicamento",
