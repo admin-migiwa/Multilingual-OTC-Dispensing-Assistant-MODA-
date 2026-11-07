@@ -886,7 +886,7 @@ function PatientBodyMain({
         <a
           lang="ja"
           href={`/pharmacist/${encodeURIComponent(view.id)}`}
-          className="inline-block rounded-lg border border-teal-400 bg-white px-3 py-1.5 text-xs font-semibold text-teal-900 hover:bg-teal-100"
+          className="inline-block rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-900 hover:bg-indigo-100"
         >
           薬剤師用：確認の画面を開く
         </a>
@@ -1010,7 +1010,7 @@ function DrugSearch({
         }}
       />
       {pendingDrug ? (
-        <div lang="ja" className="space-y-3 rounded-2xl border-2 border-teal-500 bg-teal-50 p-4">
+        <div lang="ja" className="space-y-3 rounded-2xl border-2 border-indigo-400 bg-indigo-50 p-4">
           <p className="font-semibold">
             薬剤師用：候補「{pendingDrug.name}」で問診を進めますか？（箱やスマホの画面の名前と見比べて、薬剤師が確かめてから押してください）
           </p>
@@ -1019,7 +1019,7 @@ function DrugSearch({
               type="button"
               disabled={busy}
               onClick={() => onChoose(pendingDrug.id)}
-              className="rounded-xl bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
+              className="rounded-xl bg-indigo-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
             >
               薬剤師が確かめた：この薬で進める
             </button>
@@ -1227,7 +1227,7 @@ function AfterApprovalPatient({
     <a
       lang="ja"
       href={`/pharmacist/${encodeURIComponent(view.id)}`}
-      className="inline-block rounded-lg border border-teal-400 bg-white px-3 py-1.5 text-xs font-semibold text-teal-900 hover:bg-teal-100"
+      className="inline-block rounded-lg border border-indigo-300 bg-indigo-50 px-3 py-1.5 text-xs font-semibold text-indigo-900 hover:bg-indigo-100"
     >
       薬剤師用：確認の画面を開く
     </a>

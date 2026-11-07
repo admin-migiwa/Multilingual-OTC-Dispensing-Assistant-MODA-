@@ -297,7 +297,7 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
         </div>
         <div className="flex items-center gap-3">
           <ModaBrand />
-          <span className="rounded-full bg-teal-700 px-3 py-1 text-sm font-bold text-white">薬剤師用</span>
+          <span className="rounded-full bg-indigo-700 px-3 py-1 text-sm font-bold text-white">薬剤師用</span>
         </div>
         <h1 className="text-3xl font-bold">薬剤師の確認</h1>
         {view ? (
@@ -399,7 +399,7 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="space-y-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <h2 className="flex items-center gap-2 text-xl font-bold">
-        <span aria-hidden="true" className="h-6 w-1.5 shrink-0 rounded-full bg-teal-500" />
+        <span aria-hidden="true" className="h-6 w-1.5 shrink-0 rounded-full bg-indigo-500" />
         {title}
       </h2>
       {children}
@@ -746,7 +746,7 @@ function CandidatesSection({
                 <span className="rounded-lg border bg-white px-2 py-0.5 text-sm font-bold">{style.text}</span>
                 <span className="font-bold">{c.name}</span>
                 {view.drugs.some((d) => d.drugId === c.drugId) ? (
-                  <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-900">いま選んでいる薬</span>
+                  <span className="rounded-full bg-indigo-100 px-2 py-0.5 text-xs text-indigo-900">いま選んでいる薬</span>
                 ) : null}
                 <span className="text-sm">（{c.classification}）</span>
                 {contraindicated ? (
@@ -776,7 +776,7 @@ function CandidatesSection({
         type="button"
         disabled={busy || chosen.length === 0}
         onClick={() => onChoose([...chosen])}
-        className="rounded-xl bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
+        className="rounded-xl bg-indigo-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
       >
         選んだ薬の項目を聞く問診に戻る（患者さんの画面へ）
       </button>
@@ -863,7 +863,7 @@ function PhaseSteps({ view }: { view: PharmacistView }) {
           key={l}
           aria-current={i === current ? "step" : undefined}
           className={`rounded-full px-3 py-1 text-sm font-semibold ${
-            i === current ? "bg-teal-700 text-white" : i < current ? "bg-teal-100 text-teal-900" : "bg-slate-100 text-slate-500"
+            i === current ? "bg-indigo-700 text-white" : i < current ? "bg-indigo-100 text-indigo-900" : "bg-slate-100 text-slate-500"
           }`}
         >
           {i < current ? "✓ " : `${i + 1}. `}
@@ -925,7 +925,7 @@ function ApproveSection({
             onApprove(pharmacistId, pin);
             setPin("");
           }}
-          className="rounded-xl bg-teal-700 px-5 py-2 font-semibold text-white disabled:opacity-50"
+          className="rounded-xl bg-indigo-700 px-5 py-2 font-semibold text-white disabled:opacity-50"
         >
           承認して販売記録を作る
         </button>
@@ -1200,7 +1200,7 @@ function GuidancePreview({ view, busy, onCreate }: { view: PharmacistView; busy:
         type="button"
         disabled={busy}
         onClick={onCreate}
-        className="rounded-xl border-2 border-teal-600 px-4 py-2 font-semibold text-teal-800 disabled:opacity-50"
+        className="rounded-xl border-2 border-indigo-600 px-4 py-2 font-semibold text-indigo-800 disabled:opacity-50"
       >
         {view.guidance ? "説明書を作り直す" : "説明書を作る（AI で患者さんの言語に訳す）"}
       </button>
@@ -1243,7 +1243,7 @@ function AfterApprovalSection({
               type="button"
               disabled={busy}
               onClick={() => onGuidance("create")}
-              className="rounded-xl border-2 border-teal-600 px-4 py-2 font-semibold text-teal-800 disabled:opacity-50"
+              className="rounded-xl border-2 border-indigo-600 px-4 py-2 font-semibold text-indigo-800 disabled:opacity-50"
             >
               {view.guidance ? "説明書を作り直す" : "説明書を作る"}
             </button>
@@ -1260,7 +1260,7 @@ function AfterApprovalSection({
                 type="button"
                 disabled={busy || view.guidance === null}
                 onClick={() => onGuidance("counsel")}
-                className="rounded-xl bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
+                className="rounded-xl bg-indigo-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
               >
                 患者さんの画面で説明を始める
               </button>
@@ -1316,7 +1316,7 @@ function AfterApprovalSection({
               type="button"
               disabled={busy || !allDone}
               onClick={() => onGuidance("checkout")}
-              className="rounded-xl bg-teal-700 px-5 py-2 font-semibold text-white disabled:opacity-50"
+              className="rounded-xl bg-indigo-700 px-5 py-2 font-semibold text-white disabled:opacity-50"
             >
               会計案内に進む（患者さんの画面へ）
             </button>

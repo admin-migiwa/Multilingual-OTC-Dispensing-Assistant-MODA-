@@ -61,7 +61,7 @@ export function SaleRecords() {
         </button>
         <div className="flex items-center gap-3">
           <ModaBrand />
-          <span className="rounded-full bg-teal-700 px-3 py-1 text-sm font-bold text-white">薬剤師用</span>
+          <span className="rounded-full bg-indigo-700 px-3 py-1 text-sm font-bold text-white">薬剤師用</span>
         </div>
         <h1 className="text-3xl font-bold">販売記録の一覧</h1>
         <p className="text-sm text-slate-500">
