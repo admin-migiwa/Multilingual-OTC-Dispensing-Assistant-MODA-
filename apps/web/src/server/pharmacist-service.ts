@@ -28,6 +28,8 @@ import {
   isBasicInterviewComplete,
   isInterviewComplete,
   judgeDrugs,
+  checkOverrideReason,
+  type OverrideReasonCode,
   nextQuestion,
   keptQuestionsFromPastDrugs,
   previewCandidates,
@@ -48,6 +50,7 @@ import {
 import type { LanguageCode } from "@moda/i18n";
 
 import type { SaleRecord } from "./approval.ts";
+import type { PinVerifier } from "./pin.ts";
 import { japanDate } from "./japan-date.ts";
 import {
   SessionServiceError,
@@ -76,6 +79,22 @@ export interface StepCheck {
   readonly choiceIndex: number;
 }
 
+/**
+ * 禁忌の解除（T9b。C-14）。薬剤師が PIN で再認証し、理由を選んで記録する。足すだけで書き換えない。
+ * 解除が効くのは、その確認（round）の中だけ。確認を閉じる（戻る・候補を選び直す・承認・販売しない）と、次の確認ではやり直す
+ * （確認の間は問診の答えが変わらないので、判定も変わらない）。
+ */
+export interface ContraindicationOverride {
+  readonly at: string;
+  readonly drugId: StockedDrugId;
+  readonly pharmacist: { readonly id: string; readonly name: string };
+  readonly reasonCode: OverrideReasonCode;
+  /** 「その他」などの自由記述（ログ・履歴には出さない） */
+  readonly reasonText: string | null;
+  /** 解除したときの禁忌の理由（あとから確かめるため） */
+  readonly judgedReasons: readonly string[];
+}
+
 /** 薬剤師の確認1回分（確認の画面を開くたびに1つ足す。「戻る」で閉じる） */
 export interface PharmacistReviewRound {
   readonly openedAt: string;
@@ -85,6 +104,8 @@ export interface PharmacistReviewRound {
   /** 「販売しない」の理由（薬剤師が入力。ログ・履歴には出さない） */
   readonly declinedReason: string | null;
   readonly declinedAt: string | null;
+  /** この確認での禁忌の解除（なければ undefined。T9b） */
+  readonly overrides?: readonly ContraindicationOverride[];
   /** この確認で承認したときの販売記録の ID（承認していなければ undefined。T9a） */
   readonly saleRecordId?: string;
   /** この確認で、候補・代わりの薬を選んで問診に戻したときの薬（なければ undefined。backlog C-03） */
@@ -184,7 +205,7 @@ export function chooseSaleDrugs(deps: ServiceDeps, id: string, drugIds: readonly
       throw new SessionServiceError("INVALID_REQUEST", "患者さんが選んだ薬の中から選んでください");
     }
   }
-  assertSaleSelectable(judgmentsOf(record), unique);
+  assertSaleSelectable(judgmentsOf(record), unique, overriddenDrugIdsOf(round));
   if (unique.length > 0) procedureOf(record, unique, deps.now()); // 販売できない数量の組み合わせなら、ここで止める
   const choice: SaleChoice = { at: deps.now().toISOString(), drugIds: unique };
   const next: SessionRecord = {
@@ -268,6 +289,53 @@ export function chooseCandidateDrugs(deps: ServiceDeps, id: string, drugIds: rea
   return next;
 }
 
+/** この確認で禁忌を解除した薬 */
+export function overriddenDrugIdsOf(round: PharmacistReviewRound): StockedDrugId[] {
+  return [...new Set((round.overrides ?? []).map((o) => o.drugId))];
+}
+
+/**
+ * 禁忌を解除する（T9b。CLAUDE.md 絶対に守るルール4・C-14）。
+ * - 薬剤師の PIN で再認証する（違えば記録は変わらない）。
+ * - 薬剤師の確認中で、患者さんが選んだ薬のうち、今の判定で禁忌の薬だけを解除できる。
+ * - 理由はリストから選ぶ（「その他」は文が必須）。解除したことは記録に足し、履歴には薬と理由の種類だけを残す。
+ * - 解除しても、販売する薬に選ぶのは別の操作（薬剤師が選ぶ）。
+ */
+export function overrideContraindication(
+  deps: ServiceDeps,
+  pins: PinVerifier,
+  id: string,
+  input: { drugId: string; pharmacistId: string; pin: string; reasonCode: string; reasonText: string | null },
+): SessionRecord {
+  const now = deps.now();
+  const pharmacist = pins.verify(input.pharmacistId, input.pin, now);
+  const record = load(deps, id);
+  const { index, round } = currentRound(record);
+  const drugId = input.drugId as StockedDrugId;
+  if (!record.interview.selectedDrugs.includes(drugId)) {
+    throw new SessionServiceError("INVALID_REQUEST", "患者さんが選んだ薬の中から選んでください");
+  }
+  const judgment = judgmentsOf(record).find((j) => j.drugId === drugId);
+  if (!judgment || judgment.verdict !== "contraindicated") {
+    throw new DomainRuleError("NOT_CONTRAINDICATED", "禁忌ではない薬は解除しません");
+  }
+  const reason = checkOverrideReason(input.reasonCode, input.reasonText);
+  const override: ContraindicationOverride = {
+    at: now.toISOString(),
+    drugId,
+    pharmacist: { id: pharmacist.id, name: pharmacist.name },
+    reasonCode: reason.code,
+    reasonText: reason.text,
+    judgedReasons: judgment.reasons.filter((r) => r.verdict === "contraindicated").map((r) => r.label),
+  };
+  const next: SessionRecord = {
+    ...withRound(record, index, { ...round, overrides: [...(round.overrides ?? []), override] }),
+    events: [...record.events, event(deps, "contraindication_overridden", [drugId, reason.code, pharmacist.id])],
+  };
+  deps.store.set(next);
+  return next;
+}
+
 /** 「販売しない」：理由を記録して終える（pharmacist_review → declined）。受診案内の画面は T11 */
 export function declineSale(deps: ServiceDeps, id: string, reason: string): SessionRecord {
   const record = load(deps, id);
@@ -323,6 +391,8 @@ function drugInfoOf(drugId: StockedDrugId, age: number | undefined): DrugInfoVie
 
 export interface PharmacistDrugView {
   readonly info: DrugInfoView;
+  /** この確認での禁忌の解除（最後のもの。なければ null。T9b） */
+  readonly override: ContraindicationOverride | null;
   readonly drugId: StockedDrugId;
   readonly name: string;
   readonly classification: string;
@@ -402,6 +472,7 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
     if (!drug) throw new DomainRuleError("UNKNOWN_DRUG", `取扱薬 ${judgment.drugId} が見つかりません`);
     return {
       info: drugInfoOf(drug.id, record.interview.answers.age),
+      override: (round?.overrides ?? []).filter((o) => o.drugId === drug.id).at(-1) ?? null,
       drugId: drug.id,
       name: drug.name,
       classification: drug.classification,

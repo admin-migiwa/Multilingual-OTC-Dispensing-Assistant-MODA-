@@ -28,6 +28,7 @@ import {
   currentSaleDrugIds,
   japanDate,
   judgmentsOf,
+  overriddenDrugIdsOf,
   procedureOf,
   withRound,
   type PharmacistReviewRound,
@@ -61,6 +62,15 @@ export interface SaleRecordVersion {
   readonly completedStepIds: readonly string[];
   /** 承認のときの禁忌の判定（薬ごとの結果と理由。あとから確かめるため） */
   readonly judgments: readonly { readonly drugId: StockedDrugId; readonly verdict: string; readonly reasons: readonly string[] }[];
+  /** 禁忌の解除（販売する薬について、この確認で解除したもの。理由と薬剤師。design.md 5節「禁忌解除の有無と理由」） */
+  readonly overrides: readonly {
+    readonly drugId: StockedDrugId;
+    readonly at: string;
+    readonly pharmacist: { readonly id: string; readonly name: string };
+    readonly reasonCode: string;
+    readonly reasonText: string | null;
+    readonly judgedReasons: readonly string[];
+  }[];
   /** 理解の確認の結果（v1 は「未」。確認が済んだら T10 で版を足す。No.25） */
   readonly understanding: "not_yet" | "confirmed";
   readonly language: LanguageCode;
@@ -106,9 +116,9 @@ export function approveSale(
   // 3. 問診が終わっていること（判定に要る答えがそろっていること）
   assertInterviewComplete(record.interview);
 
-  // 4. 禁忌の薬が入っていないこと（禁忌の解除は T9b）
+  // 4. 禁忌の薬が入っていないこと（この確認の中で薬剤師が解除した薬は除く。T9b）
   const judgments = judgmentsOf(record);
-  assertSaleSelectable(judgments, drugIds);
+  assertSaleSelectable(judgments, drugIds, overriddenDrugIdsOf(round));
 
   // 5. 承認の前の販売手順がすべて済んでいること（日本時間の日付で版を選ぶ。C-07・C-15）
   const procedure = procedureOf(record, drugIds, now);
@@ -147,6 +157,9 @@ export function approveSale(
         judgments: judgments
           .filter((j) => drugIds.includes(j.drugId))
           .map((j) => ({ drugId: j.drugId, verdict: j.verdict, reasons: j.reasons.map((r) => r.label) })),
+        overrides: (round.overrides ?? [])
+          .filter((o) => drugIds.includes(o.drugId))
+          .map((o) => ({ drugId: o.drugId, at: o.at, pharmacist: o.pharmacist, reasonCode: o.reasonCode, reasonText: o.reasonText, judgedReasons: o.judgedReasons })),
         understanding: "not_yet",
         language: record.language,
       },

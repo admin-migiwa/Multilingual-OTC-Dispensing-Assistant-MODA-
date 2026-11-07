@@ -11,6 +11,15 @@ import { NetworkError, RuleError } from "../session-api";
 
 export type { PharmacistView };
 
+/** 禁忌の解除（T9b）に送るもの */
+export interface OverrideInput {
+  readonly drugId: StockedDrugId;
+  readonly pharmacistId: string;
+  readonly pin: string;
+  readonly reasonCode: string;
+  readonly reasonText: string | null;
+}
+
 async function call(path: string, body?: unknown): Promise<PharmacistView> {
   let response: Response;
   try {
@@ -49,4 +58,6 @@ export const pharmacistApi = {
   chooseCandidates: (id: string, drugIds: readonly StockedDrugId[]) => call(`${base(id)}/candidates`, { drugIds }),
   /** PIN で承認し、販売記録を作る（T9a）。PIN は画面に残さない */
   approve: (id: string, pharmacistId: string, pin: string) => call(`${base(id)}/approve`, { pharmacistId, pin }),
+  /** 禁忌を解除する（T9b）。PIN は画面に残さない */
+  override: (id: string, input: OverrideInput) => call(`${base(id)}/override`, input),
 };

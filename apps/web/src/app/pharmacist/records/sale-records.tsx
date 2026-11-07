@@ -7,6 +7,8 @@
 
 import { useEffect, useState } from "react";
 
+import { OVERRIDE_REASONS } from "@moda/domain";
+
 import type { SaleRecord } from "@/server/approval";
 
 function time(iso: string): string {
@@ -68,6 +70,17 @@ export function SaleRecords() {
                     薬剤師：{latest.pharmacist.name} ／ 理解の確認：{latest.understanding === "confirmed" ? "済み" : "未"} ／ 販売手順の版：
                     {latest.procedureEffectiveFrom} 施行 ／ 接客の言語：{latest.language}
                   </p>
+                  {latest.overrides.length > 0 ? (
+                    <p className="text-sm text-red-900">
+                      禁忌の解除：
+                      {latest.overrides
+                        .map(
+                          (o) =>
+                            `${o.drugId}（${OVERRIDE_REASONS.find((r) => r.code === o.reasonCode)?.label ?? o.reasonCode}${o.reasonText ? "：" + o.reasonText : ""}／${o.pharmacist.name}）`,
+                        )
+                        .join("、")}
+                    </p>
+                  ) : null}
                   {record.versions.length > 1 ? (
                     <details className="text-sm text-slate-600">
                       <summary>版の履歴（{record.versions.length}件）</summary>

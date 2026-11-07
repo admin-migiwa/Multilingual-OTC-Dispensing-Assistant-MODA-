@@ -12,13 +12,13 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 
-import type { InterviewAnswers, QuestionId, SessionStatus, StockedDrugId } from "@moda/domain";
+import { OVERRIDE_REASONS, type InterviewAnswers, type QuestionId, type SessionStatus, type StockedDrugId } from "@moda/domain";
 import { LANGUAGES } from "@moda/i18n";
 
 import { NetworkError, RuleError } from "../session-api";
 import { TranslationChat, type ChatEmergency } from "../translation-chat";
 import { EmergencyRecords } from "./emergency-records";
-import { pharmacistApi, type PharmacistView } from "./pharmacist-api";
+import { pharmacistApi, type OverrideInput, type PharmacistView } from "./pharmacist-api";
 
 /** 問診の項目名（docs/demo-data/interview-items.md） */
 const QUESTION_LABELS: Readonly<Record<QuestionId, string>> = {
@@ -88,7 +88,7 @@ const STATUS_LABELS: Partial<Record<SessionStatus, string>> = {
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
-  CONTRAINDICATED_NOT_SELECTABLE: "禁忌の薬は選べません（解除は次の作業 T9b で作ります）。",
+  CONTRAINDICATED_NOT_SELECTABLE: "禁忌の薬は、解除しないと選べません（薬の欄の「禁忌を解除する」から）。",
   QUANTITY_NOT_ALLOWED: "この年齢・個数・包装の組み合わせでは販売できません（18歳未満の大箱・複数個など）。",
   INVALID_TRANSITION: "いまの状態ではこの操作はできません。画面を読み直しました。",
   INTERVIEW_INCOMPLETE: "問診が終わっていません。患者さんの画面に戻って、問診を最後まで進めてください。",
@@ -102,6 +102,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   PIN_LOCKED: "PIN を続けて間違えたため、しばらく使えません（5分ほど待ってください）。",
   PIN_NOT_CONFIGURED: "薬剤師の PIN が設定されていません（サーバーの .env.local に MODA_PHARMACIST_PINS を書いてください）。",
   UNKNOWN_PHARMACIST: "薬剤師を選んでください。",
+  OVERRIDE_REASON_INVALID: "解除の理由を選んでください（「その他」は理由を書いてください）。",
+  NOT_CONTRAINDICATED: "禁忌ではない薬は解除しません。",
 };
 
 /** 自由に入力された文（原文のまま出す。翻訳は T13） */
@@ -336,6 +338,7 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
           }}
           onDecline={() => void run(() => pharmacistApi.decline(sessionId, reason))}
           onApprove={(pharmacistId, pin) => void run(() => pharmacistApi.approve(sessionId, pharmacistId, pin))}
+          onOverride={(input) => void run(() => pharmacistApi.override(sessionId, input))}
           onChooseCandidates={async (drugIds) => {
             // 候補の薬を選ぶと、その薬の項目を聞く問診に戻る（聞く項目がなければ、そのまま薬剤師の確認をやり直す）
             const next = await run(() => pharmacistApi.chooseCandidates(sessionId, drugIds));
@@ -369,6 +372,7 @@ function ReviewBody({
   onDecline,
   onChooseCandidates,
   onApprove,
+  onOverride,
 }: {
   view: PharmacistView;
   busy: boolean;
@@ -381,6 +385,7 @@ function ReviewBody({
   onDecline: () => void;
   onChooseCandidates: (drugIds: StockedDrugId[]) => void;
   onApprove: (pharmacistId: string, pin: string) => void;
+  onOverride: (input: OverrideInput) => void;
 }) {
   if (view.status === "approved" || (view.saleRecord !== null && view.status !== "pharmacist_review")) {
     return <ApprovedSummary view={view} patientUrl={patientUrl} />;
@@ -460,6 +465,8 @@ function ReviewBody({
             {view.drugs.map((drug) => {
               const verdict = VERDICT_STYLE[drug.judgment.verdict];
               const contraindicated = drug.judgment.verdict === "contraindicated";
+              // 薬剤師が PIN と理由で解除した禁忌の薬は、販売する薬として選べる（T9b。サーバーでも確かめる）
+              const blocked = contraindicated && drug.override === null;
               const selected = view.saleDrugIds.includes(drug.drugId);
               return (
                 <li key={drug.drugId} className={`space-y-2 rounded-xl border-2 p-4 ${verdict.className}`}>
@@ -487,14 +494,14 @@ function ReviewBody({
                       type="checkbox"
                       className="h-6 w-6"
                       checked={selected}
-                      disabled={busy || contraindicated}
+                      disabled={busy || blocked}
                       onChange={(e) => onToggleSale(drug.drugId, e.target.checked)}
                     />
                     <span className="font-semibold">販売する薬として選ぶ</span>
-                    {contraindicated ? (
-                      <span className="text-sm text-red-900">禁忌のため選べません（解除は次の作業 T9b で作ります）</span>
-                    ) : null}
+                    {blocked ? <span className="text-sm text-red-900">禁忌のため、解除しないと選べません</span> : null}
                   </label>
+                  {drug.override !== null ? <OverrideNote override={drug.override} /> : null}
+                  {blocked ? <OverrideForm drugId={drug.drugId} busy={busy} onOverride={onOverride} /> : null}
                 </li>
               );
             })}
@@ -651,7 +658,7 @@ function CandidatesSection({
                   <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-900">いま選んでいる薬</span>
                 ) : null}
                 <span className="text-sm">（{c.classification}）</span>
-                {contraindicated ? <span className="text-sm text-red-900">禁忌のため選べません（解除は次の作業 T9b）</span> : null}
+                {contraindicated ? <span className="text-sm text-red-900">禁忌のため候補には選べません</span> : null}
               </label>
               {known.length > 0 ? (
                 <ul className="list-disc pl-12 text-sm">
@@ -739,23 +746,9 @@ function ApproveSection({
   busy: boolean;
   onApprove: (pharmacistId: string, pin: string) => void;
 }) {
-  const [pharmacists, setPharmacists] = useState<readonly { id: string; name: string }[]>([]);
+  const pharmacists = usePharmacists();
   const [pharmacistId, setPharmacistId] = useState("");
   const [pin, setPin] = useState("");
-  useEffect(() => {
-    let cancelled = false;
-    fetch("/api/pharmacists", { cache: "no-store" })
-      .then(async (r) => (r.ok ? ((await r.json()) as { pharmacists: { id: string; name: string }[] }) : { pharmacists: [] }))
-      .then((data) => {
-        if (!cancelled) setPharmacists(data.pharmacists);
-      })
-      .catch(() => {
-        /* 一覧を読めなければ選べないまま（承認できない側に止まる） */
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
   const missing = (view.procedure?.steps ?? []).filter((s) => s.gate === "before_approval" && !s.checked);
   const blocked =
     view.saleDrugIds.length === 0
@@ -834,6 +827,17 @@ function ApprovedSummary({ view, patientUrl }: { view: PharmacistView; patientUr
               </li>
             ))}
           </ul>
+          {v.overrides.length > 0 ? (
+            <p className="text-sm text-red-900">
+              禁忌の解除：
+              {v.overrides
+                .map(
+                  (o) =>
+                    `${o.drugId}（${OVERRIDE_REASONS.find((r) => r.code === o.reasonCode)?.label ?? o.reasonCode}${o.reasonText ? "：" + o.reasonText : ""}／${o.pharmacist.name}）`,
+                )
+                .join("、")}
+            </p>
+          ) : null}
           <p className="text-sm text-slate-600">
             理解の確認：{v.understanding === "confirmed" ? "済み" : "未（説明書を渡して確認したら、記録に版を足します。T10）"}
           </p>
@@ -850,5 +854,126 @@ function ApprovedSummary({ view, patientUrl }: { view: PharmacistView; patientUr
         </a>
       </div>
     </Section>
+  );
+}
+
+/** 承認・禁忌の解除で選ぶ薬剤師の一覧（架空。読めなければ空のまま＝押せない側に止まる） */
+function usePharmacists(): readonly { id: string; name: string }[] {
+  const [pharmacists, setPharmacists] = useState<readonly { id: string; name: string }[]>([]);
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/pharmacists", { cache: "no-store" })
+      .then(async (r) => (r.ok ? ((await r.json()) as { pharmacists: { id: string; name: string }[] }) : { pharmacists: [] }))
+      .then((data) => {
+        if (!cancelled) setPharmacists(data.pharmacists);
+      })
+      .catch(() => {
+        /* 一覧を読めなければ選べないまま */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  return pharmacists;
+}
+
+/** 解除したことの表示（理由・薬剤師・時刻） */
+function OverrideNote({ override }: { override: NonNullable<PharmacistView["drugs"][number]["override"]> }) {
+  const label = OVERRIDE_REASONS.find((r) => r.code === override.reasonCode)?.label ?? override.reasonCode;
+  return (
+    <p className="rounded-lg bg-white px-3 py-2 text-sm text-red-900">
+      禁忌を解除しました：{label}
+      {override.reasonText ? `（${override.reasonText}）` : ""} ／ {override.pharmacist.name} ／ {time(override.at)}
+    </p>
+  );
+}
+
+/**
+ * 禁忌を解除する（T9b。CLAUDE.md 絶対に守るルール4）。理由を選び、薬剤師の PIN で再認証する。
+ * 解除はこの確認の中だけ有効（戻ると、もう一度解除する）。PIN は送ったら画面から消す
+ */
+function OverrideForm({
+  drugId,
+  busy,
+  onOverride,
+}: {
+  drugId: StockedDrugId;
+  busy: boolean;
+  onOverride: (input: OverrideInput) => void;
+}) {
+  const pharmacists = usePharmacists();
+  const [reasonCode, setReasonCode] = useState("");
+  const [reasonText, setReasonText] = useState("");
+  const [pharmacistId, setPharmacistId] = useState("");
+  const [pin, setPin] = useState("");
+  const reason = OVERRIDE_REASONS.find((r) => r.code === reasonCode);
+  const ready =
+    reason !== undefined && (!reason.requiresText || reasonText.trim() !== "") && pharmacistId !== "" && pin.length >= 4;
+  return (
+    <details className="rounded-lg bg-white px-3 py-2">
+      <summary className="cursor-pointer text-sm font-semibold text-red-900">禁忌を解除する（薬剤師の PIN と理由が必要）</summary>
+      <div className="mt-2 space-y-2 text-sm">
+        <fieldset className="space-y-1">
+          <legend className="text-slate-600">理由</legend>
+          {OVERRIDE_REASONS.map((r) => (
+            <label key={r.code} className="flex items-center gap-2">
+              <input
+                type="radio"
+                name={`override-${drugId}`}
+                value={r.code}
+                checked={reasonCode === r.code}
+                onChange={() => setReasonCode(r.code)}
+              />
+              {r.label}
+            </label>
+          ))}
+        </fieldset>
+        {reason?.requiresText ? (
+          <textarea
+            value={reasonText}
+            maxLength={200}
+            rows={2}
+            onChange={(e) => setReasonText(e.target.value)}
+            className="w-full rounded-lg border border-slate-300 p-2"
+            placeholder="理由を書いてください"
+          />
+        ) : null}
+        <div className="flex flex-wrap items-end gap-3">
+          <select
+            value={pharmacistId}
+            onChange={(e) => setPharmacistId(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2"
+          >
+            <option value="">薬剤師を選ぶ</option>
+            {pharmacists.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <input
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={8}
+            placeholder="PIN"
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
+            className="w-28 rounded-lg border border-slate-300 px-3 py-2"
+          />
+          <button
+            type="button"
+            disabled={busy || !ready}
+            onClick={() => {
+              onOverride({ drugId, pharmacistId, pin, reasonCode, reasonText: reason?.requiresText ? reasonText : null });
+              setPin("");
+            }}
+            className="rounded-xl bg-red-800 px-4 py-2 font-semibold text-white disabled:opacity-50"
+          >
+            禁忌を解除する
+          </button>
+        </div>
+      </div>
+    </details>
   );
 }

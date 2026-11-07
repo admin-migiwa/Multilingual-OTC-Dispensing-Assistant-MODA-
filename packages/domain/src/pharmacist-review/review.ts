@@ -22,19 +22,21 @@ import { DRUG_SALE_DATA } from "./sale-data.ts";
 
 /**
  * 薬剤師が販売する薬として選んでよいかを確かめる。
- * - 禁忌と判定された薬は選べない（解除は T9）。
+ * - 禁忌と判定された薬は、既定では選べない（ルール4）。薬剤師が PIN の再認証と理由の記録で解除した薬（overriddenDrugIds）だけは選べる（T9b。C-14）。
+ *   解除が有効かどうか（今の確認の中の解除か）は、呼び出す側が決めて渡す。
  * - 判定していない薬（患者さんが選んでいない薬など）も選べない。推測で通さない（ルール7）。
  */
 export function assertSaleSelectable(
   judgments: readonly DrugJudgment[],
   chosenDrugIds: readonly StockedDrugId[],
+  overriddenDrugIds: readonly StockedDrugId[] = [],
 ): void {
   for (const drugId of chosenDrugIds) {
     const judgment = judgments.find((j) => j.drugId === drugId);
     if (!judgment) {
       throw new DomainRuleError("DRUG_NOT_JUDGED", `薬 ${drugId} の禁忌判定がありません`);
     }
-    if (judgment.verdict === "contraindicated") {
+    if (judgment.verdict === "contraindicated" && !overriddenDrugIds.includes(drugId)) {
       throw new DomainRuleError("CONTRAINDICATED_NOT_SELECTABLE", `薬 ${drugId} は禁忌のため選べません`);
     }
   }
