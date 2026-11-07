@@ -47,6 +47,7 @@ import {
 } from "@moda/domain";
 import type { LanguageCode } from "@moda/i18n";
 
+import type { SaleRecord } from "./approval.ts";
 import { japanDate } from "./japan-date.ts";
 import {
   SessionServiceError,
@@ -84,6 +85,8 @@ export interface PharmacistReviewRound {
   /** 「販売しない」の理由（薬剤師が入力。ログ・履歴には出さない） */
   readonly declinedReason: string | null;
   readonly declinedAt: string | null;
+  /** この確認で承認したときの販売記録の ID（承認していなければ undefined。T9a） */
+  readonly saleRecordId?: string;
   /** この確認で、候補・代わりの薬を選んで問診に戻したときの薬（なければ undefined。backlog C-03） */
   readonly candidateDrugIds?: readonly StockedDrugId[];
 }
@@ -96,7 +99,7 @@ export const MAX_DECLINE_REASON_LENGTH = 200;
 /** 店頭の日付（日本時間）。session-service と共通にするため japan-date.ts に移した */
 export { japanDate };
 
-function currentRound(record: SessionRecord): { index: number; round: PharmacistReviewRound } {
+export function currentRound(record: SessionRecord): { index: number; round: PharmacistReviewRound } {
   const rounds = record.pharmacistReviews ?? [];
   const index = rounds.length - 1;
   const round = rounds[index];
@@ -106,22 +109,22 @@ function currentRound(record: SessionRecord): { index: number; round: Pharmacist
   return { index, round };
 }
 
-function withRound(record: SessionRecord, index: number, round: PharmacistReviewRound): SessionRecord {
+export function withRound(record: SessionRecord, index: number, round: PharmacistReviewRound): SessionRecord {
   const rounds = record.pharmacistReviews ?? [];
   return { ...record, pharmacistReviews: rounds.map((r, i) => (i === index ? round : r)) };
 }
 
 /** 問診の答えから、患者さんが選んだ薬の禁忌判定をする（問診が終わっていなければ止まる） */
-function judgmentsOf(record: SessionRecord): DrugJudgment[] {
+export function judgmentsOf(record: SessionRecord): DrugJudgment[] {
   return judgeDrugs(record.interview.selectedDrugs, factsForJudgment(record.interview));
 }
 
 /** 今の「販売する薬」の選択（なければ空） */
-function currentSaleDrugIds(round: PharmacistReviewRound): readonly StockedDrugId[] {
+export function currentSaleDrugIds(round: PharmacistReviewRound): readonly StockedDrugId[] {
   return round.saleChoices.at(-1)?.drugIds ?? [];
 }
 
-function procedureOf(record: SessionRecord, drugIds: readonly StockedDrugId[], now: Date): RequiredProcedure {
+export function procedureOf(record: SessionRecord, drugIds: readonly StockedDrugId[], now: Date): RequiredProcedure {
   const age = record.interview.answers.age;
   if (age === undefined) throw new DomainRuleError("ANSWER_MISSING", "年齢の答えがありません");
   return buildRequiredProcedure({
@@ -366,6 +369,8 @@ export interface PharmacistView {
   readonly declinedReason: string | null;
   /** 薬剤師が一度でも「緊急ではない」と判断したか（翻訳のチャットに渡す。patientView と同じ。CLAUDE.md ルール2の例外） */
   readonly emergencyCleared: boolean;
+  /** 承認したときの販売記録（承認していなければ null。T9a） */
+  readonly saleRecord: SaleRecord | null;
   /**
    * 候補の薬・代わりの薬（取扱薬すべて。いま選んでいる薬も含む）の、いまの答えでの仮の判定（薬剤師の確認中だけ。backlog C-03）。
    * 禁忌にならない薬が先。選ぶと、その薬の項目を聞く問診に戻る
@@ -448,6 +453,7 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
     checkHistory,
     declinedReason: round?.declinedReason ?? null,
     emergencyCleared: patientView(record).emergencyCleared,
+    saleRecord: record.saleRecord ?? null,
     candidates: reviewing ? candidatesOf(record) : [],
   };
 }

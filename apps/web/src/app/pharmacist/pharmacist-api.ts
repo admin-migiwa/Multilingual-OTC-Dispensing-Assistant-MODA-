@@ -47,4 +47,6 @@ export const pharmacistApi = {
   back: (id: string) => call(`${base(id)}/back`, {}),
   decline: (id: string, reason: string) => call(`${base(id)}/decline`, { reason }),
   chooseCandidates: (id: string, drugIds: readonly StockedDrugId[]) => call(`${base(id)}/candidates`, { drugIds }),
+  /** PIN で承認し、販売記録を作る（T9a）。PIN は画面に残さない */
+  approve: (id: string, pharmacistId: string, pin: string) => call(`${base(id)}/approve`, { pharmacistId, pin }),
 };
