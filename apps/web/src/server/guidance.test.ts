@@ -11,12 +11,13 @@ import {
   buildLeafletJapanese,
   checkPostApprovalStep,
   createGuidance,
+  currentGuidance,
   giveFeedback,
   printGuidance,
   proceedCheckout,
   startCounseling,
 } from "./guidance.ts";
-import { checkProcedureStep, chooseSaleDrugs, openPharmacistReview } from "./pharmacist-service.ts";
+import { checkProcedureStep, chooseSaleDrugs, openPharmacistReview, returnToDrugSelection } from "./pharmacist-service.ts";
 import { PinError, createPinVerifier } from "./pin.ts";
 import {
   SessionServiceError,
@@ -33,7 +34,8 @@ import {
 // 販売手順は docs/demo-data/sales-procedures.md の ☑ の行（P01・P02・P03・S03・S05）、
 // 説明書の注意の文は docs/demo-data/leaflet.md の ☑ の行（LF03・LF07）、
 // 用量は drugs.md の年齢別の表（☑。F の 8〜10歳は 1/2包）から作る。
-// 「承認の前は作れない・印刷できない」「版を足す」などは CLAUDE.md の絶対に守るルール1・6 の仕組みのテスト（表の行ではない）。
+// 「承認の前は作れない・印刷できない」「版を足す」「説明書の注意の文と判定のデータの対応」「答えを直したら古い説明書を使わない」などは、
+// CLAUDE.md の絶対に守るルール1・6・10 の仕組みのテスト（表の行ではない）。
 
 const NOW = new Date("2026-11-08T10:00:00+09:00");
 const PINS = createPinVerifier("P1:1234");
@@ -138,6 +140,26 @@ describe("説明書（T10）", () => {
   });
 });
 
+describe("答えを直したら古い説明書を使わない（仕組みのテスト）", () => {
+  it("LF05：C の説明書を作ったあと、戻ってお酒の答えを「飲む」に直すと、前の説明書は今の説明書にならず、服薬指導を始められない", async () => {
+    const deps = testDeps();
+    const id = reviewed(deps, "C", []);
+    await createGuidance(deps, ai, id);
+    returnToDrugSelection(deps, id);
+    answer(deps, id, { alcohol: true });
+    openPharmacistReview(deps, id);
+    chooseSaleDrugs(deps, id, ["C"]);
+    assert.equal(currentGuidance(getSession(deps, id)), null);
+    checkProcedureStep(deps, id, "written_information_prepared", true);
+    approve(deps, id);
+    assertError(() => startCounseling(deps, id), "GUIDANCE_NOT_READY");
+    // 作り直すと、お酒の注意（LF05）が入る
+    const fresh = await createGuidance(deps, ai, id);
+    assert.match(fresh.guidances?.at(-1)?.japanese ?? "", /お酒を飲まないでください/);
+    assert.equal(startCounseling(deps, id).snapshot.status, "counseling");
+  });
+});
+
 describe("服薬指導・理解の確認・会計案内・評価（T10）", () => {
   it("P02・S03：C を承認したあと、説明書を作って服薬指導を始め、理解の確認が済むまで会計案内に進めない。わかったで販売記録に版2ができ、版1は変わらない", async () => {
     const deps = testDeps();
@@ -171,7 +193,7 @@ describe("服薬指導・理解の確認・会計案内・評価（T10）", () =
     assert.equal(done.saleRecord?.versions.length, 2);
   });
 
-  it("P01：書面を渡す（承認の後の手順）が済んでいないと、理解の確認が済んでも会計案内に進めない", async () => {
+  it("P02（P01 と同じ手順）：書面を渡す（承認の後の手順）が済んでいないと、理解の確認が済んでも会計案内に進めない", async () => {
     const deps = testDeps();
     const id = reviewed(deps, "C", ["written_information_prepared"]);
     approve(deps, id);
@@ -208,7 +230,7 @@ describe("服薬指導・理解の確認・会計案内・評価（T10）", () =
     const deps = testDeps();
     const id = reviewed(deps, "G", ["contraindication_check"]);
     assertError(() => answerUnderstanding(deps, id, "understood"), "NOT_APPROVED");
-    assertError(() => proceedCheckout(deps, id), "INVALID_TRANSITION");
+    assertError(() => proceedCheckout(deps, id), "NOT_APPROVED");
     assertError(() => giveFeedback(deps, id, "good"), "NOT_APPROVED");
   });
 

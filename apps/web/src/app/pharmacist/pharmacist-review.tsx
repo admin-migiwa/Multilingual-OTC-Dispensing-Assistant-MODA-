@@ -411,7 +411,7 @@ function ReviewBody({
   onGuidance: (action: GuidanceAction) => void;
   onPostStep: (stepId: string, checked: boolean) => void;
 }) {
-  if (view.saleRecord !== null && view.status !== "pharmacist_review") {
+  if (view.saleRecord !== null && ["approved", "counseling", "checkout", "completed"].includes(view.status)) {
     return (
       <>
         <ApprovedSummary view={view} patientUrl={patientUrl} />
@@ -1014,13 +1014,14 @@ function OverrideForm({
 type GuidanceAction = "create" | "print" | "counsel" | "checkout";
 
 /** 説明書の中身（日本語の原文・患者さんの言語の参考訳・訳し戻し）。印刷のときは参考訳と原文だけを出す */
-function GuidanceText({ guidance }: { guidance: NonNullable<PharmacistView["guidance"]> }) {
+function GuidanceText({ guidance, printable }: { guidance: NonNullable<PharmacistView["guidance"]>; printable: boolean }) {
   return (
     <div className="space-y-3">
       {guidance.provider === "mock" ? (
         <p className="text-sm text-slate-500">仮の AI（開発用）の訳です。本番では Claude が訳します。</p>
       ) : null}
-      <div className="print-leaflet space-y-4">
+      {/* 印刷に出すのは承認のあとだけ（承認の前にブラウザの印刷を使っても出さない。ルール1） */}
+      <div className={`${printable ? "print-leaflet " : ""}space-y-4`}>
         <div>
           <p className="text-xs text-slate-500">参考訳（AI の訳）</p>
           <p lang={guidance.language} className="whitespace-pre-wrap rounded-lg bg-white p-3">
@@ -1053,7 +1054,7 @@ function GuidancePreview({ view, busy, onCreate }: { view: PharmacistView; busy:
       <p className="text-sm text-slate-600">
         販売する薬の説明書を作り、日本語の原文と参考訳を確かめてから、チェックリストの「書面の準備」に ✓ を付けてください。印刷は承認のあとです。
       </p>
-      {view.guidance ? <GuidanceText guidance={view.guidance} /> : null}
+      {view.guidance ? <GuidanceText guidance={view.guidance} printable={false} /> : null}
       <button
         type="button"
         disabled={busy}
@@ -1095,7 +1096,7 @@ function AfterApprovalSection({
 
       {canCounsel ? (
         <>
-          {view.guidance ? <GuidanceText guidance={view.guidance} /> : <p>説明書がまだありません。作ってください。</p>}
+          {view.guidance ? <GuidanceText guidance={view.guidance} printable /> : <p>説明書がまだありません。作ってください。</p>}
           <div className="flex flex-wrap gap-3">
             <button
               type="button"

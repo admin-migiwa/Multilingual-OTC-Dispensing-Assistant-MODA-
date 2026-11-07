@@ -192,16 +192,32 @@ function sameDrugs(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((x) => b.includes(x));
 }
 
-/** 今の説明書（承認のあとは、販売記録の品目と同じで、接客の言語と同じものだけ）。なければ null */
+/**
+ * 説明書が今の答え・判定と合っているか（作ったあとに答えが直されると、注意の文が変わるため）。
+ * 説明書の日本語はデータから決まって組み立てるので、今の判定で組み立て直して同じかを比べる
+ */
+export function isGuidanceFresh(record: SessionRecord, guidance: GuidanceRecord): boolean {
+  const age = record.interview.answers.age;
+  if (age === undefined || guidance.language !== record.language) return false;
+  return buildLeafletJapanese(guidance.drugIds, judgmentsOf(record), age) === guidance.japanese;
+}
+
+/**
+ * 今の説明書。承認のあとは販売記録の品目と同じもの、承認の前は今の「販売する薬」と同じもので、
+ * どちらも今の答え・判定で組み立て直した日本語と同じもの（古い説明書を使わない）。なければ null
+ */
 export function currentGuidance(record: SessionRecord): GuidanceRecord | null {
   const latest = record.guidances?.at(-1);
   if (!latest) return null;
-  if (latest.language !== record.language) return null;
+  let drugIds: readonly StockedDrugId[];
   if (record.saleRecord) {
-    const v1 = record.saleRecord.versions[0];
-    if (!v1 || !sameDrugs(latest.drugIds, v1.items.map((i) => i.drugId))) return null;
+    drugIds = record.saleRecord.versions[0]?.items.map((i) => i.drugId) ?? [];
+  } else {
+    if (record.snapshot.status !== "pharmacist_review") return null;
+    drugIds = currentSaleDrugIds(currentRound(record).round);
   }
-  return latest;
+  if (drugIds.length === 0 || !sameDrugs(latest.drugIds, drugIds)) return null;
+  return isGuidanceFresh(record, latest) ? latest : null;
 }
 
 function requireGuidance(record: SessionRecord): GuidanceRecord {
@@ -337,6 +353,8 @@ export function completedStepsAfterApproval(record: SessionRecord): string[] {
 /** 会計案内に進む（counseling → checkout）。会計の前の手順と理解の確認がそろわないと止まる（S03・S05。C-01） */
 export function proceedCheckout(deps: ServiceDeps, id: string): SessionRecord {
   const record = load(deps, id);
+  // 承認のあとでなければ止める（ルール1。会計案内へ進む前の服薬指導の状態か）
+  assertActionAllowed(record.snapshot.status, "counsel");
   if (record.snapshot.status !== "counseling") {
     throw new DomainRuleError("INVALID_TRANSITION", "服薬指導のあとに会計案内に進みます");
   }

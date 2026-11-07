@@ -545,12 +545,8 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
 
 /** 今の説明書。確認中は今の「販売する薬」と同じもの、承認のあとは承認した品目と同じもの（T10） */
 function guidanceForView(record: SessionRecord, reviewingDrugIds: readonly StockedDrugId[] | null): GuidanceRecord | null {
-  if (record.saleRecord) return currentGuidance(record);
-  if (reviewingDrugIds === null || reviewingDrugIds.length === 0) return null;
-  const latest = record.guidances?.at(-1);
-  if (!latest || latest.language !== record.language) return null;
-  const same = latest.drugIds.length === reviewingDrugIds.length && latest.drugIds.every((d) => reviewingDrugIds.includes(d));
-  return same ? latest : null;
+  if (!record.saleRecord && (reviewingDrugIds === null || reviewingDrugIds.length === 0)) return null;
+  return currentGuidance(record);
 }
 
 function afterApprovalOf(record: SessionRecord): PharmacistView["afterApproval"] {
