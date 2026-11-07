@@ -282,7 +282,9 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
           <a href={patientUrl} className="inline-flex min-h-11 items-center text-lg text-slate-600 underline underline-offset-4">
             ← 患者さんの画面に戻る
           </a>
-          {/* 途中でやめる人のために、いつでも最初の画面（言語の選択）に戻れる（11/8 依頼主の判断）。記録は消さない */}
+          {/* 途中でやめる人のために、最初の画面（言語の選択）に戻れる（11/8 依頼主の判断）。記録は消さない。
+              緊急の確認中は出さない（薬剤師の判断を記録せずに接客を離れないため。確認は患者さんの画面で行う。ルール2） */}
+          {view?.status === "emergency_review" ? null : (
           <button
             type="button"
             onClick={() => {
@@ -294,6 +296,7 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
           >
             最初の画面に戻る（接客をやめる）
           </button>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <ModaBrand />
@@ -575,7 +578,11 @@ function ReviewBody({
           （承認できるかは、いままでどおりサーバーが確かめる。ルール1・5） */}
       {view.saleDrugIds.length === 0 ? (
         <Section title="次にすること">
-          <p className="text-slate-700">上の薬の「販売する薬として選ぶ」に ✓ を付けると、説明書の準備・販売手順のチェックリスト・承認の欄が出ます。</p>
+          <p className="text-slate-700">
+            {view.drugs.length === 0
+              ? "上の「候補の薬」から薬を選び、そのあと「販売する薬として選ぶ」に ✓ を付けると、説明書の準備・販売手順のチェックリスト・承認の欄が出ます。"
+              : "上の薬の「販売する薬として選ぶ」に ✓ を付けると、説明書の準備・販売手順のチェックリスト・承認の欄が出ます。"}
+          </p>
         </Section>
       ) : (
         <>
@@ -587,7 +594,7 @@ function ReviewBody({
                 {ERROR_MESSAGES[view.procedureError] ?? `販売手順を作れません（${view.procedureError}）。`}
               </p>
             ) : view.procedure === null ? (
-              <p className="text-slate-600">販売する薬を選ぶと、区分ごとの手順がここに出ます。</p>
+              <p className="text-slate-600">販売手順を読み込めていません。画面を読み直してください。</p>
             ) : (
               <>
                 <p className="text-sm text-slate-500">
@@ -644,7 +651,7 @@ function ReviewBody({
           ) : (
             <Section title="承認する（薬剤師の PIN）">
               <p className="text-amber-900">{approveBlockedReason(view)}</p>
-              <p className="text-sm text-slate-600">承認の前の手順に ✓ がそろうと、ここに承認の欄が出ます。</p>
+              {view.procedureError ? null : <p className="text-sm text-slate-600">承認の前の手順に ✓ がそろうと、ここに承認の欄が出ます。</p>}
             </Section>
           )}
         </>

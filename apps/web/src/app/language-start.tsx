@@ -372,6 +372,7 @@ export function LanguageStart() {
         {/* 途中でやめる人のために、言語を選んだあとはいつでも最初の画面に戻れる（11/8 依頼主の判断）。緊急の確認・案内の間は出さない */}
         {language !== null ? (
           <StaffStartOverButton
+            busy={busy}
             onStartOver={() => {
               setSessionLost(false);
               setNetworkDown(false);
@@ -514,17 +515,19 @@ function StaffEmergencyButton({ onOpen }: { onOpen: () => void }) {
  * 薬剤師用の「最初の画面に戻る」（日本語・小さく右上、緊急の確認の左）。押すと確かめてから、言語の選択の画面に戻る。
  * サーバーの接客の記録は消さずに置いておく（承認済みなら販売記録もそのまま残る）。backlog S-26
  */
-function StaffStartOverButton({ onStartOver }: { onStartOver: () => void }) {
+function StaffStartOverButton({ busy, onStartOver }: { busy: boolean; onStartOver: () => void }) {
+  // 通信の途中は押せない（あとから届いた結果で、前の接客の画面が戻ってこないように）
   return (
     <button
       type="button"
       lang="ja"
+      disabled={busy}
       onClick={() => {
         if (window.confirm("この接客をやめて、最初の画面（言語の選択）に戻ります。よろしいですか？\n（ここまでの記録は消えずに残ります）")) {
           onStartOver();
         }
       }}
-      className="rounded-lg border border-slate-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+      className="rounded-lg border border-slate-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
     >
       薬剤師用：最初の画面に戻る
     </button>
