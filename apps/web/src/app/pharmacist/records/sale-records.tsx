@@ -40,6 +40,14 @@ export function SaleRecords() {
   return (
     <>
       <header className="space-y-2">
+        {/* 前の画面（薬剤師の確認画面など）に戻る。前の画面がなければ最初の画面へ */}
+        <button
+          type="button"
+          onClick={() => (window.history.length > 1 ? window.history.back() : window.location.assign("/"))}
+          className="min-h-11 text-lg text-slate-600 underline underline-offset-4"
+        >
+          ← 戻る
+        </button>
         <p className="text-sm font-semibold tracking-widest text-teal-700">MODA 薬剤師用</p>
         <h1 className="text-3xl font-bold">販売記録の一覧</h1>
         <p className="text-sm text-slate-500">
