@@ -142,7 +142,7 @@ export const vi: Messages = {
     title: "Vui lòng đi khám tại bệnh viện hoặc phòng khám",
     body: "Chúng tôi rất tiếc. Với tình trạng hiện tại của bạn, cửa hàng không thể cung cấp thuốc không kê đơn. Chúng tôi khuyên bạn nên đi khám tại bệnh viện hoặc phòng khám.",
     tellDoctor: "Tại bệnh viện, vui lòng cho bác sĩ biết các triệu chứng hôm nay và các loại thuốc bạn đang dùng. Nếu có sổ theo dõi thuốc, vui lòng mang theo.",
-    consultTitle: "Nơi có thể được tư vấn bằng tiếng nước ngoài",
+    consultTitle: "Nơi có thể được tư vấn bằng ngôn ngữ khác ngoài tiếng Nhật",
     askStaff: "Nếu có điều gì chưa rõ, vui lòng hỏi nhân viên.",
   },
   guidance: {

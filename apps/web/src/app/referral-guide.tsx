@@ -21,7 +21,7 @@ export function ReferralGuide({ language }: { language: LanguageCode }) {
   const t = messages.referral;
   const contacts = messages.emergency;
   return (
-    <section lang={language} className="space-y-6 rounded-3xl border-4 border-sky-700 bg-sky-50 p-6" aria-live="polite">
+    <section lang={language} className="space-y-6 rounded-3xl border-4 border-sky-700 bg-sky-50 p-6">
       <h1 className="text-3xl font-bold text-sky-900">{t.title}</h1>
       <p className="text-2xl leading-relaxed">{t.body}</p>
       <p className="rounded-2xl bg-white px-5 py-4 text-xl leading-relaxed">{t.tellDoctor}</p>

@@ -142,7 +142,7 @@ export const zhHant: Messages = {
     title: "請到醫院或診所就診",
     body: "非常抱歉。以您目前的狀況，本店的成藥無法滿足您的需要。建議您到醫院或診所就診。",
     tellDoctor: "就診時，請告訴醫師您今天的症狀和目前正在服用的藥。如有用藥紀錄手冊，請一併攜帶。",
-    consultTitle: "可以用外語諮詢的地方",
+    consultTitle: "可以用日語以外的語言諮詢的地方",
     askStaff: "如有不明白的地方，請詢問工作人員。",
   },
   guidance: {

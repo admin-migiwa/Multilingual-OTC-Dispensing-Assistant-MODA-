@@ -142,7 +142,7 @@ export const es: Messages = {
     title: "Por favor, consulte a un médico en un hospital o una clínica",
     body: "Lo sentimos. Con su estado actual, no podemos ofrecerle un medicamento sin receta. Le recomendamos acudir a un hospital o una clínica.",
     tellDoctor: "En el hospital, informe al médico de sus síntomas de hoy y de los medicamentos que toma actualmente. Si tiene una libreta de registro de medicamentos, llévela.",
-    consultTitle: "Dónde consultar en otros idiomas",
+    consultTitle: "Dónde consultar en idiomas distintos del japonés",
     askStaff: "Si tiene alguna duda, pregunte al personal.",
   },
   guidance: {

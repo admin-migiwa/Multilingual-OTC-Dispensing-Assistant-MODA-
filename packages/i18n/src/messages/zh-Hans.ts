@@ -142,7 +142,7 @@ export const zhHans: Messages = {
     title: "请到医院或诊所就诊",
     body: "非常抱歉。以您目前的状况，本店的非处方药无法满足您的需要。建议您到医院或诊所就诊。",
     tellDoctor: "就诊时，请告诉医生您今天的症状和目前正在服用的药。如有用药记录手册，请一并携带。",
-    consultTitle: "可以用外语咨询的地方",
+    consultTitle: "可以用日语以外的语言咨询的地方",
     askStaff: "如有不明白的地方，请询问工作人员。",
   },
   guidance: {
