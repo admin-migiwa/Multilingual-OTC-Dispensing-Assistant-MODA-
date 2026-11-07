@@ -6,6 +6,7 @@ export {
   isTerminal,
   isPostApproval,
   transition,
+  cancelEmergencyEnd,
   assertActionAllowed,
   type SessionStatus,
   type SessionSnapshot,
@@ -59,3 +60,6 @@ export {
   type EmergencyHit,
 } from "./emergency/index.ts";
 export * from "./interview/index.ts";
+
+// 薬剤師の確認画面（T8a）
+export * from "./pharmacist-review/index.ts";

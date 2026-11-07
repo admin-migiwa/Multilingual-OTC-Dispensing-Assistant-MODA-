@@ -14,6 +14,8 @@ export const pt: Messages = {
     redo: "Refazer a resposta anterior",
     emergencyButton: "De repente estou me sentindo muito mal",
     aiTranslationNotice: "Este texto foi traduzido por IA (ainda não foi revisado por uma pessoa).",
+    networkError: "A conexão caiu. Nossa equipe vai ajudar você agora.",
+    retry: "Tentar de novo",
   },
   languageSelect: {
     title: "Escolha o seu idioma",
@@ -25,6 +27,11 @@ export const pt: Messages = {
     haveProductHint: "Digite o nome do produto, ou tire uma foto da tela do celular ou do produto",
     findBySymptom: "Procurar pelos sintomas",
     findBySymptomHint: "Vamos perguntar como você está, uma pergunta por vez",
+    searchPlaceholder: "Digite o nome do produto (pode ser o nome que aparece no celular)",
+    noMatch: "Não encontramos. Mostre a tela do celular a um funcionário.",
+    symptomPrompt: "Quais sintomas você tem?",
+    chooseDrug: "Escolher este remédio",
+    changeDrug: "Escolher outro remédio",
   },
   photoConsent: {
     title: "Sobre a foto",
@@ -87,6 +94,9 @@ export const pt: Messages = {
       R02: {
         text: "Quantos você quer comprar?",
         options: { smallOne: "Uma caixa pequena", largeOne: "Uma caixa grande", multiple: "Duas ou mais" },
+        // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
+        minorLargePackage: "Não podemos vender embalagens grandes a menores de {age} anos.",
+        minorMultiplePackages: "Menores de {age} anos podem comprar até {max} caixa.",
       },
       R03: { text: "Diga por que você precisa de uma caixa grande ou de duas ou mais." },
       R04: { text: "Para quais sintomas você vai usar?" },
@@ -101,6 +111,11 @@ export const pt: Messages = {
     staffHelp: "Nossa equipe vai ajudar você agora. Mostre esta tela a um funcionário.",
     consultLine: "Se não tiver certeza se deve chamar uma ambulância, você pode ligar para uma linha de consulta de emergência (#7119 etc.; o número muda conforme a região).",
     childLine: "Para dúvidas sobre crianças em feriados ou à noite, ligue para #8000.",
+    visitorHotline: "Se você está visitando o Japão, pode ligar para a \"Japan Visitor Hotline\" da Organização Nacional de Turismo do Japão (JNTO) no 050-3816-2787 (24 horas, todos os dias; inglês, chinês e coreano; apoio em emergências como doenças ou ferimentos).",
+    infoPagesTitle: "Sites para consulta",
+    ambulanceGuidePage: "Guia de uso da ambulância (Agência de Gestão de Incêndios e Desastres; página em japonês com PDFs em inglês, chinês e coreano)",
+    visitorHotlinePage: "Informações sobre a Japan Visitor Hotline (Organização Nacional de Turismo do Japão, JNTO; página em japonês)",
+    residentConsultationPage: "Se você mora no Japão: lista de centros de consulta multilíngue (CLAIR, Conselho das Autoridades Locais para Relações Internacionais; página em japonês com link para uma página em inglês)",
   },
   emergencyFollowUp: {
     intro: "São perguntas do farmacêutico. Escolha a resposta que se aplica.",
@@ -122,7 +137,13 @@ export const pt: Messages = {
   },
   pharmacist: {
     waiting: "Um farmacêutico está verificando as suas respostas. Aguarde um momento, por favor.",
-    notForSale: "Sentimos muito. No seu estado atual, não podemos oferecer um remédio sem receita. Recomendamos que consulte um médico em um hospital ou clínica.",
+  },
+  referral: {
+    title: "Por favor, consulte um médico em um hospital ou clínica",
+    body: "Sentimos muito. No seu estado atual, não podemos oferecer um remédio sem receita. Recomendamos que consulte um médico em um hospital ou clínica.",
+    tellDoctor: "No hospital, informe ao médico os seus sintomas de hoje e os remédios que você está tomando agora. Se tiver uma caderneta de registro de medicamentos, leve-a.",
+    consultTitle: "Onde obter ajuda em idiomas além do japonês",
+    askStaff: "Se tiver alguma dúvida, pergunte à equipe.",
   },
   guidance: {
     title: "Sobre o seu remédio",

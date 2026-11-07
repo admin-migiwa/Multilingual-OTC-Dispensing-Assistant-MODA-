@@ -14,6 +14,8 @@ export const ko: Messages = {
     redo: "이전 답변 다시 하기",
     emergencyButton: "갑자기 몸이 많이 안 좋아요",
     aiTranslationNotice: "이 문장은 AI가 번역한 것입니다(아직 사람이 확인하지 않았습니다).",
+    networkError: "통신이 끊겼습니다. 직원이 바로 도와드리겠습니다.",
+    retry: "다시 시도",
   },
   languageSelect: {
     title: "언어를 선택해 주세요",
@@ -25,6 +27,11 @@ export const ko: Messages = {
     haveProductHint: "상품명을 입력하거나, 휴대폰 화면 또는 상품을 촬영합니다",
     findBySymptom: "증상으로 찾기",
     findBySymptomHint: "몸 상태를 하나씩 질문합니다",
+    searchPlaceholder: "상품명을 입력해 주세요(휴대폰 화면의 이름도 괜찮습니다)",
+    noMatch: "찾지 못했습니다. 휴대폰 화면을 직원에게 보여 주세요.",
+    symptomPrompt: "어떤 증상이 있나요?",
+    chooseDrug: "이 약으로 할게요",
+    changeDrug: "다른 약으로 다시 고르기",
   },
   photoConsent: {
     title: "사진에 대해",
@@ -87,6 +94,9 @@ export const ko: Messages = {
       R02: {
         text: "몇 개를 사고 싶으세요?",
         options: { smallOne: "작은 상자 1개", largeOne: "큰 상자 1개", multiple: "2개 이상" },
+        // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
+        minorLargePackage: "{age}세 미만에게는 대용량 포장을 판매할 수 없습니다.",
+        minorMultiplePackages: "{age}세 미만은 {max}개까지 구입할 수 있습니다.",
       },
       R03: { text: "큰 상자나 2개 이상이 필요한 이유를 알려 주세요." },
       R04: { text: "어떤 증상에 사용하실 건가요?" },
@@ -101,6 +111,11 @@ export const ko: Messages = {
     staffHelp: "직원이 바로 도와드리겠습니다. 이 화면을 직원에게 보여 주세요.",
     consultLine: "구급차를 부를지 망설여질 때는 응급 상담 창구(#7119 등, 지역에 따라 번호가 다름)에 상담할 수 있습니다.",
     childLine: "어린이의 휴일·야간 상담은 #8000입니다.",
+    visitorHotline: "일본을 여행 중인 분은 일본정부관광국(JNTO)의 \"Japan Visitor Hotline\" 050-3816-2787로 상담할 수 있습니다(24시간·연중무휴, 영어·중국어·한국어, 질병이나 부상 등 비상시 지원).",
+    infoPagesTitle: "참고할 수 있는 웹페이지",
+    ambulanceGuidePage: "구급차 이용 매뉴얼(일본 총무성 소방청, 일본어 페이지, 영어·중국어·한국어 PDF 있음)",
+    visitorHotlinePage: "Japan Visitor Hotline 안내(일본정부관광국 JNTO, 일본어 페이지)",
+    residentConsultationPage: "일본에 거주하는 분: 다국어 생활 상담 창구 목록(자치체국제화협회 CLAIR, 일본어 페이지, 영어 페이지 안내 있음)",
   },
   emergencyFollowUp: {
     intro: "약사의 질문입니다. 해당하는 것을 선택해 주세요.",
@@ -122,7 +137,13 @@ export const ko: Messages = {
   },
   pharmacist: {
     waiting: "약사가 내용을 확인하고 있습니다. 잠시 기다려 주세요.",
-    notForSale: "죄송합니다. 지금 상태로는 가게에서 파는 약(일반의약품)으로 대응하기 어렵습니다. 병원이나 의원에서 진찰받으시기를 권합니다.",
+  },
+  referral: {
+    title: "병원이나 의원에서 진찰을 받으세요",
+    body: "죄송합니다. 지금 상태로는 가게에서 파는 약(일반의약품)으로 대응하기 어렵습니다. 병원이나 의원에서 진찰받으시기를 권합니다.",
+    tellDoctor: "병원에서는 오늘의 증상과 지금 복용 중인 약을 알려 주세요. 복약 기록 수첩이 있으면 가지고 가세요.",
+    consultTitle: "일본어 이외의 언어로 상담할 수 있는 곳",
+    askStaff: "모르는 것이 있으면 직원에게 물어보세요.",
   },
   guidance: {
     title: "약 설명",

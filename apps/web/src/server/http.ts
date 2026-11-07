@@ -8,6 +8,8 @@
 
 import { DomainRuleError } from "@moda/domain";
 
+import { AiError } from "./ai";
+import { PinError } from "./pin";
 import { SessionServiceError } from "./session-service";
 
 export class BadRequestError extends Error {
@@ -42,6 +44,15 @@ export async function handle(fn: () => Promise<unknown> | unknown): Promise<Resp
     }
     if (error instanceof SessionServiceError) {
       return errorResponse(error.code === "SESSION_NOT_FOUND" ? 404 : 400, error.code);
+    }
+    if (error instanceof AiError) {
+      // 設定がない・通信できないは 503、答えの形が違う・答えなかったは 502。どちらも推測で続けない（ルール7）
+      const unavailable = error.code === "AI_NOT_CONFIGURED" || error.code === "AI_UNAVAILABLE";
+      return errorResponse(unavailable ? 503 : 502, error.code);
+    }
+    if (error instanceof PinError) {
+      // PIN の設定がないときも 400 で種類を返す（薬剤師の画面が「設定がありません」と出せるように。仮の PIN では通さない）
+      return errorResponse(error.code === "PIN_LOCKED" ? 423 : 400, error.code);
     }
     if (error instanceof BadRequestError) {
       return errorResponse(400, error.code);

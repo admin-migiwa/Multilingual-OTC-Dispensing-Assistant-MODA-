@@ -14,6 +14,8 @@ export const en: Messages = {
     redo: "Redo my last answer",
     emergencyButton: "I suddenly feel very unwell",
     aiTranslationNotice: "This text was translated by AI (not yet checked by a person).",
+    networkError: "The connection has stopped. Our staff will help you right away.",
+    retry: "Try again",
   },
   languageSelect: {
     title: "Please select your language",
@@ -25,6 +27,11 @@ export const en: Messages = {
     haveProductHint: "Enter the product name, or take a photo of your phone screen or the product",
     findBySymptom: "Find a medicine by symptoms",
     findBySymptomHint: "We will ask about how you feel, one question at a time",
+    searchPlaceholder: "Enter the product name (the name on your phone screen is fine)",
+    noMatch: "No match found. Please show your phone screen to a staff member.",
+    symptomPrompt: "What symptoms do you have?",
+    chooseDrug: "Choose this medicine",
+    changeDrug: "Choose a different medicine",
   },
   photoConsent: {
     title: "About the photo",
@@ -87,6 +94,9 @@ export const en: Messages = {
       R02: {
         text: "How many would you like to buy?",
         options: { smallOne: "One small box", largeOne: "One large box", multiple: "Two or more" },
+        // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
+        minorLargePackage: "We cannot sell large packages to people under {age}.",
+        minorMultiplePackages: "People under {age} can buy up to {max} box.",
       },
       R03: { text: "Please tell us why you need a large box or two or more." },
       R04: { text: "What symptoms will you use it for?" },
@@ -101,6 +111,11 @@ export const en: Messages = {
     staffHelp: "Our staff will help you right away. Please show this screen to a staff member.",
     consultLine: "If you are not sure whether to call an ambulance, you can call an emergency consultation line (#7119 etc.; the number differs by area).",
     childLine: "For advice about a child on holidays or at night, call #8000.",
+    visitorHotline: "Visitors to Japan can call the Japan National Tourism Organization (JNTO) \"Japan Visitor Hotline\" at 050-3816-2787 (24 hours, every day; English, Chinese and Korean; support in emergencies such as illness or injury).",
+    infoPagesTitle: "Useful websites",
+    ambulanceGuidePage: "Guide to using an ambulance (Fire and Disaster Management Agency; Japanese page with PDFs in English, Chinese and Korean)",
+    visitorHotlinePage: "About the Japan Visitor Hotline (Japan National Tourism Organization, JNTO; Japanese page)",
+    residentConsultationPage: "If you live in Japan: list of multilingual consultation centers (Council of Local Authorities for International Relations, CLAIR; Japanese page with a link to an English page)",
   },
   emergencyFollowUp: {
     intro: "These are questions from the pharmacist. Please choose the answer that applies.",
@@ -122,7 +137,13 @@ export const en: Messages = {
   },
   pharmacist: {
     waiting: "A pharmacist is checking your answers. Please wait a moment.",
-    notForSale: "We are sorry. With your current condition, we cannot offer an over-the-counter medicine. We recommend that you see a doctor at a hospital or clinic.",
+  },
+  referral: {
+    title: "Please see a doctor at a hospital or clinic",
+    body: "We are sorry. With your current condition, we cannot offer an over-the-counter medicine. We recommend that you see a doctor at a hospital or clinic.",
+    tellDoctor: "At the hospital, please tell the doctor about your symptoms today and the medicines you are taking now. If you have a medicine record book, please bring it.",
+    consultTitle: "Where you can get help in languages other than Japanese",
+    askStaff: "If anything is unclear, please ask our staff.",
   },
   guidance: {
     title: "About your medicine",

@@ -6,7 +6,8 @@
  * - 年齢・性別（Q01・Q02）を最初に聞く（11/6 依頼主の判断。docs/backlog.md C-05）。
  */
 
-import { PREGNANCY_QUESTION_MIN_AGE, type InterviewFacts } from "../contraindication/facts.ts";
+import type { InterviewFacts } from "../contraindication/facts.ts";
+import { asksPregnancyQuestions as asksPregnancyQuestionsFor } from "../contraindication/judge.ts";
 import type { StockedDrugId } from "../contraindication/data.ts";
 
 /** 指定濫用防止医薬品を選んだときの追加の問診（R01〜R04）の答え */
@@ -50,13 +51,21 @@ export type QuestionId =
   | "R03"
   | "R04";
 
+/**
+ * 問診の流れ（11/6 依頼主の判断。interview-items.md「聞く順番の考え方」）
+ * - product：ほしい薬がある → 薬を選ぶ → 選んだ薬の判定に使う項目だけを聞く
+ * - symptom：症状から探す → 基本の項目をすべて聞く → 薬剤師が候補を選ぶ
+ * どちらの流れでも、年齢・性別（Q01・Q02）を最初に聞く。流れが決まるまでは、それ以外を聞かない。
+ */
+export type InterviewRoute = "product" | "symptom";
+
 export interface InterviewSettings {
   /** 体重を聞く年齢の上限（未満）（Q05：15歳未満） */
   readonly weightQuestionBelowAge: number;
 }
 
 /**
- * 妊娠・授乳を聞く最低年齢は、禁忌判定と同じ値（PREGNANCY_QUESTION_MIN_AGE）を使い、ここでは変えられない。
+ * 妊娠・授乳を聞く最低年齢は、禁忌判定と同じ値（PREGNANCY_QUESTION_MIN_AGE）と同じ関数（asksPregnancyQuestions）を使い、ここでは変えられない。
  * 問診と判定で基準がずれると、判定に必要な答えを聞かないまま問診が終わってしまうため。
  */
 export const DEFAULT_INTERVIEW_SETTINGS: InterviewSettings = {
@@ -68,15 +77,26 @@ export interface AskContext {
   readonly answers: InterviewAnswers;
   /** 選んだ薬（まだ決まっていなければ空） */
   readonly selectedDrugs: readonly StockedDrugId[];
+  /** 問診の流れ（まだ決まっていなければ undefined） */
+  readonly route: InterviewRoute | undefined;
   readonly settings: InterviewSettings;
 }
 
 export interface QuestionDefinition {
   readonly id: QuestionId;
-  /** 基本の項目（全員）か、薬ごとの項目か */
-  readonly stage: "basic" | "drug";
+  /**
+   * attributes：年齢・性別（全員・最初に聞く）
+   * basic：基本の項目（症状から探すときは全員、ほしい薬のときは選んだ薬の判定に使うものだけ）
+   * drug：薬ごとの項目（選んだ薬が決まってから）
+   */
+  readonly stage: "attributes" | "basic" | "drug";
   /** この項目の答えを入れる場所（答えたかどうかの判定に使う） */
   readonly answerKeys: readonly (keyof InterviewAnswers)[];
+  /**
+   * この項目に付いてくる、なくてもよい答え（例：Q07 の「その他」の文、Q09 の薬の名前）。
+   * 答えたかどうかの判定には使わない。項目を聞かなくなったとき・項目に答え直したときは、一緒に消す
+   */
+  readonly optionalKeys?: readonly (keyof InterviewAnswers)[];
   /** 聞く条件。false なら聞かない（答えがなくても問診は終えられる） */
   readonly askWhen: (ctx: AskContext) => boolean;
 }
@@ -85,11 +105,13 @@ const always = (): boolean => true;
 const selected = (...ids: StockedDrugId[]) => (ctx: AskContext): boolean =>
   ctx.selectedDrugs.some((id) => ids.includes(id));
 
-/** 妊娠・授乳を聞く対象か：性別が男性以外、かつ12歳以上（Q03・Q04。禁忌判定と同じ基準） */
+/**
+ * 妊娠・授乳を聞く対象か：性別が男性以外、かつ12歳以上。選んだ薬に A があるときは年齢を問わない
+ * （Q03・Q04。禁忌判定と同じ関数を使う。11/6 薬剤師の判断。backlog J-01・C-11）
+ */
 function asksPregnancyQuestions(ctx: AskContext): boolean {
-  const { sex, age } = ctx.answers;
-  if (sex === undefined || age === undefined) return false; // Q01・Q02 を先に聞くので、ここには来ない
-  return sex !== "male" && age >= PREGNANCY_QUESTION_MIN_AGE;
+  // 年齢・性別（Q01・Q02）を先に聞くので、まだなら聞かない
+  return asksPregnancyQuestionsFor(ctx.answers.sex, ctx.answers.age, ctx.selectedDrugs);
 }
 
 /**
@@ -97,15 +119,17 @@ function asksPregnancyQuestions(ctx: AskContext): boolean {
  * 薬ごとの項目は、drugs.md の判定に使う薬を選んだときだけ聞く（interview-items.md の「聞く条件」）。
  */
 export const QUESTIONS: readonly QuestionDefinition[] = [
-  // --- 基本の項目（全員） ---
-  { id: "Q01", stage: "basic", answerKeys: ["age"], askWhen: always },
-  { id: "Q02", stage: "basic", answerKeys: ["sex"], askWhen: always },
+  // --- 年齢・性別（全員）と基本の項目 ---
+  { id: "Q01", stage: "attributes", answerKeys: ["age"], askWhen: always },
+  { id: "Q02", stage: "attributes", answerKeys: ["sex"], askWhen: always },
   { id: "Q03", stage: "basic", answerKeys: ["pregnancy"], askWhen: asksPregnancyQuestions },
   {
     id: "Q03a",
     stage: "basic",
     answerKeys: ["dueWithin12Weeks"],
-    askWhen: (ctx) => asksPregnancyQuestions(ctx) && ctx.answers.pregnancy === "pregnant",
+    // interview-items.md の聞く条件のとおり「Q03 で妊娠している」なら聞く。前に選んでいた薬（A）のために聞いた妊娠の答えが残っていて、
+    // いまの薬だけなら妊娠を聞かない年齢でも、その答えを判定に使うので続きを聞く（11/7 依頼主の判断。backlog C-17）
+    askWhen: (ctx) => ctx.answers.pregnancy === "pregnant",
   },
   { id: "Q04", stage: "basic", answerKeys: ["breastfeeding"], askWhen: asksPregnancyQuestions },
   {
@@ -115,9 +139,15 @@ export const QUESTIONS: readonly QuestionDefinition[] = [
     askWhen: (ctx) => ctx.answers.age !== undefined && ctx.answers.age < ctx.settings.weightQuestionBelowAge,
   },
   { id: "Q06", stage: "basic", answerKeys: ["asthmaHistory"], askWhen: always },
-  { id: "Q07", stage: "basic", answerKeys: ["conditions"], askWhen: always },
-  { id: "Q08", stage: "basic", answerKeys: ["drugAllergy"], askWhen: always },
-  { id: "Q09", stage: "basic", answerKeys: ["currentMedications"], askWhen: always },
+  { id: "Q07", stage: "basic", answerKeys: ["conditions"], optionalKeys: ["otherConditionText"], askWhen: always },
+  { id: "Q08", stage: "basic", answerKeys: ["drugAllergy"], optionalKeys: ["allergyDrugNames"], askWhen: always },
+  {
+    id: "Q09",
+    stage: "basic",
+    answerKeys: ["currentMedications"],
+    optionalKeys: ["prescriptionDrugNames"],
+    askWhen: always,
+  },
   { id: "Q10", stage: "basic", answerKeys: ["drivingAfter"], askWhen: always },
   // --- 薬ごとの項目（選んだ薬が決まってから） ---
   { id: "Q11", stage: "drug", answerKeys: ["alcohol"], askWhen: selected("C", "D", "E", "I") },

@@ -23,9 +23,12 @@ export {
 export {
   judgeDrug,
   judgeDrugs,
+  judgeDrugWithKnownFacts,
+  type KnownFactsJudgment,
   rankCandidates,
   doseForAge,
   findStockedDrug,
+  questionsUsedByDrug,
   type Verdict,
   type JudgmentReason,
   type DrugJudgment,

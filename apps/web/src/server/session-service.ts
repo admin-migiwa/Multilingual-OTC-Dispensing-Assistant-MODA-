@@ -11,13 +11,22 @@ import {
   DomainRuleError,
   EMERGENCY_RULES,
   applyAnswersWithReport,
+  chooseRoute as chooseInterviewRoute,
   isTerminal,
   isBasicInterviewComplete,
   isInterviewComplete,
   nextQuestion,
   selectDrugs as selectInterviewDrugs,
   transition,
+  cancelEmergencyEnd,
+  checkPackageAnswer,
+  packageChoiceOptions,
+  selectProcedureVersion,
   type InterviewAnswers,
+  type PackageChoice,
+  type QuantityNoticeKind,
+  type QuantityRules,
+  type InterviewRoute,
   type InterviewState,
   type QuestionId,
   type SessionSnapshot,
@@ -25,6 +34,10 @@ import {
   type StockedDrugId,
 } from "@moda/domain";
 import { isSupportedLanguage, type LanguageCode } from "@moda/i18n";
+
+import { japanDate } from "./japan-date.ts";
+import type { SaleRecord } from "./approval.ts";
+import type { PharmacistReviewRound } from "./pharmacist-service";
 
 /** セッションが見つからないなど、ルール以外の理由で処理できないとき */
 export type SessionServiceErrorCode = "SESSION_NOT_FOUND" | "UNSUPPORTED_LANGUAGE" | "INVALID_REQUEST";
@@ -39,8 +52,8 @@ export class SessionServiceError extends Error {
   }
 }
 
-/** 緊急の確認のきっかけ（spec.md 決まったこと No.38：キーワードの検知か、薬剤師が手動で開いたか） */
-export type EmergencyTrigger = "keyword" | "staff";
+/** 緊急の確認のきっかけ（spec.md 決まったこと No.38：キーワードの検知か、薬剤師が手動で開いたか、AI の緊急フラグ〈T13〉か） */
+export type EmergencyTrigger = "keyword" | "staff" | "ai";
 
 /** 緊急の確認画面で集めたもの（追加の質問 EF01〜EF09、つらさの数字 ES01、観察の印） */
 export interface EmergencyFollowUp {
@@ -56,6 +69,8 @@ export interface RecordedFollowUp extends EmergencyFollowUp {
 
 /** 自由に入力された文の長さの上限（メモリにため込みすぎないため） */
 export const MAX_TEXT_LENGTH = 500;
+/** 一覧で答える項目（薬の名前、選択肢の一覧）の数の上限 */
+export const MAX_NAME_LIST_LENGTH = 20;
 
 export type EmergencyDecision = "show_119" | "not_emergency";
 
@@ -73,6 +88,25 @@ export interface EmergencyEvent {
   readonly followUps: readonly RecordedFollowUp[];
   readonly decision: EmergencyDecision | null;
   readonly decidedAt: string | null;
+  /** 「119番の案内を出す」を薬剤師が押し間違いとして取り消した時刻（取り消していなければ null。もとの判断は消さずに残す） */
+  readonly cancelledAt: string | null;
+}
+
+/**
+ * 翻訳のチャットの1回分（原文・訳・訳し戻し）。接客の記録に足していき、書き換えない（11/7 依頼主の判断。backlog S-13）。
+ * 健康情報が入るので、ログ・履歴（events）には出さない（CLAUDE.md ルール9）
+ */
+export interface ChatLogEntry {
+  readonly at: string;
+  /** to_ja：患者さんの文 → 日本語／to_patient：薬剤師の日本語 → 患者さんの言語 */
+  readonly direction: "to_ja" | "to_patient";
+  readonly original: string;
+  readonly translation: string;
+  readonly backTranslation: string;
+  /** 訳した AI（mock は開発用の仮の AI） */
+  readonly provider: "mock" | "anthropic";
+  /** この文で当てはまった緊急症状の表の ID（なければ空） */
+  readonly emergencyRuleIds: readonly string[];
 }
 
 /** 何が起きたかの履歴。中身（答えや入力）は入れず、種類と項目 ID だけを残す */
@@ -83,10 +117,25 @@ export type SessionEventType =
   | "answers_cleared"
   | "answers_ignored"
   | "drugs_selected"
+  | "route_chosen"
   | "status_changed"
   | "emergency_opened"
   | "emergency_follow_up"
-  | "emergency_decided";
+  | "emergency_decided"
+  | "emergency_cancelled"
+  // 薬剤師の確認（T8a。apps/web/src/server/pharmacist-service.ts）
+  | "pharmacist_review_opened"
+  | "sale_drugs_chosen"
+  | "procedure_step_checked"
+  | "sale_declined"
+  // 候補・代わりの薬を薬剤師が選び、その薬の項目を聞く問診に戻した（T8b。backlog C-03）
+  | "candidate_drugs_chosen"
+  // 翻訳のチャットで1回訳した（中身は chatLog にだけ残す。backlog S-13）
+  | "chat_translated"
+  // 薬剤師が PIN で承認し、販売記録を作った（薬剤師 ID と販売記録 ID だけ。T9a）
+  | "approved"
+  // 薬剤師が PIN で再認証して禁忌を解除した（薬の記号・理由の種類・薬剤師 ID だけ。自由記述は入れない。T9b）
+  | "contraindication_overridden";
 
 export interface SessionEvent {
   readonly at: string;
@@ -101,15 +150,28 @@ export interface SessionRecord {
   readonly language: LanguageCode;
   readonly snapshot: SessionSnapshot;
   readonly interview: InterviewState;
+  /** 「症状から探す」で入力された症状（薬剤師の画面で候補を選ぶのに使う。ログ・履歴には出さない） */
+  readonly symptomText: string | null;
   readonly emergencies: readonly EmergencyEvent[];
+  /** 薬剤師の確認（T8a）。確認の画面を開くたびに1つ足す（なければ空。中身は pharmacist-service.ts） */
+  readonly pharmacistReviews?: readonly PharmacistReviewRound[];
+  /**
+   * 販売記録（承認と同じ書き込みで初めて作る。版は足すだけ。CLAUDE.md ルール1・6。中身は approval.ts）。
+   * データベースがないので接客の記録の中に持ち、承認と販売記録を1回の書き込みで残す
+   */
+  readonly saleRecord?: SaleRecord;
+  /** 翻訳のチャットの記録（起きた順。なければ空。backlog S-13） */
+  readonly chatLog?: readonly ChatLogEntry[];
   readonly events: readonly SessionEvent[];
 }
 
-/** 患者さんの画面に返す内容（答えの中身は返さない） */
+/** 患者さんの画面に返す内容（答えの中身は返さない。年齢だけは緊急キーワードの確認に使うので返す） */
 export interface PatientView {
   readonly id: string;
   readonly language: LanguageCode;
   readonly status: SessionStatus;
+  /** 問診の流れ（ほしい薬がある／症状から探す）。まだ選んでいなければ null */
+  readonly route: InterviewRoute | null;
   /** 次に聞く項目。聞く項目がなければ null */
   readonly nextQuestion: QuestionId | null;
   readonly selectedDrugs: readonly StockedDrugId[];
@@ -117,11 +179,31 @@ export interface PatientView {
   readonly basicInterviewComplete: boolean;
   /** 選んだ薬の項目まで答え終えたか */
   readonly interviewComplete: boolean;
+  /**
+   * この接客で、薬剤師が一度でも緊急の確認をして「緊急ではない」と判断したか（119番の案内の押し間違いの取り消しは含めない）。
+   * true なら、画面は以降の入力で緊急キーワードによる自動の切り替えをしない。薬剤師は手動で緊急の確認を開ける
+   * （11/6 依頼主の判断。CLAUDE.md 絶対に守るルール2・spec.md 決まったこと No.38 の例外）
+   */
+  readonly emergencyCleared: boolean;
+  /** 年齢（Q01）の答え。画面を読み直したときに、緊急キーワードの確認で子どもの項目を使うかを決め直すため（T8a）。まだなら null */
+  readonly age: number | null;
+  /**
+   * 次の質問が R02（買いたい個数・包装）のときだけ：選べる選択肢と注意文（18歳未満の大容量・複数個。backlog M-12）。
+   * 年齢・個数は販売手順の版のデータの値（画面の注意文に差し込む。ルール5）
+   */
+  readonly packageOptions: {
+    readonly allowed: readonly PackageChoice[];
+    readonly noticeByChoice: Readonly<Partial<Record<PackageChoice, QuantityNoticeKind>>>;
+    readonly minorAgeBelow: number;
+    readonly minorMaxQuantity: number;
+  } | null;
 }
 
 export interface SessionStore {
   get(id: string): SessionRecord | undefined;
   set(record: SessionRecord): void;
+  /** すべての接客の記録（販売記録の一覧に使う） */
+  all(): Iterable<SessionRecord>;
 }
 
 /** サーバーのメモリに置く入れ物。開発サーバーの再読み込みで消えないよう globalThis に置く */
@@ -129,7 +211,7 @@ export function memoryStore(): SessionStore {
   const holder = globalThis as unknown as { __modaSessions?: Map<string, SessionRecord> };
   holder.__modaSessions ??= new Map();
   const map = holder.__modaSessions;
-  return { get: (id) => map.get(id), set: (record) => void map.set(record.id, record) };
+  return { get: (id) => map.get(id), set: (record) => void map.set(record.id, record), all: () => map.values() };
 }
 
 export interface ServiceDeps {
@@ -144,18 +226,18 @@ export function defaultDeps(): ServiceDeps {
 
 // ---------------------------------------------------------------------------
 
-function load(deps: ServiceDeps, id: string): SessionRecord {
+export function load(deps: ServiceDeps, id: string): SessionRecord {
   const record = deps.store.get(id);
   if (!record) throw new SessionServiceError("SESSION_NOT_FOUND", "接客の記録が見つかりません");
   return record;
 }
 
-function event(deps: ServiceDeps, type: SessionEventType, detail: readonly string[] = []): SessionEvent {
+export function event(deps: ServiceDeps, type: SessionEventType, detail: readonly string[] = []): SessionEvent {
   return { at: deps.now().toISOString(), type, detail };
 }
 
 /** 状態を進め、履歴に残す */
-function moveTo(deps: ServiceDeps, record: SessionRecord, to: SessionStatus): SessionRecord {
+export function moveTo(deps: ServiceDeps, record: SessionRecord, to: SessionStatus): SessionRecord {
   const snapshot = transition(record.snapshot, to);
   return { ...record, snapshot, events: [...record.events, event(deps, "status_changed", [to])] };
 }
@@ -182,19 +264,80 @@ function advance(deps: ServiceDeps, record: SessionRecord): SessionRecord {
   return current;
 }
 
-export function patientView(record: SessionRecord): PatientView {
+export function patientView(record: SessionRecord, now: Date = new Date()): PatientView {
   const status = record.snapshot.status;
   // 問診を進めてよい状態のときだけ、次に聞く項目を返す（緊急の確認中などに質問を出さないため）
   const asking = status === "attributes" || status === "interview";
+  const next = asking ? nextQuestion(record.interview) : null;
+  const age = record.interview.answers.age;
+  let packageOptions: PatientView["packageOptions"] = null;
+  if (next === "R02" && age !== undefined) {
+    const rules = quantityRulesAt(now);
+    packageOptions = {
+      ...packageChoiceOptions(record.interview.selectedDrugs, age, rules),
+      minorAgeBelow: rules.minorAgeBelow,
+      minorMaxQuantity: rules.minorMaxQuantity,
+    };
+  }
   return {
     id: record.id,
     language: record.language,
     status,
-    nextQuestion: asking ? nextQuestion(record.interview) : null,
+    route: record.interview.route ?? null,
+    nextQuestion: next,
     selectedDrugs: record.interview.selectedDrugs,
     basicInterviewComplete: isBasicInterviewComplete(record.interview),
     interviewComplete: isInterviewComplete(record.interview),
+    emergencyCleared: record.emergencies.some((e) => e.decision === "not_emergency"),
+    age: record.interview.answers.age ?? null,
+    packageOptions,
   };
+}
+
+// ---------------------------------------------------------------------------
+// R02 の時点の個数・包装の制限（18歳未満の大容量・複数個。backlog M-12・sales-procedures.md S09・S10）
+// ---------------------------------------------------------------------------
+
+/** 店頭の日付（日本時間）の販売手順の版の数量基準 */
+export function quantityRulesAt(now: Date): QuantityRules {
+  return selectProcedureVersion(japanDate(now)).quantityRules;
+}
+
+const PACKAGE_KEYS = ["packageChoice", "multipleCount"] as const;
+
+/** R02 の答えが、いまの年齢・選んだ薬で選べるか（答えがなければ選べるとみなす） */
+function packageAnswerAllowed(interview: InterviewState, rules: QuantityRules): boolean {
+  const { age, packageChoice, multipleCount } = interview.answers;
+  if (age === undefined || packageChoice === undefined) return true;
+  const abuse = multipleCount === undefined ? { packageChoice } : { packageChoice, multipleCount };
+  return checkPackageAnswer(interview.selectedDrugs, abuse, age, rules).allowed;
+}
+
+/**
+ * 18歳未満で、R02 にどの包装も選べない薬の組み合わせ（例：B と E を一緒に。種類が違っても合わせて数える。決定12）なら止める。
+ * 問診に戻っても R02 に答えられないため、薬を選ぶ時点で止める（M-12）
+ */
+export function assertSomePackageChoice(deps: ServiceDeps, interview: InterviewState): void {
+  const age = interview.answers.age;
+  if (!interview.selectedDrugs.includes("E") || age === undefined) return;
+  if (packageChoiceOptions(interview.selectedDrugs, age, quantityRulesAt(deps.now())).allowed.length === 0) {
+    throw new DomainRuleError("QUANTITY_NOT_ALLOWED", "この年齢では、この薬の組み合わせは販売できません");
+  }
+}
+
+/**
+ * 記録にある R02 の答えが、年齢の訂正や薬の選び直しで選べなくなったら、その答え（と、それで聞いた R03）を消して聞き直す。
+ * 消したことは種類だけを履歴に残す（中身は残さない）。呼んだあとに、次の質問があれば問診に戻すこと。
+ */
+export function enforcePackageLimit(deps: ServiceDeps, record: SessionRecord): SessionRecord {
+  if (packageAnswerAllowed(record.interview, quantityRulesAt(deps.now()))) return record;
+  const answers: InterviewAnswers = { ...record.interview.answers };
+  for (const key of PACKAGE_KEYS) delete answers[key];
+  const hadReason = answers.reasonText !== undefined;
+  // 包装の答えを消すと R03（大容量・複数個の理由）も聞かなくなるので、聞かなくなった答えを消す
+  const interview = selectInterviewDrugs({ ...record.interview, answers }, record.interview.selectedDrugs);
+  const cleared = ["R02", ...(hadReason && interview.answers.reasonText === undefined ? ["R03"] : [])];
+  return { ...record, interview, events: [...record.events, event(deps, "answers_cleared", cleared)] };
 }
 
 /** 言語を選んで接客を始める。言語選択はここで済んだことになり、年齢・性別を聞く状態から始める */
@@ -209,6 +352,7 @@ export function createSession(deps: ServiceDeps, language: string): SessionRecor
     language,
     snapshot: { status: "language_selection", understandingConfirmed: false },
     interview: { answers: {}, selectedDrugs: [] },
+    symptomText: null,
     emergencies: [],
     events: [{ at, type: "created", detail: [language] }],
   };
@@ -238,6 +382,15 @@ export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers)
     if (typeof value === "string" && value.length > MAX_TEXT_LENGTH) {
       throw new SessionServiceError("INVALID_REQUEST", "入力が長すぎます");
     }
+    // 薬の名前（Q08・Q09）は文の一覧。数と、1つずつの長さに上限をかける（メモリにため込みすぎないため）
+    if (Array.isArray(value)) {
+      if (value.length > MAX_NAME_LIST_LENGTH) throw new SessionServiceError("INVALID_REQUEST", "入力が多すぎます");
+      for (const item of value as unknown[]) {
+        if (typeof item === "string" && item.length > MAX_TEXT_LENGTH) {
+          throw new SessionServiceError("INVALID_REQUEST", "入力が長すぎます");
+        }
+      }
+    }
   }
   const before = record.interview.answers;
   const { state: interview, ignored } = applyAnswersWithReport(record.interview, answers);
@@ -253,8 +406,48 @@ export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers)
   if (corrected.length > 0) newEvents.push(event(deps, "corrected", corrected));
   if (cleared.length > 0) newEvents.push(event(deps, "answers_cleared", cleared));
   if (ignored.length > 0) newEvents.push(event(deps, "answers_ignored", ignored));
+  // 18歳未満の大容量・複数個は、R02 の答えとしては受け取らない（記録は変わらない。画面は同じ質問を出す。M-12）
+  if (PACKAGE_KEYS.some((key) => answers[key] !== undefined) && !packageAnswerAllowed(interview, quantityRulesAt(deps.now()))) {
+    throw new DomainRuleError("QUANTITY_NOT_ALLOWED", "この年齢・個数・包装の組み合わせは選べません");
+  }
   let next: SessionRecord = { ...record, interview, events: [...record.events, ...newEvents] };
+  // 年齢を直して、前の R02 の答えが選べなくなったら、聞き直す
+  next = enforcePackageLimit(deps, next);
   // 薬の選択のあとに答え直して聞く項目が増えたら、問診に戻る
+  if (next.snapshot.status === "drug_selection" && nextQuestion(next.interview) !== null) {
+    next = moveTo(deps, next, "interview");
+  }
+  next = advance(deps, next);
+  deps.store.set(next);
+  return next;
+}
+
+/**
+ * 問診の流れを選ぶ（11/6 依頼主の判断）。年齢・性別を答えたあと、薬を選ぶ前に選ぶ（選び直しもできる）。
+ * - product：ほしい薬がある → すぐに薬の選択へ（その薬の判定に使う項目だけを、あとで聞く）
+ * - symptom：症状から探す → 基本の項目をすべて聞く。入力された症状は記録に残す（履歴には中身を入れない）
+ */
+export function chooseRoute(
+  deps: ServiceDeps,
+  id: string,
+  route: InterviewRoute,
+  symptomText: string | null = null,
+): SessionRecord {
+  const record = load(deps, id);
+  const status = record.snapshot.status;
+  if ((status !== "interview" && status !== "drug_selection") || record.interview.selectedDrugs.length > 0) {
+    throw new DomainRuleError("INVALID_TRANSITION", "年齢・性別を答えたあと、薬を選ぶ前に流れを選びます");
+  }
+  if (symptomText !== null && (symptomText.trim() === "" || symptomText.length > MAX_TEXT_LENGTH)) {
+    throw new SessionServiceError("INVALID_REQUEST", "症状の入力の形が違います");
+  }
+  const interview = chooseInterviewRoute(record.interview, route);
+  let next: SessionRecord = {
+    ...record,
+    interview,
+    symptomText: route === "symptom" ? symptomText : null,
+    events: [...record.events, event(deps, "route_chosen", [route])],
+  };
   if (next.snapshot.status === "drug_selection" && nextQuestion(next.interview) !== null) {
     next = moveTo(deps, next, "interview");
   }
@@ -270,7 +463,8 @@ export function chooseDrugs(deps: ServiceDeps, id: string, drugIds: readonly Sto
   if (
     record.snapshot.status === "interview" &&
     record.interview.selectedDrugs.length > 0 &&
-    isBasicInterviewComplete(record.interview)
+    // 「ほしい薬がある」では、薬ごとに聞く基本の項目に答えている途中でも選び直せる
+    (record.interview.route === "product" || isBasicInterviewComplete(record.interview))
   ) {
     record = moveTo(deps, record, "drug_selection");
   }
@@ -281,11 +475,14 @@ export function chooseDrugs(deps: ServiceDeps, id: string, drugIds: readonly Sto
     throw new SessionServiceError("INVALID_REQUEST", "薬が選ばれていません");
   }
   const interview = selectInterviewDrugs(record.interview, drugIds);
+  assertSomePackageChoice(deps, interview);
   let next: SessionRecord = {
     ...record,
     interview,
     events: [...record.events, event(deps, "drugs_selected", interview.selectedDrugs)],
   };
+  // 薬を足して、前の R02 の答えが選べなくなったら、聞き直す（M-12）
+  next = enforcePackageLimit(deps, next);
   if (nextQuestion(next.interview) !== null) next = moveTo(deps, next, "interview");
   deps.store.set(next);
   return next;
@@ -337,6 +534,7 @@ export function openEmergency(
     followUps: [],
     decision: null,
     decidedAt: null,
+    cancelledAt: null,
   };
   const next: SessionRecord = {
     ...moved,
@@ -388,6 +586,43 @@ export function decideEmergency(deps: ServiceDeps, id: string, decision: Emergen
     events: [...record.events, event(deps, "emergency_decided", [decision])],
   };
   const next = moveTo(deps, withDecision, decision === "show_119" ? "emergency_ended" : open.returnTo);
+  deps.store.set(next);
+  return next;
+}
+
+/**
+ * 「119番の案内を出す」を、薬剤師が押し間違いとして取り消し、押す前の薬剤師の確認（緊急を確認中）に戻す
+ * （11/6 依頼主の判断。押し間違いは「緊急ではない」という判断ではないので、問診には戻さない）。
+ * - 取り消せるのは、緊急終了で、いちばん新しい緊急の判断が「119番の案内を出す」で、まだ取り消していないときだけ。
+ * - もとの判断は消さず、取り消した時刻と履歴を足して残す（上書きしない）。
+ * - 確認をやり直すため、同じ根拠（入力した文・当てはまった項目）で、判断前の緊急の記録を1つ足す。
+ */
+export function cancelEmergency119(deps: ServiceDeps, id: string): SessionRecord {
+  const record = load(deps, id);
+  const index = record.emergencies.length - 1;
+  const last = record.emergencies[index];
+  if (
+    record.snapshot.status !== "emergency_ended" ||
+    !last ||
+    last.decision !== "show_119" ||
+    last.cancelledAt !== null
+  ) {
+    throw new DomainRuleError("INVALID_TRANSITION", "取り消せる「119番の案内」がありません");
+  }
+  const snapshot = cancelEmergencyEnd(record.snapshot);
+  const at = deps.now().toISOString();
+  // 追加の答えは写さない（前の内容は前の記録に残っていて、次の判断のときに画面の内容をあらためて記録するため）
+  const reopened: EmergencyEvent = { ...last, openedAt: at, followUps: [], decision: null, decidedAt: null, cancelledAt: null };
+  const next: SessionRecord = {
+    ...record,
+    snapshot,
+    emergencies: [...record.emergencies.map((e, i) => (i === index ? { ...e, cancelledAt: at } : e)), reopened],
+    events: [
+      ...record.events,
+      event(deps, "emergency_cancelled", ["show_119"]),
+      event(deps, "status_changed", [snapshot.status]),
+    ],
+  };
   deps.store.set(next);
   return next;
 }

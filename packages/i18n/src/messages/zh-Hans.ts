@@ -14,6 +14,8 @@ export const zhHans: Messages = {
     redo: "重新回答上一题",
     emergencyButton: "突然感到非常不舒服",
     aiTranslationNotice: "本文由 AI 翻译（尚未经过人工确认）。",
+    networkError: "网络连接已中断。工作人员会马上为您提供帮助。",
+    retry: "重试",
   },
   languageSelect: {
     title: "请选择语言",
@@ -25,6 +27,11 @@ export const zhHans: Messages = {
     haveProductHint: "输入商品名称，或拍摄手机屏幕或商品",
     findBySymptom: "根据症状找药",
     findBySymptomHint: "我们会逐一询问您的身体状况",
+    searchPlaceholder: "请输入商品名称（手机画面上的名称也可以）",
+    noMatch: "没有找到。请把手机画面给工作人员看。",
+    symptomPrompt: "您有什么症状？",
+    chooseDrug: "选择这个药",
+    changeDrug: "重新选择其他药",
   },
   photoConsent: {
     title: "关于照片",
@@ -87,6 +94,9 @@ export const zhHans: Messages = {
       R02: {
         text: "您想购买几盒？",
         options: { smallOne: "小盒1盒", largeOne: "大盒1盒", multiple: "2盒以上" },
+        // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
+        minorLargePackage: "不能向未满{age}岁的人出售大容量包装。",
+        minorMultiplePackages: "未满{age}岁的人最多可购买{max}盒。",
       },
       R03: { text: "请告诉我们需要大盒或2盒以上的原因。" },
       R04: { text: "您打算用于什么症状？" },
@@ -101,6 +111,11 @@ export const zhHans: Messages = {
     staffHelp: "工作人员会马上为您提供帮助。请把这个画面给工作人员看。",
     consultLine: "如果不确定是否需要叫救护车，可以拨打急救咨询电话（#7119 等，号码因地区而异）。",
     childLine: "儿童在节假日或夜间的咨询电话是 #8000。",
+    visitorHotline: "来日本旅行的游客可以拨打日本国家旅游局（JNTO）的“Japan Visitor Hotline”050-3816-2787（24小时、全年无休；英语、中文、韩语；在生病、受伤等紧急情况下提供帮助）。",
+    infoPagesTitle: "可参考的网页",
+    ambulanceGuidePage: "救护车使用指南（日本总务省消防厅；日语网页，有英语、中文、韩语的 PDF）",
+    visitorHotlinePage: "Japan Visitor Hotline 的介绍（日本国家旅游局 JNTO；日语网页）",
+    residentConsultationPage: "在日本居住的人士：多语言生活咨询窗口一览（自治体国际化协会 CLAIR；日语网页，有英语网页的链接）",
   },
   emergencyFollowUp: {
     intro: "这是药剂师的问题。请选择符合的答案。",
@@ -122,7 +137,13 @@ export const zhHans: Messages = {
   },
   pharmacist: {
     waiting: "药剂师正在确认内容，请稍候。",
-    notForSale: "非常抱歉。以您目前的状况，本店的非处方药无法满足您的需要。建议您到医院或诊所就诊。",
+  },
+  referral: {
+    title: "请到医院或诊所就诊",
+    body: "非常抱歉。以您目前的状况，本店的非处方药无法满足您的需要。建议您到医院或诊所就诊。",
+    tellDoctor: "就诊时，请告诉医生您今天的症状和目前正在服用的药。如有用药记录手册，请一并携带。",
+    consultTitle: "可以用日语以外的语言咨询的地方",
+    askStaff: "如有不明白的地方，请询问工作人员。",
   },
   guidance: {
     title: "用药说明",

@@ -14,6 +14,8 @@ export const zhHant: Messages = {
     redo: "重新回答上一題",
     emergencyButton: "突然感到非常不舒服",
     aiTranslationNotice: "本文由 AI 翻譯（尚未經過人工確認）。",
+    networkError: "網路連線已中斷。工作人員會馬上為您提供協助。",
+    retry: "重試",
   },
   languageSelect: {
     title: "請選擇語言",
@@ -25,6 +27,11 @@ export const zhHant: Messages = {
     haveProductHint: "輸入商品名稱，或拍攝手機畫面或商品",
     findBySymptom: "依症狀找藥",
     findBySymptomHint: "我們會逐一詢問您的身體狀況",
+    searchPlaceholder: "請輸入商品名稱（手機畫面上的名稱也可以）",
+    noMatch: "沒有找到。請把手機畫面給工作人員看。",
+    symptomPrompt: "您有什麼症狀？",
+    chooseDrug: "選擇這個藥",
+    changeDrug: "重新選擇其他藥",
   },
   photoConsent: {
     title: "關於照片",
@@ -87,6 +94,9 @@ export const zhHant: Messages = {
       R02: {
         text: "您想購買幾盒？",
         options: { smallOne: "小盒1盒", largeOne: "大盒1盒", multiple: "2盒以上" },
+        // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
+        minorLargePackage: "無法向未滿{age}歲的人販售大容量包裝。",
+        minorMultiplePackages: "未滿{age}歲的人最多可購買{max}盒。",
       },
       R03: { text: "請告訴我們需要大盒或2盒以上的原因。" },
       R04: { text: "您打算用於什麼症狀？" },
@@ -101,6 +111,11 @@ export const zhHant: Messages = {
     staffHelp: "工作人員會馬上為您提供協助。請把這個畫面給工作人員看。",
     consultLine: "如果不確定是否需要叫救護車，可以撥打急救諮詢電話（#7119 等，號碼依地區而異）。",
     childLine: "兒童在假日或夜間的諮詢電話是 #8000。",
+    visitorHotline: "來日本旅遊的旅客可以撥打日本政府觀光局（JNTO）的「Japan Visitor Hotline」050-3816-2787（24小時、全年無休；英語、中文、韓語；在生病、受傷等緊急情況下提供協助）。",
+    infoPagesTitle: "可參考的網頁",
+    ambulanceGuidePage: "救護車使用指南（日本總務省消防廳；日語網頁，有英語、中文、韓語的 PDF）",
+    visitorHotlinePage: "Japan Visitor Hotline 的介紹（日本政府觀光局 JNTO；日語網頁）",
+    residentConsultationPage: "居住在日本的人士：多語言生活諮詢窗口一覽（自治體國際化協會 CLAIR；日語網頁，有英語網頁的連結）",
   },
   emergencyFollowUp: {
     intro: "這是藥劑師的問題。請選擇符合的答案。",
@@ -122,7 +137,13 @@ export const zhHant: Messages = {
   },
   pharmacist: {
     waiting: "藥劑師正在確認內容，請稍候。",
-    notForSale: "非常抱歉。以您目前的狀況，本店的成藥無法滿足您的需要。建議您到醫院或診所就診。",
+  },
+  referral: {
+    title: "請到醫院或診所就診",
+    body: "非常抱歉。以您目前的狀況，本店的成藥無法滿足您的需要。建議您到醫院或診所就診。",
+    tellDoctor: "就診時，請告訴醫師您今天的症狀和目前正在服用的藥。如有用藥紀錄手冊，請一併攜帶。",
+    consultTitle: "可以用日語以外的語言諮詢的地方",
+    askStaff: "如有不明白的地方，請詢問工作人員。",
   },
   guidance: {
     title: "用藥說明",

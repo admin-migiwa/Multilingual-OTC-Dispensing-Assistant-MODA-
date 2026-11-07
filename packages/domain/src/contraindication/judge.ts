@@ -75,24 +75,47 @@ function need<K extends keyof InterviewFacts>(
   return value as NonNullable<InterviewFacts[K]>;
 }
 
-/** 妊娠・授乳を聞く対象か（男性と12歳未満には聞かない。interview-items.md Q03・Q04） */
-function asksPregnancyAndBreastfeeding(facts: InterviewFacts): boolean {
+/**
+ * 妊娠・授乳（Q03・Q04）を聞く対象か（interview-items.md Q03・Q04）。
+ * 男性には聞かない。12歳未満にも聞かないが、選んだ薬に pregnancyQuestionsAtAnyAge の薬（A）があるときは年齢を問わない。
+ * 問診（どの項目を聞くか。選んだ薬ぜんぶを渡す）と禁忌判定（その薬で答えが要るか。その薬だけを渡す）の両方がこの関数を使う。
+ * 2か所で基準をずらさないこと。判定では、ほかの薬のために聞いた答えも使う（usesPregnancyAnswer。K47）。
+ */
+export function asksPregnancyQuestions(
+  sex: InterviewFacts["sex"],
+  age: InterviewFacts["age"],
+  drugIds: readonly StockedDrugId[],
+): boolean {
+  if (sex === undefined || age === undefined) return false;
+  if (sex === "male") return false;
+  return age >= PREGNANCY_QUESTION_MIN_AGE || drugIds.some((id) => findStockedDrug(id).pregnancyQuestionsAtAnyAge === true);
+}
+
+/**
+ * この薬の判定で、妊娠（key = "pregnancy"）・授乳（key = "breastfeeding"）の答えを使うか（年齢・性別がまだなら止める）。
+ * - この薬だけで聞く対象なら、答えが要る（なければ need() で止める）。
+ * - 12歳未満で、この薬だけなら聞かない場合でも、一緒に選んだ A のために聞いた答えが記録にあれば使う
+ *   （11/6 依頼主＝薬剤師の判断。contraindication-tests.md K47。例：A と J を選んだ11歳の妊娠の答えを J の注意にも使う）。
+ */
+function usesPregnancyAnswer(facts: InterviewFacts, drug: StockedDrug, key: "pregnancy" | "breastfeeding"): boolean {
   const sex = need(facts, "sex", "Q02");
   const age = need(facts, "age", "Q01");
-  return sex !== "male" && age >= PREGNANCY_QUESTION_MIN_AGE;
+  if (sex === "male") return false;
+  if (asksPregnancyQuestions(sex, age, [drug.id])) return true;
+  return facts[key] !== undefined && facts[key] !== null;
 }
 
 type PregnancyState = "pregnant" | "maybe" | "not_pregnant";
 
-function pregnancyState(facts: InterviewFacts): PregnancyState {
-  if (!asksPregnancyAndBreastfeeding(facts)) return "not_pregnant";
+function pregnancyState(facts: InterviewFacts, drug: StockedDrug): PregnancyState {
+  if (!usesPregnancyAnswer(facts, drug, "pregnancy")) return "not_pregnant";
   const answer = need(facts, "pregnancy", "Q03");
   if (answer === "pregnant") return "pregnant";
   if (answer === "maybe") return "maybe";
   return "not_pregnant";
 }
 
-function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
+function evaluate(condition: RuleCondition, facts: InterviewFacts, drug: StockedDrug): Match {
   switch (condition.kind) {
     case "age_under":
       return need(facts, "age", "Q01") < condition.years ? hit(["Q01"]) : NO_MATCH;
@@ -101,14 +124,14 @@ function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
       return need(facts, "sex", "Q02") === "male" ? hit(["Q02"]) : NO_MATCH;
 
     case "pregnant": {
-      const state = pregnancyState(facts);
+      const state = pregnancyState(facts, drug);
       if (state === "pregnant") return hit(["Q03"]);
       if (state === "maybe") return uncertainHit(["Q03"], LABEL_MAYBE_PREGNANT);
       return NO_MATCH;
     }
 
     case "due_within_12_weeks": {
-      const state = pregnancyState(facts);
+      const state = pregnancyState(facts, drug);
       // 妊娠しているかもしれない人には Q03a を聞けないので、12週以内かどうかもわからない
       if (state === "maybe") return uncertainHit(["Q03"], LABEL_MAYBE_PREGNANT_DUE_UNKNOWN);
       if (state !== "pregnant") return NO_MATCH;
@@ -119,13 +142,13 @@ function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
     }
 
     case "pregnant_before_12_weeks": {
-      if (pregnancyState(facts) !== "pregnant") return NO_MATCH;
+      if (pregnancyState(facts, drug) !== "pregnant") return NO_MATCH;
       const due = need(facts, "dueWithin12Weeks", "Q03a");
       return due === "no" ? hit(["Q03", "Q03a"]) : NO_MATCH;
     }
 
     case "breastfeeding": {
-      if (!asksPregnancyAndBreastfeeding(facts)) return NO_MATCH;
+      if (!usesPregnancyAnswer(facts, drug, "breastfeeding")) return NO_MATCH;
       return need(facts, "breastfeeding", "Q04") === "yes" ? hit(["Q04"]) : NO_MATCH;
     }
 
@@ -169,6 +192,42 @@ function evaluate(condition: RuleCondition, facts: InterviewFacts): Match {
   }
 }
 
+/**
+ * 判定の条件ごとに、読む問診の項目。evaluate() が need() で読む項目と同じにしておくこと
+ * （ずれると、問診が終わったのに判定に必要な答えが足りない、ということが起きる。テストで確かめている）。
+ */
+const ITEMS_READ_BY_CONDITION: Readonly<Record<RuleCondition["kind"], readonly InterviewItemId[]>> = {
+  age_under: ["Q01"],
+  male: ["Q02"],
+  pregnant: ["Q01", "Q02", "Q03"],
+  due_within_12_weeks: ["Q01", "Q02", "Q03", "Q03a"],
+  pregnant_before_12_weeks: ["Q01", "Q02", "Q03", "Q03a"],
+  breastfeeding: ["Q01", "Q02", "Q04"],
+  asthma: ["Q06"],
+  condition: ["Q07"],
+  drug_allergy: ["Q08"],
+  taking: ["Q09"],
+  driving: ["Q10"],
+  alcohol: ["Q11"],
+  planned_days_over: ["Q12"],
+  soft_contact_lens: ["Q13"],
+  application_site: ["Q14"],
+};
+
+/**
+ * その薬の禁忌判定に使う問診の項目（Q01〜Q14）。
+ * 「ほしい薬がある」流れでは、これに入っている項目だけを聞く（11/6 依頼主の判断。interview-items.md）。
+ * 年齢（Q01）・性別（Q02）は、どの薬でも最初に聞くので必ず入れる。
+ */
+export function questionsUsedByDrug(drugId: StockedDrugId): ReadonlySet<InterviewItemId> {
+  const drug = findStockedDrug(drugId);
+  const items = new Set<InterviewItemId>(["Q01", "Q02"]);
+  for (const rule of drug.rules) {
+    for (const item of ITEMS_READ_BY_CONDITION[rule.condition.kind]) items.add(item);
+  }
+  return items;
+}
+
 function toReason(rule: ProductRule, match: Extract<Match, { matched: true }>): JudgmentReason {
   return {
     code: rule.code,
@@ -193,7 +252,7 @@ export function judgeDrug(drugId: StockedDrugId, facts: InterviewFacts): DrugJud
   const drug = findStockedDrug(drugId);
   const reasons: JudgmentReason[] = [];
   for (const rule of drug.rules) {
-    const match = evaluate(rule.condition, facts);
+    const match = evaluate(rule.condition, facts, drug);
     if (match.matched) reasons.push(toReason(rule, match));
   }
   const verdict: Verdict = reasons.some((r) => r.verdict === "contraindicated")
@@ -203,6 +262,67 @@ export function judgeDrug(drugId: StockedDrugId, facts: InterviewFacts): DrugJud
       : "ok";
   return { drugId, verdict, reasons };
 }
+
+/** いまある答えだけで分かる判定の理由（judgeDrugWithKnownFacts の結果） */
+export type KnownFactsJudgment = {
+  drugId: StockedDrugId;
+  /** いまの答えで当てはまったと分かる理由（禁忌・注意） */
+  knownReasons: readonly JudgmentReason[];
+  /** 答えがないために、まだ判定できていない項目（なければ judgeDrug と同じ結果になる） */
+  missingItemIds: readonly InterviewItemId[];
+};
+
+/**
+ * いまある答えだけで、その薬の判定の理由を出す（薬剤師の画面の、候補の薬の「仮の判定」。backlog C-03）。
+ *
+ * - 判定の条件ごとに確かめ、答えがない（FACT_MISSING）条件は飛ばして missingItemIds に入れる。推測で「当てはまらない」にしない。
+ *   そのため「問題なし」は出さない（missingItemIds が空のときだけ、judgeDrug と同じ）。
+ * - 年齢・性別（Q01・Q02）がないときは止める（妊娠・授乳の条件が、年齢・性別がないせいで黙って飛ばされないように）。
+ * - 答えの形の誤りなど、FACT_MISSING 以外のエラーは止める（ルール7）。
+ * - 選ぶ薬の組み合わせが変わると、ほかの薬のために聞いた答え（K47）の使い方が変わる。呼び出す側は、実際に選ぶ組み合わせの答えで呼ぶこと。
+ */
+export function judgeDrugWithKnownFacts(drugId: StockedDrugId, facts: InterviewFacts): KnownFactsJudgment {
+  assertValidFacts(facts);
+  need(facts, "age", "Q01");
+  need(facts, "sex", "Q02");
+  const drug = findStockedDrug(drugId);
+  const knownReasons: JudgmentReason[] = [];
+  const missing = new Set<InterviewItemId>();
+  for (const rule of drug.rules) {
+    let match: Match;
+    try {
+      match = evaluate(rule.condition, facts, drug);
+    } catch (error: unknown) {
+      if (!(error instanceof DomainRuleError) || error.code !== "FACT_MISSING") throw error;
+      for (const item of ITEMS_READ_BY_CONDITION[rule.condition.kind]) {
+        const key = ITEM_KEYS[item];
+        if (facts[key] === undefined || facts[key] === null) missing.add(item);
+      }
+      continue;
+    }
+    if (match.matched) knownReasons.push(toReason(rule, match));
+  }
+  return { drugId, knownReasons, missingItemIds: [...missing] };
+}
+
+/** 問診の項目と、答えを入れる場所（judgeDrugWithKnownFacts で、足りない項目を示すため） */
+const ITEM_KEYS: Readonly<Record<InterviewItemId, keyof InterviewFacts>> = {
+  Q01: "age",
+  Q02: "sex",
+  Q03: "pregnancy",
+  Q03a: "dueWithin12Weeks",
+  Q04: "breastfeeding",
+  Q05: "weightKg",
+  Q06: "asthmaHistory",
+  Q07: "conditions",
+  Q08: "drugAllergy",
+  Q09: "currentMedications",
+  Q10: "drivingAfter",
+  Q11: "alcohol",
+  Q12: "plannedDays",
+  Q13: "softContactLens",
+  Q14: "applicationSite",
+};
 
 export function judgeDrugs(drugIds: readonly StockedDrugId[], facts: InterviewFacts): DrugJudgment[] {
   return drugIds.map((id) => judgeDrug(id, facts));

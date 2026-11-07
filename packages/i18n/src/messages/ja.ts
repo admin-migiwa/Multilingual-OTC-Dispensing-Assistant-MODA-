@@ -18,6 +18,8 @@ export const ja = {
     redo: "前の答えをやり直す",
     emergencyButton: "具合が急に悪くなった",
     aiTranslationNotice: "この文は AI が翻訳したものです（まだ人が確認していません）。",
+    networkError: "通信が止まりました。スタッフがすぐにお手伝いします。",
+    retry: "もう一度試す",
   },
   languageSelect: {
     title: "言語を選んでください",
@@ -29,6 +31,11 @@ export const ja = {
     haveProductHint: "商品名を入れる、またはスマホの画面や商品を撮影します",
     findBySymptom: "症状から探す",
     findBySymptomHint: "体の具合を、1つずつ質問します",
+    searchPlaceholder: "商品名を入れてください（スマホの画面の名前でも大丈夫です）",
+    noMatch: "見つかりませんでした。スマホの画面をスタッフに見せてください。",
+    symptomPrompt: "どんな症状ですか？",
+    chooseDrug: "この薬にする",
+    changeDrug: "別の薬を選び直す",
   },
   photoConsent: {
     title: "写真について",
@@ -91,6 +98,9 @@ export const ja = {
       R02: {
         text: "いくつ買いたいですか？",
         options: { smallOne: "小さい箱を1つ", largeOne: "大きい箱を1つ", multiple: "2つ以上" },
+        // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
+        minorLargePackage: "{age}歳未満の方には大容量の包装を販売できません",
+        minorMultiplePackages: "{age}歳未満の方には{max}個まで販売できます",
       },
       R03: { text: "大きい箱や2つ以上が必要な理由を教えてください。" },
       R04: { text: "どんな症状に使いますか？" },
@@ -105,6 +115,11 @@ export const ja = {
     staffHelp: "スタッフがすぐにお手伝いします。この画面をスタッフに見せてください。",
     consultLine: "救急車を呼ぶか迷うときは、救急相談窓口（#7119 など。地域によって番号が違います）に相談できます。",
     childLine: "子どもの休日・夜間の相談は #8000 です。",
+    visitorHotline: "旅行で日本に来た方は、日本政府観光局（JNTO）の「Japan Visitor Hotline」050-3816-2787 に相談できます（24時間・年中無休。英語・中国語・韓国語。病気やけがなどの非常時の支援）。",
+    infoPagesTitle: "参考になるページ",
+    ambulanceGuidePage: "救急車利用マニュアル（総務省消防庁。日本語のページ。英語・中国語・韓国語の PDF があります）",
+    visitorHotlinePage: "Japan Visitor Hotline の案内（日本政府観光局 JNTO。日本語のページ）",
+    residentConsultationPage: "日本に住んでいる方へ：多言語生活相談窓口の一覧（自治体国際化協会 CLAIR。日本語のページ。英語のページへの案内があります）",
   },
   emergencyFollowUp: {
     intro: "薬剤師からの質問です。あてはまるものを選んでください。",
@@ -126,7 +141,15 @@ export const ja = {
   },
   pharmacist: {
     waiting: "薬剤師が内容を確認しています。少しお待ちください。",
-    notForSale: "申し訳ありません。今の状態では、お店の薬（市販薬）ではお応えできません。病院や診療所での受診をおすすめします。",
+  },
+  // 受診をすすめる案内（docs/demo-data/referral.md の RF01〜RF05。11/7 依頼主＝薬剤師が選んだ）。
+  // 外国語で相談できるところは、緊急案内と同じ emergency.visitorHotline・visitorHotlinePage・residentConsultationPage を使う
+  referral: {
+    title: "病院や診療所で診てもらってください",
+    body: "申し訳ありません。今の状態では、お店の薬（市販薬）ではお応えできません。病院や診療所での受診をおすすめします。",
+    tellDoctor: "病院では、今日の症状と、いま飲んでいる薬を伝えてください。お薬手帳があれば持って行ってください。",
+    consultTitle: "外国語で相談できるところ",
+    askStaff: "わからないことは、スタッフに聞いてください。",
   },
   guidance: {
     title: "お薬の説明",

@@ -14,6 +14,8 @@ export const vi: Messages = {
     redo: "Trả lời lại câu trước",
     emergencyButton: "Tôi đột nhiên thấy rất khó chịu",
     aiTranslationNotice: "Nội dung này do AI dịch (chưa được người kiểm tra).",
+    networkError: "Kết nối đã bị ngắt. Nhân viên sẽ giúp bạn ngay.",
+    retry: "Thử lại",
   },
   languageSelect: {
     title: "Vui lòng chọn ngôn ngữ",
@@ -25,6 +27,11 @@ export const vi: Messages = {
     haveProductHint: "Nhập tên sản phẩm, hoặc chụp màn hình điện thoại hay sản phẩm",
     findBySymptom: "Tìm thuốc theo triệu chứng",
     findBySymptomHint: "Chúng tôi sẽ hỏi về tình trạng sức khỏe của bạn, từng câu một",
+    searchPlaceholder: "Vui lòng nhập tên sản phẩm (tên trên màn hình điện thoại cũng được)",
+    noMatch: "Không tìm thấy. Vui lòng cho nhân viên xem màn hình điện thoại.",
+    symptomPrompt: "Bạn có triệu chứng gì?",
+    chooseDrug: "Chọn thuốc này",
+    changeDrug: "Chọn lại thuốc khác",
   },
   photoConsent: {
     title: "Về việc chụp ảnh",
@@ -87,6 +94,9 @@ export const vi: Messages = {
       R02: {
         text: "Bạn muốn mua bao nhiêu?",
         options: { smallOne: "1 hộp nhỏ", largeOne: "1 hộp lớn", multiple: "Từ 2 hộp trở lên" },
+        // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
+        minorLargePackage: "Chúng tôi không thể bán hộp cỡ lớn cho người dưới {age} tuổi.",
+        minorMultiplePackages: "Người dưới {age} tuổi chỉ được mua tối đa {max} hộp.",
       },
       R03: { text: "Vui lòng cho biết lý do bạn cần hộp lớn hoặc từ 2 hộp trở lên." },
       R04: { text: "Bạn sẽ dùng cho triệu chứng gì?" },
@@ -101,6 +111,11 @@ export const vi: Messages = {
     staffHelp: "Nhân viên sẽ giúp bạn ngay. Hãy cho nhân viên xem màn hình này.",
     consultLine: "Nếu bạn phân vân có nên gọi xe cấp cứu hay không, bạn có thể gọi đường dây tư vấn cấp cứu (#7119, v.v.; số khác nhau tùy khu vực).",
     childLine: "Tư vấn cho trẻ em vào ngày nghỉ hoặc ban đêm: gọi #8000.",
+    visitorHotline: "Nếu bạn đang du lịch tại Nhật Bản, bạn có thể gọi \"Japan Visitor Hotline\" của Tổng cục Du lịch Quốc gia Nhật Bản (JNTO) theo số 050-3816-2787 (24 giờ, tất cả các ngày trong năm; tiếng Anh, tiếng Trung, tiếng Hàn; hỗ trợ khi khẩn cấp như bị bệnh hoặc bị thương).",
+    infoPagesTitle: "Trang web tham khảo",
+    ambulanceGuidePage: "Hướng dẫn sử dụng xe cấp cứu (Cục Phòng cháy và Quản lý Thảm họa Nhật Bản; trang tiếng Nhật, có PDF tiếng Anh, tiếng Trung, tiếng Hàn)",
+    visitorHotlinePage: "Giới thiệu về Japan Visitor Hotline (Tổng cục Du lịch Quốc gia Nhật Bản, JNTO; trang tiếng Nhật)",
+    residentConsultationPage: "Nếu bạn đang sống tại Nhật Bản: danh sách các trung tâm tư vấn đời sống đa ngôn ngữ (CLAIR, Hội đồng Chính quyền địa phương về Quan hệ Quốc tế; trang tiếng Nhật, có liên kết đến trang tiếng Anh)",
   },
   emergencyFollowUp: {
     intro: "Đây là câu hỏi của dược sĩ. Hãy chọn câu trả lời phù hợp.",
@@ -122,7 +137,13 @@ export const vi: Messages = {
   },
   pharmacist: {
     waiting: "Dược sĩ đang kiểm tra câu trả lời của bạn. Vui lòng chờ một chút.",
-    notForSale: "Chúng tôi rất tiếc. Với tình trạng hiện tại của bạn, cửa hàng không thể cung cấp thuốc không kê đơn. Chúng tôi khuyên bạn nên đi khám tại bệnh viện hoặc phòng khám.",
+  },
+  referral: {
+    title: "Vui lòng đi khám tại bệnh viện hoặc phòng khám",
+    body: "Chúng tôi rất tiếc. Với tình trạng hiện tại của bạn, cửa hàng không thể cung cấp thuốc không kê đơn. Chúng tôi khuyên bạn nên đi khám tại bệnh viện hoặc phòng khám.",
+    tellDoctor: "Tại bệnh viện, vui lòng cho bác sĩ biết các triệu chứng hôm nay và các loại thuốc bạn đang dùng. Nếu có sổ theo dõi thuốc, vui lòng mang theo.",
+    consultTitle: "Nơi có thể được tư vấn bằng ngôn ngữ khác ngoài tiếng Nhật",
+    askStaff: "Nếu có điều gì chưa rõ, vui lòng hỏi nhân viên.",
   },
   guidance: {
     title: "Hướng dẫn về thuốc",

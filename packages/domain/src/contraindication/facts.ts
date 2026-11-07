@@ -2,7 +2,7 @@
  * 問診で確定した事実（docs/demo-data/interview-items.md の Q01〜Q14）。
  *
  * - 値が入っていない項目は「まだ確認していない」とみなす（推測で埋めない。CLAUDE.md ルール7）。
- * - 男性・12歳未満には妊娠（Q03）と授乳（Q04）を聞かないので、入っていなくてよい。
+ * - 男性・12歳未満には妊娠（Q03）と授乳（Q04）を聞かないので、入っていなくてよい（12歳未満でも、A を判定するときは要る。C-11）。
  * - 自由に入力された文（処方薬の名前・その他の持病）は判定に使わず、薬剤師の画面に出すだけ。
  */
 
@@ -78,6 +78,8 @@ export type InterviewFacts = {
   otherConditionText?: string;
   /** Q08 薬でアレルギーが出たことがあるか */
   drugAllergy?: YesNoUnknown;
+  /** Q08 アレルギーが出た薬の名前（「はい」のときだけ）。判定には使わず、薬剤師の画面に出す（interview-items.md Q08。backlog S-11） */
+  allergyDrugNames?: readonly string[];
   /** Q09 いま飲んでいる薬（なしは []） */
   currentMedications?: readonly CurrentMedication[];
   /** Q09 処方薬の名前。判定には使わず、薬剤師の画面に出す（K39） */
@@ -127,12 +129,36 @@ const listOf =
   (v) =>
     Array.isArray(v) && v.every((x) => typeof x === "string" && choices.includes(x));
 const nonNegativeNumber: Check = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
+
+/**
+ * 数字で答える項目のうち、整数で決まった範囲だけを受け取る項目（interview-items.md「聞かない・聞き直すときの決まり」。
+ * 11/6 薬剤師の判断。打ち間違いを止めるための広い範囲で、判定の基準ではない。backlog J-07・C-13）。
+ * 体重（Q05）と、ほかの店で買った個数（R01）はまだ決めていない（backlog J-16）ので、ここに入れない。
+ */
+export const INTEGER_ANSWER_RANGES = {
+  /** 年齢（Q01）：0〜120歳 */
+  age: { min: 0, max: 120 },
+  /** 飲む予定の日数（Q12）：1〜365日 */
+  plannedDays: { min: 1, max: 365 },
+  /** 買いたい個数（R02）：1〜99個（「複数個」は2個以上なので、2〜99） */
+  packageCount: { min: 1, max: 99 },
+} as const;
+
+/** 整数で、min 以上 max 以下か */
+export function isIntegerInRange(v: unknown, range: { readonly min: number; readonly max: number }): boolean {
+  return typeof v === "number" && Number.isInteger(v) && v >= range.min && v <= range.max;
+}
+
+const integerIn =
+  (range: { readonly min: number; readonly max: number }): Check =>
+  (v) =>
+    isIntegerInRange(v, range);
 const isBoolean: Check = (v) => typeof v === "boolean";
 const isString: Check = (v) => typeof v === "string";
 const stringList: Check = (v) => Array.isArray(v) && v.every((x) => typeof x === "string");
 
 const FACT_CHECKS: Readonly<Record<keyof InterviewFacts, { itemId: InterviewItemId; check: Check }>> = {
-  age: { itemId: "Q01", check: nonNegativeNumber },
+  age: { itemId: "Q01", check: integerIn(INTEGER_ANSWER_RANGES.age) },
   sex: { itemId: "Q02", check: oneOf(SEXES) },
   pregnancy: { itemId: "Q03", check: oneOf(PREGNANCY_ANSWERS) },
   dueWithin12Weeks: { itemId: "Q03a", check: oneOf(YES_NO_UNKNOWN) },
@@ -142,11 +168,12 @@ const FACT_CHECKS: Readonly<Record<keyof InterviewFacts, { itemId: InterviewItem
   conditions: { itemId: "Q07", check: listOf(CONDITIONS) },
   otherConditionText: { itemId: "Q07", check: isString },
   drugAllergy: { itemId: "Q08", check: oneOf(YES_NO_UNKNOWN) },
+  allergyDrugNames: { itemId: "Q08", check: stringList },
   currentMedications: { itemId: "Q09", check: listOf(CURRENT_MEDICATIONS) },
   prescriptionDrugNames: { itemId: "Q09", check: stringList },
   drivingAfter: { itemId: "Q10", check: isBoolean },
   alcohol: { itemId: "Q11", check: isBoolean },
-  plannedDays: { itemId: "Q12", check: nonNegativeNumber },
+  plannedDays: { itemId: "Q12", check: integerIn(INTEGER_ANSWER_RANGES.plannedDays) },
   softContactLens: { itemId: "Q13", check: isBoolean },
   applicationSite: { itemId: "Q14", check: oneOf(APPLICATION_SITES) },
 };
@@ -154,7 +181,7 @@ const FACT_CHECKS: Readonly<Record<keyof InterviewFacts, { itemId: InterviewItem
 /**
  * 入っている答えが、決められた選択肢・範囲に収まっているかを確かめる。
  * 外れていたら DomainRuleError("FACT_INVALID") で止める（推測で読み替えない）。
- * 数値は0以上の有限の数。まだ答えていない項目（値なし）はここでは確かめない。
+ * 年齢・日数は INTEGER_ANSWER_RANGES の範囲の整数、体重は0以上の有限の数。まだ答えていない項目（値なし）はここでは確かめない。
  */
 export function assertValidFacts(facts: InterviewFacts): void {
   for (const [key, value] of Object.entries(facts)) {
@@ -167,5 +194,9 @@ export function assertValidFacts(facts: InterviewFacts): void {
       // message に答えの中身（健康情報）を入れない（項目 ID だけ）
       throw new DomainRuleError("FACT_INVALID", `問診の ${rule.itemId} の答えが決められた形ではありません`);
     }
+  }
+  // アレルギーが出た薬の名前は、Q08 で「はい」と答えたときだけ（「いいえ」「わからない」と一緒に名前が残らないように）
+  if (facts.allergyDrugNames !== undefined && facts.drugAllergy !== "yes") {
+    throw new DomainRuleError("FACT_INVALID", "問診の Q08 の答えが決められた形ではありません");
   }
 }
