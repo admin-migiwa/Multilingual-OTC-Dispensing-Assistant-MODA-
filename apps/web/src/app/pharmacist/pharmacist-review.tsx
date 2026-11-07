@@ -278,9 +278,23 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
       </a>
       <header className="space-y-2">
         {/* どの状態でも、患者さんの画面に戻れる（画面を移るだけ。確認の状態は変えない） */}
-        <a href={patientUrl} className="inline-flex min-h-11 items-center text-lg text-slate-600 underline underline-offset-4">
-          ← 患者さんの画面に戻る
-        </a>
+        <div className="flex flex-wrap items-center gap-x-6">
+          <a href={patientUrl} className="inline-flex min-h-11 items-center text-lg text-slate-600 underline underline-offset-4">
+            ← 患者さんの画面に戻る
+          </a>
+          {/* 途中でやめる人のために、いつでも最初の画面（言語の選択）に戻れる（11/8 依頼主の判断）。記録は消さない */}
+          <button
+            type="button"
+            onClick={() => {
+              if (window.confirm("この接客をやめて、最初の画面（言語の選択）に戻ります。よろしいですか？\n（ここまでの記録は消えずに残ります）")) {
+                window.location.assign("/");
+              }
+            }}
+            className="inline-flex min-h-11 items-center text-lg text-slate-600 underline underline-offset-4"
+          >
+            最初の画面に戻る（接客をやめる）
+          </button>
+        </div>
         <div className="flex items-center gap-3">
           <ModaBrand />
           <span className="rounded-full bg-teal-700 px-3 py-1 text-sm font-bold text-white">薬剤師用</span>
@@ -296,6 +310,7 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
         <p className="text-sm text-slate-500">
           表示は薬剤師への提案です。販売してよいかの判断は薬剤師が行います。
         </p>
+        {view ? <PhaseSteps view={view} /> : null}
       </header>
 
       {error ? (
@@ -440,9 +455,9 @@ function ReviewBody({
         <p>
           理由：<span className="font-semibold">{view.declinedReason ?? "（記録なし）"}</span>
         </p>
-        <p className="text-sm text-slate-500">患者さんへの受診案内の画面は、次の作業（T11）で作ります。</p>
+        <p className="text-sm text-slate-600">患者さんの画面に、受診をすすめる案内が出ています。</p>
         <a href={patientUrl} className="inline-block rounded-xl border-2 border-slate-300 px-4 py-2 font-semibold">
-          患者さんの画面に戻る
+          患者さんの画面に戻る（受診の案内）
         </a>
         <UndoSection view={view} busy={busy} onUndo={onUndo} />
       </Section>
@@ -556,60 +571,88 @@ function ReviewBody({
 
       <CandidatesSection view={view} busy={busy} onChoose={onChooseCandidates} />
 
-      <Section title="販売手順のチェックリスト">
-        {view.procedureError ? (
-          <p role="alert" className="text-red-900">
-            {ERROR_MESSAGES[view.procedureError] ?? `販売手順を作れません（${view.procedureError}）。`}
-          </p>
-        ) : view.procedure === null ? (
-          <p className="text-slate-600">販売する薬を選ぶと、区分ごとの手順がここに出ます。</p>
-        ) : (
-          <>
-            <p className="text-sm text-slate-500">
-              手順の版：{view.procedure.effectiveFrom} 施行。✓ は記録に足していきます（消したり書き換えたりしません）。
-              承認の前の手順に ✓ がそろうまで、下の「承認する」は押せません。
-            </p>
-            <ul className="space-y-2">
-              {view.procedure.steps.map((step) => (
-                <li key={step.id}>
-                  <label
-                    className={`flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-2 ${step.gate === "before_approval" ? "" : "bg-slate-50 text-slate-500"}`}
-                  >
-                    <input
-                      type="checkbox"
-                      className="mt-1 h-6 w-6"
-                      checked={step.checked}
-                      disabled={busy || step.gate !== "before_approval"}
-                      onChange={(e) => onCheck(step.id, e.target.checked)}
-                    />
-                    <span className="flex-1">
-                      {step.label}
-                      <span className="ml-2 rounded bg-slate-100 px-1.5 text-xs text-slate-600">
-                        {step.gate === "before_approval" ? "承認の前に" : "承認の後・会計の前に（記録は T10）"}
-                      </span>
-                    </span>
-                    {step.changedAt ? <span className="text-xs text-slate-500">{time(step.changedAt)}</span> : null}
-                  </label>
-                </li>
-              ))}
-            </ul>
-            {view.checkHistory.length > 0 ? (
-              <details className="text-sm text-slate-600">
-                <summary>チェックの記録（{view.checkHistory.length}件）</summary>
-                <ol className="mt-2 list-decimal pl-6">
-                  {view.checkHistory.map((c, i) => (
-                    <li key={`${c.at}-${i}`}>
-                      {time(c.at)} {c.checked ? "✓ を付けた" : "✓ を外した"}：{c.label}
-                    </li>
-                  ))}
-                </ol>
-              </details>
-            ) : null}
-          </>
-        )}
-      </Section>
+      {/* 段階ごとに出す（11/8 依頼主の判断）：薬を選ぶまでは手順と承認を出さない。承認の欄は、承認の前の手順がそろってから出す
+          （承認できるかは、いままでどおりサーバーが確かめる。ルール1・5） */}
+      {view.saleDrugIds.length === 0 ? (
+        <Section title="次にすること">
+          <p className="text-slate-700">上の薬の「販売する薬として選ぶ」に ✓ を付けると、説明書の準備・販売手順のチェックリスト・承認の欄が出ます。</p>
+        </Section>
+      ) : (
+        <>
+          <GuidancePreview view={view} busy={busy} onCreate={() => onGuidance("create")} />
 
-      <Section title="確認を終える">
+          <Section title="販売手順のチェックリスト">
+            {view.procedureError ? (
+              <p role="alert" className="text-red-900">
+                {ERROR_MESSAGES[view.procedureError] ?? `販売手順を作れません（${view.procedureError}）。`}
+              </p>
+            ) : view.procedure === null ? (
+              <p className="text-slate-600">販売する薬を選ぶと、区分ごとの手順がここに出ます。</p>
+            ) : (
+              <>
+                <p className="text-sm text-slate-500">
+                  手順の版：{view.procedure.effectiveFrom} 施行。✓ は記録に足していきます（消したり書き換えたりしません）。
+                  承認の前の手順に ✓ がそろうまで、下の「承認する」は押せません。
+                </p>
+                {/* いま ✓ を付けるのは承認の前の手順だけ。承認の後の手順は、承認のあとの「服薬指導と会計案内」で ✓ を付ける */}
+                <ul className="space-y-2">
+                  {view.procedure.steps
+                    .filter((step) => step.gate === "before_approval")
+                    .map((step) => (
+                      <li key={step.id}>
+                        <label className="flex items-start gap-3 rounded-lg border border-slate-200 px-3 py-2">
+                          <input
+                            type="checkbox"
+                            className="mt-1 h-6 w-6"
+                            checked={step.checked}
+                            disabled={busy}
+                            onChange={(e) => onCheck(step.id, e.target.checked)}
+                          />
+                          <span className="flex-1">{step.label}</span>
+                          {step.changedAt ? <span className="text-xs text-slate-500">{time(step.changedAt)}</span> : null}
+                        </label>
+                      </li>
+                    ))}
+                </ul>
+                {view.procedure.steps.some((step) => step.gate !== "before_approval") ? (
+                  <p className="text-sm text-slate-500">
+                    承認のあとにすること：
+                    {view.procedure.steps
+                      .filter((step) => step.gate !== "before_approval")
+                      .map((step) => step.label)
+                      .join("、")}
+                  </p>
+                ) : null}
+                {view.checkHistory.length > 0 ? (
+                  <details className="text-sm text-slate-600">
+                    <summary>チェックの記録（{view.checkHistory.length}件）</summary>
+                    <ol className="mt-2 list-decimal pl-6">
+                      {view.checkHistory.map((c, i) => (
+                        <li key={`${c.at}-${i}`}>
+                          {time(c.at)} {c.checked ? "✓ を付けた" : "✓ を外した"}：{c.label}
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                ) : null}
+              </>
+            )}
+          </Section>
+
+          {readyToApprove(view) ? (
+            <ApproveSection view={view} busy={busy} onApprove={onApprove} />
+          ) : (
+            <Section title="承認する（薬剤師の PIN）">
+              <p className="text-amber-900">{approveBlockedReason(view)}</p>
+              <p className="text-sm text-slate-600">承認の前の手順に ✓ がそろうと、ここに承認の欄が出ます。</p>
+            </Section>
+          )}
+        </>
+      )}
+
+      <details className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+        <summary className="cursor-pointer text-lg font-bold">販売しない・薬の選択に戻す</summary>
+        <div className="mt-3 space-y-3">
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
@@ -641,13 +684,10 @@ function ReviewBody({
           >
             販売しないで終える
           </button>
-          <p className="text-xs text-slate-500">受診をすすめる患者さん向けの画面は、次の作業（T11）で作ります。</p>
+          <p className="text-xs text-slate-500">患者さんの画面に、受診をすすめる案内が出ます。</p>
         </div>
-      </Section>
-
-      <GuidancePreview view={view} busy={busy} onCreate={() => onGuidance("create")} />
-
-      <ApproveSection view={view} busy={busy} onApprove={onApprove} />
+        </div>
+      </details>
     </>
   );
 }
@@ -786,6 +826,50 @@ function DrugInfo({ info, age }: { info: PharmacistView["drugs"][number]["info"]
  * 薬剤師の PIN での承認（T9a。CLAUDE.md 絶対に守るルール1）。
  * 承認の前に必要な販売手順の ✓ がそろうまで押せない（サーバーでも同じように止める）。PIN は送ったら画面から消す
  */
+/** 承認できない理由（なければ null）。表示の切り替えに使うだけで、最後に止めるのはサーバー（ルール1・5） */
+function approveBlockedReason(view: PharmacistView): string | null {
+  const missing = (view.procedure?.steps ?? []).filter((s) => s.gate === "before_approval" && !s.checked);
+  return view.saleDrugIds.length === 0
+    ? "販売する薬を選んでください。"
+    : view.procedureError
+      ? "販売手順を作れないため承認できません。"
+      : view.procedure === null
+        ? "販売手順を読み込めていません。"
+        : missing.length > 0
+          ? `承認の前に必要な手順が残っています：${missing.map((s) => s.label).join("、")}`
+          : null;
+}
+
+function readyToApprove(view: PharmacistView): boolean {
+  return approveBlockedReason(view) === null;
+}
+
+/** いまどの段階かを上に出す（薬を選ぶ → 手順を確かめる → 承認 → 説明と会計） */
+function PhaseSteps({ view }: { view: PharmacistView }) {
+  const labels = ["薬を選ぶ", "手順を確かめる", "承認", "説明と会計"] as const;
+  let current: number;
+  if (view.status === "pharmacist_review") current = view.saleDrugIds.length === 0 ? 0 : readyToApprove(view) ? 2 : 1;
+  else if (["approved", "counseling", "checkout"].includes(view.status)) current = 3;
+  else if (view.status === "completed") current = 4;
+  else return null;
+  return (
+    <ol className="flex flex-wrap gap-2 pt-1">
+      {labels.map((l, i) => (
+        <li
+          key={l}
+          aria-current={i === current ? "step" : undefined}
+          className={`rounded-full px-3 py-1 text-sm font-semibold ${
+            i === current ? "bg-teal-700 text-white" : i < current ? "bg-teal-100 text-teal-900" : "bg-slate-100 text-slate-500"
+          }`}
+        >
+          {i < current ? "✓ " : `${i + 1}. `}
+          {l}
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 function ApproveSection({
   view,
   busy,
@@ -798,15 +882,7 @@ function ApproveSection({
   const pharmacists = usePharmacists();
   const [pharmacistId, setPharmacistId] = useState("");
   const [pin, setPin] = useState("");
-  const missing = (view.procedure?.steps ?? []).filter((s) => s.gate === "before_approval" && !s.checked);
-  const blocked =
-    view.saleDrugIds.length === 0
-      ? "販売する薬を選んでください。"
-      : view.procedureError
-        ? "販売手順を作れないため承認できません。"
-        : missing.length > 0
-          ? `承認の前に必要な手順が残っています：${missing.map((s) => s.label).join("、")}`
-          : null;
+  const blocked = approveBlockedReason(view);
   return (
     <Section title="承認する（薬剤師の PIN）">
       {blocked ? <p className="text-amber-900">{blocked}</p> : null}
@@ -851,7 +927,7 @@ function ApproveSection({
         </button>
       </div>
       <p className="text-xs text-slate-500">
-        承認すると、同時に販売記録ができます（あとから書き換えず、直すときは新しい版を足します）。承認の後の手順（書面を渡す・理解の確認など）と説明書の印刷は、次の作業（T10）で作ります。
+        承認すると、同時に販売記録ができます（あとから書き換えず、直すときは新しい版を足します）。説明書の印刷・服薬指導・会計案内は、承認のあとに出ます。
       </p>
     </Section>
   );

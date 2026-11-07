@@ -368,7 +368,19 @@ export function LanguageStart() {
 
   return (
     <>
-      <StaffEmergencyButton onOpen={() => openEmergency({ kind: "staff" })} />
+      <div className="fixed right-3 top-3 z-50 flex gap-2">
+        {/* 途中でやめる人のために、言語を選んだあとはいつでも最初の画面に戻れる（11/8 依頼主の判断）。緊急の確認・案内の間は出さない */}
+        {language !== null ? (
+          <StaffStartOverButton
+            onStartOver={() => {
+              setSessionLost(false);
+              setNetworkDown(false);
+              backToLanguage();
+            }}
+          />
+        ) : null}
+        <StaffEmergencyButton onOpen={() => openEmergency({ kind: "staff" })} />
+      </div>
       {language === null ? (
         <LanguageSelect onSelect={chooseLanguage} />
       ) : sessionLost ? (
@@ -491,9 +503,30 @@ function StaffEmergencyButton({ onOpen }: { onOpen: () => void }) {
       type="button"
       lang="ja"
       onClick={onOpen}
-      className="fixed right-3 top-3 z-50 rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
+      className="rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
     >
       薬剤師用：緊急の確認を開く
+    </button>
+  );
+}
+
+/**
+ * 薬剤師用の「最初の画面に戻る」（日本語・小さく右上、緊急の確認の左）。押すと確かめてから、言語の選択の画面に戻る。
+ * サーバーの接客の記録は消さずに置いておく（承認済みなら販売記録もそのまま残る）。backlog S-26
+ */
+function StaffStartOverButton({ onStartOver }: { onStartOver: () => void }) {
+  return (
+    <button
+      type="button"
+      lang="ja"
+      onClick={() => {
+        if (window.confirm("この接客をやめて、最初の画面（言語の選択）に戻ります。よろしいですか？\n（ここまでの記録は消えずに残ります）")) {
+          onStartOver();
+        }
+      }}
+      className="rounded-lg border border-slate-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+    >
+      薬剤師用：最初の画面に戻る
     </button>
   );
 }
