@@ -5,6 +5,7 @@ import { DomainRuleError, type InterviewAnswers, type StockedDrugId } from "@mod
 
 import {
   checkProcedureStep,
+  chooseCandidateDrugs,
   chooseSaleDrugs,
   declineSale,
   japanDate,
@@ -245,5 +246,81 @@ describe("戻る・販売しない", () => {
 describe("販売手順の版を選ぶ日付", () => {
   it("日本時間の朝（UTC ではまだ前日）でも、店頭の日付を使う", () => {
     assert.equal(japanDate(new Date("2026-11-06T08:00:00+09:00")), "2026-11-06");
+  });
+});
+
+// contraindication-tests.md K01・K03・K45（☑）、interview-items.md Q03・Q04・Q13 の聞く条件（☑）
+describe("候補・代わりの薬を選んで、その薬の項目を聞く問診に戻す（C-03）", () => {
+  /** 「症状から探す」で基本の項目まで答え、薬剤師の確認を開く */
+  function symptomReview(deps: ServiceDeps, basic: InterviewAnswers): string {
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: basic.age ?? 30, sex: "female" });
+    chooseRoute(deps, id, "symptom", "headache");
+    answer(deps, id, basic);
+    openPharmacistReview(deps, id);
+    return id;
+  }
+  const basic30: InterviewAnswers = {
+    age: 30,
+    pregnancy: "no",
+    breastfeeding: "no",
+    asthmaHistory: "yes",
+    conditions: [],
+    drugAllergy: "no",
+    currentMedications: [],
+    drivingAfter: false,
+  };
+
+  it("K03：ぜんそくの人に G を選ぶと、確認を閉じて問診に戻り、ソフトコンタクトレンズ（Q13）を聞く。答えると薬剤師が G を判定できる", () => {
+    const deps = testDeps();
+    const id = symptomReview(deps, basic30);
+    const view = pharmacistView(getSession(deps, id), NOW);
+    assert.equal(view.candidates.find((c) => c.drugId === "G")?.status, "needs_questions");
+
+    const record = chooseCandidateDrugs(deps, id, ["G"]);
+    assert.equal(record.snapshot.status, "interview");
+    assert.deepEqual(record.interview.selectedDrugs, ["G"]);
+    assert.notEqual(record.pharmacistReviews?.at(-1)?.closedAt, null);
+    assert.deepEqual(record.pharmacistReviews?.at(-1)?.candidateDrugIds, ["G"]);
+
+    answer(deps, id, { softContactLens: false });
+    openPharmacistReview(deps, id);
+    const reopened = pharmacistView(getSession(deps, id), NOW);
+    assert.equal(reopened.drugs[0]?.drugId, "G");
+    assert.equal(reopened.drugs[0]?.judgment.verdict, "ok");
+  });
+
+  it("K01：いまの答えで禁忌と分かっている C は選べず、記録は変わらない", () => {
+    const deps = testDeps();
+    const id = symptomReview(deps, basic30);
+    const before = getSession(deps, id);
+    assertError(() => chooseCandidateDrugs(deps, id, ["C"]), "CONTRAINDICATED_NOT_SELECTABLE");
+    assert.equal(getSession(deps, id), before);
+  });
+
+  it("薬剤師の確認中でなければ選べない", () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 30, sex: "female" });
+    chooseRoute(deps, id, "symptom", "headache");
+    assertError(() => chooseCandidateDrugs(deps, id, ["G"]), "INVALID_TRANSITION");
+  });
+
+  it("K45・C-11：11歳の女性に薬剤師が A を選ぶと、問診に戻って妊娠（Q03）から聞く", () => {
+    const deps = testDeps();
+    const id = symptomReview(deps, {
+      age: 11,
+      weightKg: 30,
+      asthmaHistory: "no",
+      conditions: [],
+      drugAllergy: "no",
+      currentMedications: [],
+      drivingAfter: false,
+    });
+    const record = chooseCandidateDrugs(deps, id, ["A"]);
+    assert.equal(record.snapshot.status, "interview");
+    answer(deps, id, { pregnancy: "maybe", breastfeeding: "no" });
+    openPharmacistReview(deps, id);
+    assert.equal(pharmacistView(getSession(deps, id), NOW).drugs[0]?.judgment.verdict, "contraindicated");
   });
 });

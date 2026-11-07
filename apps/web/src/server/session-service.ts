@@ -102,7 +102,9 @@ export type SessionEventType =
   | "pharmacist_review_opened"
   | "sale_drugs_chosen"
   | "procedure_step_checked"
-  | "sale_declined";
+  | "sale_declined"
+  // 候補・代わりの薬を薬剤師が選び、その薬の項目を聞く問診に戻した（T8b。backlog C-03）
+  | "candidate_drugs_chosen";
 
 export interface SessionEvent {
   readonly at: string;

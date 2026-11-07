@@ -305,6 +305,12 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
             if (done) window.location.assign(patientUrl);
           }}
           onDecline={() => void run(() => pharmacistApi.decline(sessionId, reason))}
+          onChooseCandidates={async (drugIds) => {
+            // 候補の薬を選ぶと、その薬の項目を聞く問診に戻る（聞く項目がなければ、そのまま薬剤師の確認をやり直す）
+            const next = await run(() => pharmacistApi.chooseCandidates(sessionId, drugIds));
+            if (next?.status === "interview") window.location.assign(patientUrl);
+            else if (next?.status === "drug_selection") void run(() => pharmacistApi.open(sessionId));
+          }}
         />
       )}
     </>
@@ -330,6 +336,7 @@ function ReviewBody({
   onCheck,
   onBack,
   onDecline,
+  onChooseCandidates,
 }: {
   view: PharmacistView;
   busy: boolean;
@@ -340,6 +347,7 @@ function ReviewBody({
   onCheck: (stepId: string, checked: boolean) => void;
   onBack: () => void;
   onDecline: () => void;
+  onChooseCandidates: (drugIds: StockedDrugId[]) => void;
 }) {
   if (view.status === "declined") {
     return (
@@ -394,7 +402,7 @@ function ReviewBody({
       <Section title="選んだ薬と禁忌の判定">
         {view.drugs.length === 0 ? (
           <p className="text-slate-600">
-            患者さんはまだ薬を選んでいません（「症状から探す」）。候補の薬を出す仕組みは、次の作業（T8b）で作ります。
+            患者さんはまだ薬を選んでいません（「症状から探す」）。下の「候補の薬」から選んでください。
           </p>
         ) : (
           <ul className="space-y-4">
@@ -441,6 +449,8 @@ function ReviewBody({
           </ul>
         )}
       </Section>
+
+      <CandidatesSection view={view} busy={busy} onChoose={onChooseCandidates} />
 
       <Section title="販売手順のチェックリスト">
         {view.procedureError ? (
@@ -532,5 +542,96 @@ function ReviewBody({
         <p className="text-sm text-slate-500">承認（PIN）は、次の作業（T9）で作ります。</p>
       </Section>
     </>
+  );
+}
+
+/**
+ * 候補の薬（「症状から探す」）・代わりの薬（「ほしい薬がある」）を選ぶ（backlog C-03）。
+ * 出すのは「いまの答えでの仮の判定」。選ぶと、その薬の項目を聞く問診に戻し、答えがそろってから判定をやり直す。
+ * いまの答えで禁忌と分かっている薬は選べない（サーバーでも止める。ルール4）。
+ */
+function CandidatesSection({
+  view,
+  busy,
+  onChoose,
+}: {
+  view: PharmacistView;
+  busy: boolean;
+  onChoose: (drugIds: StockedDrugId[]) => void;
+}) {
+  const [chosen, setChosen] = useState<readonly StockedDrugId[]>([]);
+  if (view.candidates.length === 0) return null;
+  const symptom = view.route === "symptom";
+  const noDrug = view.drugs.length === 0;
+  const body = (
+    <>
+      <p className="text-sm text-slate-600">
+        いまの答えでの仮の判定です（まだ聞いていない項目は判定していません。「問題なし」は、その薬の項目をすべて答えているときだけ出します）。
+        症状から薬を自動で選ぶ仕組みはありません。症状の原文を見て選んでください。
+        {noDrug ? "" : "選ぶと、いま選んでいる薬と入れ替わります。"}
+      </p>
+      <ul className="space-y-2">
+        {view.candidates.map((c) => {
+          const known = c.status === "judged" ? c.judgment.reasons : c.knownReasons;
+          const contraindicated = known.some((r) => r.verdict === "contraindicated");
+          const style =
+            c.status === "judged"
+              ? VERDICT_STYLE[c.judgment.verdict]
+              : contraindicated
+                ? VERDICT_STYLE.contraindicated
+                : { text: "追加の質問が要る", className: "bg-slate-50 text-slate-900 border-slate-300" };
+          return (
+            <li key={c.drugId} className={`space-y-1 rounded-xl border-2 p-3 ${style.className}`}>
+              <label className={`flex flex-wrap items-center gap-3 ${contraindicated ? "opacity-70" : ""}`}>
+                <input
+                  type="checkbox"
+                  className="h-6 w-6"
+                  checked={chosen.includes(c.drugId)}
+                  disabled={busy || contraindicated}
+                  onChange={(e) =>
+                    setChosen(e.target.checked ? [...chosen, c.drugId] : chosen.filter((d) => d !== c.drugId))
+                  }
+                />
+                <span className="rounded-lg border bg-white px-2 py-0.5 text-sm font-bold">{style.text}</span>
+                <span className="font-bold">{c.name}</span>
+                <span className="text-sm">（{c.classification}）</span>
+                {contraindicated ? <span className="text-sm text-red-900">禁忌のため選べません（解除は T9）</span> : null}
+              </label>
+              {known.length > 0 ? (
+                <ul className="list-disc pl-12 text-sm">
+                  {known.map((r) => (
+                    <li key={`${r.code}-${r.label}`}>
+                      {r.verdict === "contraindicated" ? "禁忌" : "注意"}：{r.label}（{r.itemIds.join("・")}）
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {c.status === "needs_questions" && !contraindicated ? (
+                <p className="pl-9 text-sm">選ぶと追加で聞く項目：{c.questionIds.map((q) => `${q} ${QUESTION_LABELS[q]}`).join("、")}</p>
+              ) : null}
+            </li>
+          );
+        })}
+      </ul>
+      <button
+        type="button"
+        disabled={busy || chosen.length === 0}
+        onClick={() => onChoose([...chosen])}
+        className="rounded-xl bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
+      >
+        選んだ薬の項目を聞く問診に戻る（患者さんの画面へ）
+      </button>
+    </>
+  );
+  if (symptom && noDrug) return <Section title="候補の薬（いまの答えでの仮の判定）">{body}</Section>;
+  return (
+    <section className="rounded-2xl border border-slate-200 p-5">
+      <details className="space-y-3">
+        <summary className="cursor-pointer text-xl font-bold">
+          {symptom ? "ほかの候補の薬に選び直す" : "代わりの薬を選ぶ"}（いまの答えでの仮の判定）
+        </summary>
+        <div className="mt-3 space-y-3">{body}</div>
+      </details>
+    </section>
   );
 }

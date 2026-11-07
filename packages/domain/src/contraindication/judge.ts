@@ -263,6 +263,67 @@ export function judgeDrug(drugId: StockedDrugId, facts: InterviewFacts): DrugJud
   return { drugId, verdict, reasons };
 }
 
+/** いまある答えだけで分かる判定の理由（judgeDrugWithKnownFacts の結果） */
+export type KnownFactsJudgment = {
+  drugId: StockedDrugId;
+  /** いまの答えで当てはまったと分かる理由（禁忌・注意） */
+  knownReasons: readonly JudgmentReason[];
+  /** 答えがないために、まだ判定できていない項目（なければ judgeDrug と同じ結果になる） */
+  missingItemIds: readonly InterviewItemId[];
+};
+
+/**
+ * いまある答えだけで、その薬の判定の理由を出す（薬剤師の画面の、候補の薬の「仮の判定」。backlog C-03）。
+ *
+ * - 判定の条件ごとに確かめ、答えがない（FACT_MISSING）条件は飛ばして missingItemIds に入れる。推測で「当てはまらない」にしない。
+ *   そのため「問題なし」は出さない（missingItemIds が空のときだけ、judgeDrug と同じ）。
+ * - 年齢・性別（Q01・Q02）がないときは止める（妊娠・授乳の条件が、年齢・性別がないせいで黙って飛ばされないように）。
+ * - 答えの形の誤りなど、FACT_MISSING 以外のエラーは止める（ルール7）。
+ * - 選ぶ薬の組み合わせが変わると、ほかの薬のために聞いた答え（K47）の使い方が変わる。呼び出す側は、実際に選ぶ組み合わせの答えで呼ぶこと。
+ */
+export function judgeDrugWithKnownFacts(drugId: StockedDrugId, facts: InterviewFacts): KnownFactsJudgment {
+  assertValidFacts(facts);
+  need(facts, "age", "Q01");
+  need(facts, "sex", "Q02");
+  const drug = findStockedDrug(drugId);
+  const knownReasons: JudgmentReason[] = [];
+  const missing = new Set<InterviewItemId>();
+  for (const rule of drug.rules) {
+    let match: Match;
+    try {
+      match = evaluate(rule.condition, facts, drug);
+    } catch (error: unknown) {
+      if (!(error instanceof DomainRuleError) || error.code !== "FACT_MISSING") throw error;
+      for (const item of ITEMS_READ_BY_CONDITION[rule.condition.kind]) {
+        const key = ITEM_KEYS[item];
+        if (facts[key] === undefined || facts[key] === null) missing.add(item);
+      }
+      continue;
+    }
+    if (match.matched) knownReasons.push(toReason(rule, match));
+  }
+  return { drugId, knownReasons, missingItemIds: [...missing] };
+}
+
+/** 問診の項目と、答えを入れる場所（judgeDrugWithKnownFacts で、足りない項目を示すため） */
+const ITEM_KEYS: Readonly<Record<InterviewItemId, keyof InterviewFacts>> = {
+  Q01: "age",
+  Q02: "sex",
+  Q03: "pregnancy",
+  Q03a: "dueWithin12Weeks",
+  Q04: "breastfeeding",
+  Q05: "weightKg",
+  Q06: "asthmaHistory",
+  Q07: "conditions",
+  Q08: "drugAllergy",
+  Q09: "currentMedications",
+  Q10: "drivingAfter",
+  Q11: "alcohol",
+  Q12: "plannedDays",
+  Q13: "softContactLens",
+  Q14: "applicationSite",
+};
+
 export function judgeDrugs(drugIds: readonly StockedDrugId[], facts: InterviewFacts): DrugJudgment[] {
   return drugIds.map((id) => judgeDrug(id, facts));
 }
