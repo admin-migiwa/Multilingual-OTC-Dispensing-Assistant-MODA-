@@ -608,7 +608,7 @@ function ReviewBody({
 /**
  * 候補の薬（「症状から探す」）・代わりの薬（「ほしい薬がある」）を選ぶ（backlog C-03）。
  * 出すのは「いまの答えでの仮の判定」。選ぶと、その薬の項目を聞く問診に戻し、答えがそろってから判定をやり直す。
- * いまの答えで禁忌と分かっている薬は選べない（サーバーでも止める。ルール4）。
+ * 禁忌と分かっている薬も選べる（11/7 依頼主の判断）。販売する薬に選ぶには、確認画面で禁忌の解除が要る（ルール4）。
  */
 function CandidatesSection({
   view,
@@ -642,7 +642,7 @@ function CandidatesSection({
                 : { text: "追加の質問が要る", className: "bg-slate-50 text-slate-900 border-slate-300" };
           return (
             <li key={c.drugId} className={`space-y-1 rounded-xl border-2 p-3 ${style.className}`}>
-              <label className={`flex flex-wrap items-center gap-3 ${contraindicated ? "opacity-70" : ""}`}>
+              <label className="flex flex-wrap items-center gap-3">
                 <input
                   type="checkbox"
                   className="h-6 w-6"
