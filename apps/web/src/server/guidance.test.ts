@@ -7,6 +7,7 @@ import { mockAiClient } from "./ai/mock.ts";
 import { approveSale } from "./approval.ts";
 import {
   LEAFLET_CAUTIONS,
+  LEAFLET_OVERRIDE_CAUTIONS,
   answerUnderstanding,
   buildLeafletJapanese,
   checkPostApprovalStep,
@@ -17,7 +18,13 @@ import {
   proceedCheckout,
   startCounseling,
 } from "./guidance.ts";
-import { checkProcedureStep, chooseSaleDrugs, openPharmacistReview, returnToDrugSelection } from "./pharmacist-service.ts";
+import {
+  checkProcedureStep,
+  chooseSaleDrugs,
+  openPharmacistReview,
+  overrideContraindication,
+  returnToDrugSelection,
+} from "./pharmacist-service.ts";
 import { PinError, createPinVerifier } from "./pin.ts";
 import {
   SessionServiceError,
@@ -137,6 +144,45 @@ describe("説明書（T10）", () => {
     answer(deps, id, fine);
     openPharmacistReview(deps, id);
     await assertRejects(createGuidance(deps, ai, id), "NO_DRUG_SELECTED");
+  });
+});
+
+describe("禁忌を解除して販売した薬の説明書（leaflet.md LF21・LF29。11/7 依頼主の判断）", () => {
+  it("K11・LF21：解熱鎮痛薬を飲んでいて禁忌の C を「切り替えるため併用しない」で解除して販売すると、説明書に「ほかの解熱鎮痛薬と一緒に飲まないでください」が入る", async () => {
+    const deps = testDeps();
+    const { id } = createSession(deps, "en");
+    answer(deps, id, { age: 30, sex: "female" });
+    chooseRoute(deps, id, "product");
+    chooseDrugs(deps, id, ["C"]);
+    answer(deps, id, { ...fine, currentMedications: ["analgesic"] });
+    openPharmacistReview(deps, id);
+    overrideContraindication(deps, PINS, id, { drugId: "C", pharmacistId: "P1", pin: "1234", reasonCode: "switching_not_combined", reasonText: null });
+    chooseSaleDrugs(deps, id, ["C"]);
+    // 承認の前の説明書にも入る（書面の準備で確かめる）
+    const preview = await createGuidance(deps, ai, id);
+    assert.match(preview.guidances?.at(-1)?.japanese ?? "", /ほかの解熱鎮痛薬（痛み止め・熱さまし）と一緒に飲まないでください/);
+    checkProcedureStep(deps, id, "written_information_prepared", true);
+    approve(deps, id);
+    // 承認のあとも、同じ説明書がそのまま今の説明書（作り直さなくてよい）
+    assert.notEqual(currentGuidance(getSession(deps, id)), null);
+    assert.equal(startCounseling(deps, id).snapshot.status, "counseling");
+  });
+
+  it("K01・LF29：ぜんそくで禁忌の C を解除したときは、決まった形の文に禁忌の項目の名前を入れる", () => {
+    const facts = { age: 30, sex: "female" as const, ...fine, asthmaHistory: "yes" as const };
+    const text = buildLeafletJapanese(["C"], judgeDrugs(["C"], facts), 30, ["C"]);
+    assert.match(text, /「ぜんそく（NSAID系の成分）」に当てはまる方は、ふつうはこの薬を使えません/);
+    // 解除していなければ、禁忌の文は入れない
+    assert.doesNotMatch(buildLeafletJapanese(["C"], judgeDrugs(["C"], facts), 30), /ふつうはこの薬を使えません/);
+  });
+
+  it("LF21〜LF23 の文は、禁忌判定のデータの禁忌の理由と対応している（仕組みのテスト）", () => {
+    for (const caution of LEAFLET_OVERRIDE_CAUTIONS) {
+      for (const drugId of caution.drugIds) {
+        const drug = STOCKED_DRUGS.find((d) => d.id === drugId);
+        assert.ok(drug?.rules.some((r) => r.verdict === "contraindicated" && r.label === caution.reasonLabel), `${caution.id} の ${drugId}`);
+      }
+    }
   });
 });
 

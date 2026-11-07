@@ -30,7 +30,7 @@ import type { LanguageCode } from "@moda/i18n";
 
 import type { AiClient } from "./ai/index.ts";
 import type { SaleRecord, SaleRecordVersion } from "./approval.ts";
-import { currentRound, currentSaleDrugIds, judgmentsOf } from "./pharmacist-service.ts";
+import { currentRound, currentSaleDrugIds, judgmentsOf, overriddenDrugIdsOf } from "./pharmacist-service.ts";
 import { event, load, moveTo, SessionServiceError, type ServiceDeps, type SessionRecord } from "./session-service.ts";
 import { translateLeaflet } from "./translation.ts";
 
@@ -87,6 +87,33 @@ export const LEAFLET_CAUTIONS: readonly LeafletCaution[] = [
   { id: "LF13", drugIds: ["J"], reasonLabel: "生薬の重なり", text: "ほかの漢方薬と一緒に飲む前に、薬剤師に相談してください。" },
 ];
 
+/**
+ * 禁忌を解除して販売した薬の文（leaflet.md LF21〜LF23 の ☑ の行。キーは禁忌の理由の文）。
+ * 言葉の壁があって口頭の念押しが届きにくいため、説明書にも書く（11/7 依頼主の判断）
+ */
+export const LEAFLET_OVERRIDE_CAUTIONS: readonly LeafletCaution[] = [
+  {
+    id: "LF21",
+    drugIds: ["B", "C", "D", "I"],
+    reasonLabel: "ほかの解熱鎮痛薬との併用",
+    text: "ほかの解熱鎮痛薬（痛み止め・熱さまし）と一緒に飲まないでください。前の薬から切り替えるときは、前の薬をやめてから飲んでください。",
+  },
+  { id: "LF22", drugIds: ["B", "D", "E", "I"], reasonLabel: "ほかのかぜ薬との併用", text: "ほかのかぜ薬と一緒に飲まないでください。" },
+  {
+    id: "LF23",
+    drugIds: ["E"],
+    reasonLabel: "ほかの抗ヒスタミン薬との併用",
+    text: "ほかのアレルギー・鼻炎の薬（抗ヒスタミン薬）と一緒に飲まないでください。",
+  },
+];
+
+/** LF29：上のほかの禁忌を解除して販売したときの決まった形の文（leaflet.md ☑） */
+function overriddenLine(drugId: StockedDrugId, label: string): string {
+  const found = LEAFLET_OVERRIDE_CAUTIONS.find((c) => c.reasonLabel === label && c.drugIds.includes(drugId));
+  if (found) return found.text;
+  return `「${label}」に当てはまる方は、ふつうはこの薬を使えません。薬剤師が確認して販売しました。体調が変わったときや気になることがあるときは、使う前に医師または薬剤師に相談してください。`;
+}
+
 /** 説明書の最後の文（受診案内 RF05 と同じ。referral.md ☑） */
 const LEAFLET_FOOTER = "わからないことは、スタッフに聞いてください。";
 
@@ -96,8 +123,16 @@ function cautionLine(drugId: StockedDrugId, label: string): string {
   return found ? found.text : `${label}：薬剤師に確認してください。`;
 }
 
-/** 説明書の日本語（原文）を組み立てる。注意は、判定で「注意」になった理由だけ */
-export function buildLeafletJapanese(drugIds: readonly StockedDrugId[], judgments: readonly DrugJudgment[], age: number): string {
+/**
+ * 説明書の日本語（原文）を組み立てる。
+ * 「この方への注意」は、判定で「注意」になった理由と、薬剤師が禁忌を解除して販売する薬の禁忌の理由（overriddenDrugIds）
+ */
+export function buildLeafletJapanese(
+  drugIds: readonly StockedDrugId[],
+  judgments: readonly DrugJudgment[],
+  age: number,
+  overriddenDrugIds: readonly StockedDrugId[] = [],
+): string {
   const blocks: string[] = ["お薬の説明"];
   for (const drugId of drugIds) {
     const drug = STOCKED_DRUGS.find((d) => d.id === drugId);
@@ -112,10 +147,14 @@ export function buildLeafletJapanese(drugIds: readonly StockedDrugId[], judgment
     lines.push(`包装：${drug.packages}`);
     const judgment = judgments.find((j) => j.drugId === drugId);
     if (!judgment) throw new DomainRuleError("DRUG_NOT_JUDGED", `薬 ${drugId} の禁忌判定がありません`);
-    const cautions = judgment.reasons.filter((r) => r.verdict === "caution");
-    if (cautions.length > 0) {
+    const cautionLines = judgment.reasons.filter((r) => r.verdict === "caution").map((r) => cautionLine(drugId, r.label));
+    const overrideLines = overriddenDrugIds.includes(drugId)
+      ? judgment.reasons.filter((r) => r.verdict === "contraindicated").map((r) => overriddenLine(drugId, r.label))
+      : [];
+    const all = [...overrideLines, ...cautionLines];
+    if (all.length > 0) {
       lines.push("この方への注意：");
-      for (const reason of cautions) lines.push(`・${cautionLine(drugId, reason.label)}`);
+      for (const line of all) lines.push(`・${line}`);
     }
     blocks.push(lines.join("\n"));
   }
@@ -199,7 +238,15 @@ function sameDrugs(a: readonly string[], b: readonly string[]): boolean {
 export function isGuidanceFresh(record: SessionRecord, guidance: GuidanceRecord): boolean {
   const age = record.interview.answers.age;
   if (age === undefined || guidance.language !== record.language) return false;
-  return buildLeafletJapanese(guidance.drugIds, judgmentsOf(record), age) === guidance.japanese;
+  return buildLeafletJapanese(guidance.drugIds, judgmentsOf(record), age, overriddenForLeaflet(record)) === guidance.japanese;
+}
+
+/** 説明書に書く「禁忌を解除した薬」：承認のあとは販売記録に残した解除、承認の前は今の確認の中の解除 */
+function overriddenForLeaflet(record: SessionRecord): StockedDrugId[] {
+  const v1 = record.saleRecord?.versions[0];
+  if (v1) return [...new Set(v1.overrides.map((o) => o.drugId))];
+  if (record.snapshot.status === "pharmacist_review") return overriddenDrugIdsOf(currentRound(record).round);
+  return [];
 }
 
 /**
@@ -235,7 +282,7 @@ export async function createGuidance(deps: ServiceDeps, ai: AiClient, id: string
   const drugIds = guidanceDrugIds(before);
   const age = before.interview.answers.age;
   if (age === undefined) throw new DomainRuleError("ANSWER_MISSING", "年齢の答えがありません");
-  const japanese = buildLeafletJapanese(drugIds, judgmentsOf(before), age);
+  const japanese = buildLeafletJapanese(drugIds, judgmentsOf(before), age, overriddenForLeaflet(before));
   const translated = await translateLeaflet(ai, before.language, japanese);
 
   const record = load(deps, id);
