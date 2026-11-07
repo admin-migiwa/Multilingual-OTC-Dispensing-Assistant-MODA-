@@ -417,7 +417,7 @@ function LanguageSelect({ onSelect }: { onSelect: (code: LanguageCode) => void }
     <>
       <header className="space-y-3 text-center">
         <ModaBrand size="lg" />
-        <IllustWelcome className="mx-auto h-32 w-44" />
+        <IllustWelcome className="mx-auto h-32 w-44 [@media(max-height:820px)]:h-20 [@media(max-height:820px)]:w-28" />
         <h1 className="text-3xl font-bold">{getMessages("ja").languageSelect.title}</h1>
         <p lang="en" className="text-lg text-slate-600">
           {getMessages("en").languageSelect.title}
