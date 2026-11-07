@@ -608,7 +608,7 @@ function ReviewBody({
 /**
  * 候補の薬（「症状から探す」）・代わりの薬（「ほしい薬がある」）を選ぶ（backlog C-03）。
  * 出すのは「いまの答えでの仮の判定」。選ぶと、その薬の項目を聞く問診に戻し、答えがそろってから判定をやり直す。
- * いまの答えで禁忌と分かっている薬は選べない（サーバーでも止める。ルール4）。
+ * 禁忌と分かっている薬も選べる（11/7 依頼主の判断）。販売する薬に選ぶには、確認画面で禁忌の解除が要る（ルール4）。
  */
 function CandidatesSection({
   view,
@@ -642,12 +642,12 @@ function CandidatesSection({
                 : { text: "追加の質問が要る", className: "bg-slate-50 text-slate-900 border-slate-300" };
           return (
             <li key={c.drugId} className={`space-y-1 rounded-xl border-2 p-3 ${style.className}`}>
-              <label className={`flex flex-wrap items-center gap-3 ${contraindicated ? "opacity-70" : ""}`}>
+              <label className="flex flex-wrap items-center gap-3">
                 <input
                   type="checkbox"
                   className="h-6 w-6"
                   checked={chosen.includes(c.drugId)}
-                  disabled={busy || contraindicated}
+                  disabled={busy}
                   onChange={(e) =>
                     setChosen(e.target.checked ? [...chosen, c.drugId] : chosen.filter((d) => d !== c.drugId))
                   }
@@ -658,7 +658,9 @@ function CandidatesSection({
                   <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-900">いま選んでいる薬</span>
                 ) : null}
                 <span className="text-sm">（{c.classification}）</span>
-                {contraindicated ? <span className="text-sm text-red-900">禁忌のため候補には選べません</span> : null}
+                {contraindicated ? (
+                  <span className="text-sm text-red-900">選ぶと、確認の画面で禁忌の解除（薬剤師の PIN と理由）ができます</span>
+                ) : null}
               </label>
               {known.length > 0 ? (
                 <ul className="list-disc pl-12 text-sm">
@@ -672,7 +674,7 @@ function CandidatesSection({
               <div className="pl-9">
                 <DrugInfo info={c.info} age={view.answers.age} />
               </div>
-              {c.status === "needs_questions" && !contraindicated ? (
+              {c.status === "needs_questions" ? (
                 <p className="pl-9 text-sm">選ぶと追加で聞く項目：{c.questionIds.map((q) => `${q} ${QUESTION_LABELS[q]}`).join("、")}</p>
               ) : null}
             </li>
