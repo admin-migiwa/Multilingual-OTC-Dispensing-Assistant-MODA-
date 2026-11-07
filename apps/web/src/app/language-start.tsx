@@ -85,6 +85,11 @@ export function LanguageStart() {
    * （記録できなければ null）。薬剤師の判断は、この記録が終わってから残す（記録の順番を守るため）
    */
   const pendingOpen = useRef<Promise<PatientView | null> | null>(null);
+  /** 「最初の画面に戻る」を押した回数（押す前に始まった通信の結果を、あとから画面に使わないため） */
+  const startOverCount = useRef(0);
+  /** いま画面に出している接客（チャットの通信の結果が、前の接客のものかを見分けるため） */
+  const currentViewId = useRef<string | null>(null);
+  currentViewId.current = view?.id ?? null;
   /** 通ってきた画面（「戻る」で1つずつ戻る） */
   const [trail, setTrail] = useState<readonly Step[]>([]);
   /** 「戻る」で戻って、いま出している画面（null：サーバーが決めた画面をそのまま出す） */
@@ -159,17 +164,20 @@ export function LanguageStart() {
       setRecordFailed(false);
       show119Recorded.current = false;
       window.history.replaceState(null, "", `/?session=${encodeURIComponent(id)}`);
+      const startedAt = startOverCount.current;
       pendingOpen.current = (async () => {
         try {
           const latest = await sessionApi.get(id);
-          restoreBasics(latest);
           const opened = latest.status === "emergency_review" ? latest : await sessionApi.openEmergency(id, { trigger: "staff" });
+          // 途中で「最初の画面に戻る」を押していたら、前の接客を画面に戻さない（緊急の確認の記録はサーバーに残る）
+          if (startedAt !== startOverCount.current) return null;
+          restoreBasics(latest);
           setView(opened);
           // restoringId はここでは消さない（画面が描き直される前に「緊急ではない」が押されても、新しい接客を始めないため）
           return opened;
         } catch {
           // 記録に残せなかった（通信が止まっている、接客が終わっているなど）。案内はこのまま出せる
-          setRecordFailed(true);
+          if (startedAt === startOverCount.current) setRecordFailed(true);
           return null;
         }
       })();
@@ -214,6 +222,22 @@ export function LanguageStart() {
     setLanguage(null);
   }
 
+  /**
+   * 「最初の画面に戻る」（11/8 依頼主の判断：途中でやめる人のため。緊急の確認中でも押せる）。
+   * 画面を言語の選択に戻すだけで、サーバーの接客の記録は消さない（backlog S-26）
+   */
+  function startOver() {
+    startOverCount.current += 1;
+    setEmergency(null);
+    setFollowUp(EMPTY_FOLLOW_UP);
+    setRecordFailed(false);
+    show119Recorded.current = false;
+    show119Pending.current = Promise.resolve();
+    setSessionLost(false);
+    setNetworkDown(false);
+    backToLanguage();
+  }
+
   // 「戻る」：問診を進めてよい状態の間だけ。通ってきた画面がなければ、年齢・性別の質問からは言語の選択に戻る
   const editable = view !== null && EDITABLE_STATUSES.includes(view.status);
   const goBack: (() => void) | null = !editable
@@ -245,13 +269,16 @@ export function LanguageStart() {
     setRecordFailed(false);
     show119Recorded.current = false;
     if (view === null) return;
+    const startedAt = startOverCount.current;
     sessionApi
       .openEmergency(view.id, {
         trigger: trigger.kind,
         matchedRuleIds: trigger.kind === "keyword" ? trigger.hits.map((h) => h.id) : [],
         inputText: trigger.kind === "keyword" ? trigger.text : null,
       })
-      .catch(() => setRecordFailed(true));
+      .catch(() => {
+        if (startedAt === startOverCount.current) setRecordFailed(true);
+      });
   }
 
   /**
@@ -266,6 +293,8 @@ export function LanguageStart() {
     const next: EmergencyTrigger =
       found.kind === "keyword" ? { kind: "keyword", text: found.text, hits: found.hits } : { kind: "staff" };
     if (emergencyRef.current !== null) return;
+    // 「最初の画面に戻る」のあとに届いた、前の接客のチャットの知らせは使わない
+    if (view === null || view.id !== currentViewId.current) return;
     emergencyRef.current = next;
     setEmergency(next);
     setRecordFailed(false);
@@ -300,6 +329,10 @@ export function LanguageStart() {
   if (emergency !== null) {
     return (
       <>
+        {/* 緊急の確認中でも、薬剤師はやめて最初の画面に戻れる（11/8 依頼主の判断。判断を記録せずに離れたことは記録に残らない。backlog S-26） */}
+        <div className="fixed right-3 top-3 z-50 flex gap-2">
+          <StaffStartOverButton busy={busy} onStartOver={startOver} />
+        </div>
         {recordFailed ? (
           <p lang="ja" className="rounded-xl bg-slate-100 px-4 py-2 text-sm text-slate-700">
             緊急の確認を記録に残せていません（通信が止まっているなど。案内はこのまま出せます）。
@@ -313,11 +346,15 @@ export function LanguageStart() {
           onFollowUpChange={setFollowUp}
           onShowGuide={() => {
             if (show119Recorded.current) return; // すでに記録した（2回目の押下）。案内はそのまま出す
+            const startedAt = startOverCount.current;
             show119Pending.current = recordDecision("show_119")
               .then((result) => {
+                // 途中で「最初の画面に戻る」を押していたら、次の接客の状態に持ち込まない
+                if (startedAt !== startOverCount.current) return;
                 if (result !== null) show119Recorded.current = true;
               })
               .catch(() => {
+                if (startedAt !== startOverCount.current) return;
                 // 通信の失敗でも、記録の順番のずれ（緊急の確認を開いた記録がまだ届いていない）でも、薬剤師に知らせる
                 setRecordFailed(true);
               });
@@ -325,9 +362,11 @@ export function LanguageStart() {
           onCancelGuide={async () => {
             // 押し間違い：119番の案内を取り消し、押す前の薬剤師の確認に戻る（11/6 依頼主の判断）。
             // 「緊急ではない」の判断ではないので、以降の緊急キーワードの確認はそのまま続く
+            const startedAt = startOverCount.current;
             await show119Pending.current; // 記録の途中なら、記録が終わってから取り消す
             // 薬剤師の確認画面から開いて、押した時点で画面に接客がなかったときも、緊急の確認を記録した接客で取り消す
             const id = view?.id ?? (await pendingOpen.current)?.id ?? null;
+            if (startedAt !== startOverCount.current) return true; // 途中で「最初の画面に戻る」を押した。前の接客には触れない
             if (!show119Recorded.current || id === null) return true; // 記録できていない（通信が止まっていた）ので画面だけ戻す
             try {
               setView(await sessionApi.cancelEmergency119(id));
@@ -368,7 +407,13 @@ export function LanguageStart() {
 
   return (
     <>
-      <StaffEmergencyButton onOpen={() => openEmergency({ kind: "staff" })} />
+      <div className="fixed right-3 top-3 z-50 flex gap-2">
+        {/* 途中でやめる人のために、言語を選んだあとはいつでも最初の画面に戻れる（11/8 依頼主の判断） */}
+        {language !== null ? (
+          <StaffStartOverButton busy={busy} onStartOver={startOver} />
+        ) : null}
+        <StaffEmergencyButton onOpen={() => openEmergency({ kind: "staff" })} />
+      </div>
       {language === null ? (
         <LanguageSelect onSelect={chooseLanguage} />
       ) : sessionLost ? (
@@ -491,9 +536,32 @@ function StaffEmergencyButton({ onOpen }: { onOpen: () => void }) {
       type="button"
       lang="ja"
       onClick={onOpen}
-      className="fixed right-3 top-3 z-50 rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
+      className="rounded-lg border border-red-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-red-800 shadow-sm hover:bg-red-50"
     >
       薬剤師用：緊急の確認を開く
+    </button>
+  );
+}
+
+/**
+ * 薬剤師用の「最初の画面に戻る」（日本語・小さく右上、緊急の確認の左）。押すと確かめてから、言語の選択の画面に戻る。
+ * サーバーの接客の記録は消さずに置いておく（承認済みなら販売記録もそのまま残る）。backlog S-26
+ */
+function StaffStartOverButton({ busy, onStartOver }: { busy: boolean; onStartOver: () => void }) {
+  // 通信の途中は押せない（あとから届いた結果で、前の接客の画面が戻ってこないように）
+  return (
+    <button
+      type="button"
+      lang="ja"
+      disabled={busy}
+      onClick={() => {
+        if (window.confirm("この接客をやめて、最初の画面（言語の選択）に戻ります。よろしいですか？\n（ここまでの記録は消えずに残ります）")) {
+          onStartOver();
+        }
+      }}
+      className="rounded-lg border border-slate-300 bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm hover:bg-slate-50 disabled:opacity-50"
+    >
+      薬剤師用：最初の画面に戻る
     </button>
   );
 }
