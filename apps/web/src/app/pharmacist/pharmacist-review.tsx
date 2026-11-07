@@ -15,6 +15,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import { OVERRIDE_REASONS, type InterviewAnswers, type QuestionId, type SessionStatus, type StockedDrugId } from "@moda/domain";
 import { LANGUAGES } from "@moda/i18n";
 
+import { ModaBrand } from "../decor";
 import { NetworkError, RuleError } from "../session-api";
 import { TranslationChat, type ChatEmergency } from "../translation-chat";
 import { EmergencyRecords } from "./emergency-records";
@@ -276,7 +277,10 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
         緊急の確認を開く
       </a>
       <header className="space-y-2">
-        <p className="text-sm font-semibold tracking-widest text-teal-700">MODA 薬剤師用</p>
+        <div className="flex items-center gap-3">
+          <ModaBrand />
+          <span className="rounded-full bg-teal-700 px-3 py-1 text-sm font-bold text-white">薬剤師用</span>
+        </div>
         <h1 className="text-3xl font-bold">薬剤師の確認</h1>
         {view ? (
           <p className="text-slate-600">
@@ -300,7 +304,7 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
 
       {/* 緊急の確認中は出さない（確認は患者さんの画面で行う。チャットのキーワードで画面が移ってしまわないように） */}
       {view !== null && !["completed", "declined", "emergency_ended", "emergency_review"].includes(view.status) ? (
-        <details className="rounded-2xl border border-slate-200 p-3">
+        <details className="rounded-2xl bg-white p-3 shadow-sm ring-1 ring-slate-200">
           <summary className="cursor-pointer font-semibold">翻訳のチャット（患者さんに画面を見せて、くわしいことをたずねる）</summary>
           <div className="mt-3">
             <TranslationChat
@@ -373,8 +377,11 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="space-y-3 rounded-2xl border border-slate-200 p-5">
-      <h2 className="text-xl font-bold">{title}</h2>
+    <section className="space-y-3 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
+      <h2 className="flex items-center gap-2 text-xl font-bold">
+        <span aria-hidden="true" className="h-6 w-1.5 shrink-0 rounded-full bg-teal-500" />
+        {title}
+      </h2>
       {children}
     </section>
   );
@@ -724,7 +731,7 @@ function CandidatesSection({
   );
   if (symptom && noDrug) return <Section title="候補の薬（いまの答えでの仮の判定）">{body}</Section>;
   return (
-    <section className="rounded-2xl border border-slate-200 p-5">
+    <section className="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-200">
       <details className="space-y-3">
         <summary className="cursor-pointer text-xl font-bold">
           {symptom ? "ほかの候補の薬に選び直す" : "代わりの薬を選ぶ"}（いまの答えでの仮の判定）

@@ -161,4 +161,15 @@ export const zhHans: Messages = {
     title: "结账",
     body: "请到收银台结账。祝您早日康复。",
   },
+  guide: {
+    language: "请点选您的语言。",
+    steps: { questions: "回答问题", review: "药剂师确认", explain: "药品说明", checkout: "结账" },
+    start: "请点选符合您情况的一项。",
+    search: "请找到您想要的药，然后选择。",
+    question: "请逐一回答，然后进入下一步。如有不明白的地方，请询问工作人员。",
+    symptom: "请用您自己的话写下症状。",
+    waiting: "请把这台 iPad 给工作人员看。",
+    guidance: "请先阅读说明，然后回答下面的问题。",
+    checkout: "最后，请告诉我们您对今天说明的感受。",
+  },
 };
