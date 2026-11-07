@@ -89,7 +89,11 @@ export function createPinVerifier(env: string | undefined, failures: Map<string,
         state.lockedUntil = null;
       }
       const expected = pins.get(pharmacistId);
-      const ok = expected !== undefined && PIN_SHAPE.test(pin) && timingSafeEqual(digest(pin), expected);
+      // 一覧にいる薬剤師の PIN が設定にないのは設定の誤り。失敗の回数には数えずに止める（ルール7）
+      if (expected === undefined) {
+        throw new PinError("PIN_NOT_CONFIGURED", "この薬剤師の PIN が設定されていません（MODA_PHARMACIST_PINS）");
+      }
+      const ok = PIN_SHAPE.test(pin) && timingSafeEqual(digest(pin), expected);
       if (!ok) {
         state.count += 1;
         if (state.count >= PIN_MAX_FAILURES) state.lockedUntil = now.getTime() + PIN_LOCK_MINUTES * 60_000;

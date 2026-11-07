@@ -792,7 +792,7 @@ function ApproveSection({
             autoComplete="off"
             maxLength={8}
             value={pin}
-            onChange={(e) => setPin(e.target.value.replace(/D/g, ""))}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, ""))}
             className="w-32 rounded-lg border border-slate-300 px-3 py-2"
           />
         </label>
