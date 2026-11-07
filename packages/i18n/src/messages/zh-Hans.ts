@@ -147,10 +147,11 @@ export const zhHans: Messages = {
   },
   guidance: {
     title: "用药说明",
-    printed: "说明书已打印。我们也会一并提供日文原版说明书。",
+    printed: "说明书已打印。我们也会一并提供日文版说明书。",
     understandQuestion: "您理解说明了吗？",
     understandOptions: { understood: "理解了", partly: "有些地方不太明白", notUnderstood: "没有理解" },
     askAgain: "不明白的地方，药剂师会再为您说明。",
+    japaneseOriginal: "日文原文（说明书）",
   },
   feedback: {
     title: "感谢您的配合",

@@ -157,6 +157,7 @@ export const ja = {
     understandQuestion: "説明はわかりましたか？",
     understandOptions: { understood: "わかった", partly: "少しわからないところがある", notUnderstood: "わからなかった" },
     askAgain: "わからないところは、薬剤師がもう一度説明します。",
+    japaneseOriginal: "日本語の原文（説明書）",
   },
   feedback: {
     title: "ご協力ありがとうございました",

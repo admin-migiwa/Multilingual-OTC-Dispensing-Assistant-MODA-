@@ -151,6 +151,7 @@ export const ko: Messages = {
     understandQuestion: "설명을 이해하셨나요?",
     understandOptions: { understood: "이해했어요", partly: "조금 모르는 부분이 있어요", notUnderstood: "이해하지 못했어요" },
     askAgain: "모르는 부분은 약사가 다시 설명해 드립니다.",
+    japaneseOriginal: "일본어 원문(설명서)",
   },
   feedback: {
     title: "협조해 주셔서 감사합니다",

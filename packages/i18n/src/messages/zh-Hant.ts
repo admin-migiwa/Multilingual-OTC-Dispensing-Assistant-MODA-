@@ -147,10 +147,11 @@ export const zhHant: Messages = {
   },
   guidance: {
     title: "用藥說明",
-    printed: "說明書已列印。我們也會一併提供日文原版說明書。",
+    printed: "說明書已列印。我們也會一併提供日文版說明書。",
     understandQuestion: "您理解說明了嗎？",
     understandOptions: { understood: "理解了", partly: "有些地方不太明白", notUnderstood: "沒有理解" },
     askAgain: "不明白的地方，藥劑師會再為您說明。",
+    japaneseOriginal: "日文原文（說明書）",
   },
   feedback: {
     title: "感謝您的配合",

@@ -96,7 +96,7 @@ export const pt: Messages = {
         options: { smallOne: "Uma caixa pequena", largeOne: "Uma caixa grande", multiple: "Duas ou mais" },
         // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
         minorLargePackage: "Não podemos vender embalagens grandes a menores de {age} anos.",
-        minorMultiplePackages: "Menores de {age} anos podem comprar até {max} caixa.",
+        minorMultiplePackages: "Menores de {age} anos podem comprar no máximo {max}.",
       },
       R03: { text: "Diga por que você precisa de uma caixa grande ou de duas ou mais." },
       R04: { text: "Para quais sintomas você vai usar?" },
@@ -147,10 +147,11 @@ export const pt: Messages = {
   },
   guidance: {
     title: "Sobre o seu remédio",
-    printed: "Imprimimos as instruções. Também vamos entregar a bula original em japonês.",
+    printed: "Imprimimos as instruções. Também vamos entregar a versão em japonês das instruções.",
     understandQuestion: "Você entendeu a explicação?",
     understandOptions: { understood: "Sim, entendi", partly: "Algumas partes não ficaram claras", notUnderstood: "Não entendi" },
     askAgain: "O farmacêutico vai explicar de novo as partes que não ficaram claras.",
+    japaneseOriginal: "Original em japonês (instruções)",
   },
   feedback: {
     title: "Obrigado pela colaboração",

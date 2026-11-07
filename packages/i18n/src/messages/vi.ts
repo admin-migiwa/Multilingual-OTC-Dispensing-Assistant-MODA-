@@ -147,10 +147,11 @@ export const vi: Messages = {
   },
   guidance: {
     title: "Hướng dẫn về thuốc",
-    printed: "Chúng tôi đã in hướng dẫn sử dụng. Chúng tôi cũng sẽ đưa kèm tờ hướng dẫn gốc bằng tiếng Nhật.",
+    printed: "Chúng tôi đã in hướng dẫn sử dụng. Chúng tôi cũng sẽ đưa kèm bản hướng dẫn bằng tiếng Nhật.",
     understandQuestion: "Bạn đã hiểu phần giải thích chưa?",
     understandOptions: { understood: "Tôi đã hiểu", partly: "Có chỗ tôi chưa hiểu rõ", notUnderstood: "Tôi không hiểu" },
     askAgain: "Dược sĩ sẽ giải thích lại những chỗ bạn chưa hiểu.",
+    japaneseOriginal: "Bản gốc tiếng Nhật (hướng dẫn sử dụng)",
   },
   feedback: {
     title: "Cảm ơn sự hợp tác của bạn",
