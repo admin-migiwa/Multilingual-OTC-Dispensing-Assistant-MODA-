@@ -16,6 +16,7 @@ import type { InterviewAnswers, QuestionId, SessionStatus, StockedDrugId } from 
 import { LANGUAGES } from "@moda/i18n";
 
 import { NetworkError, RuleError } from "../session-api";
+import { TranslationChat, type ChatEmergency } from "../translation-chat";
 import { EmergencyRecords } from "./emergency-records";
 import { pharmacistApi, type PharmacistView } from "./pharmacist-api";
 
@@ -285,6 +286,29 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
       ) : null}
 
       {view !== null ? <EmergencyRecords sessionId={sessionId} refreshKey={view.status} /> : null}
+
+      {/* 緊急の確認中は出さない（確認は患者さんの画面で行う。チャットのキーワードで画面が移ってしまわないように） */}
+      {view !== null && !["completed", "declined", "emergency_ended", "emergency_review"].includes(view.status) ? (
+        <details className="rounded-2xl border border-slate-200 p-3">
+          <summary className="cursor-pointer font-semibold">翻訳のチャット（患者さんに画面を見せて、くわしいことをたずねる）</summary>
+          <div className="mt-3">
+            <TranslationChat
+              sessionId={sessionId}
+              language={view.language}
+              age={view.answers.age}
+              emergencyCleared={view.emergencyCleared}
+              emergencyReviewOpen={view.status === "emergency_review"}
+              onEmergency={(found: ChatEmergency) => {
+                // 緊急の確認は患者さんの画面で出す（患者さんの言語の案内と、通信がなくても出せる画面がそこにあるため。ルール2）。
+                // サーバーが開いたとき（server）は、開き済みなので患者さんの画面に移るだけ（/emergency をもう一度呼ばない）。
+                // 端末の中のキーワード（keyword）は、サーバーが開けていないこともあるので「緊急の確認を開く」と同じ道で移る
+                // （移った先で、まだ開いていなければ開く。開き済みなら開き直さない）
+                window.location.assign(found.kind === "keyword" ? emergencyUrl : patientUrl);
+              }}
+            />
+          </div>
+        </details>
+      ) : null}
 
       {view === null ? (
         <p className="text-slate-500">読み込み中…</p>
