@@ -43,7 +43,7 @@ function testDeps(ai: AiClient): TranslationDeps {
   const map = new Map<string, SessionRecord>();
   let n = 0;
   return {
-    store: { get: (id) => map.get(id), set: (r) => void map.set(r.id, r) },
+    store: { get: (id) => map.get(id), set: (r) => void map.set(r.id, r), all: () => map.values() },
     now: () => new Date("2026-11-07T10:00:00+09:00"),
     newId: () => `s${(n += 1)}`,
     ai,

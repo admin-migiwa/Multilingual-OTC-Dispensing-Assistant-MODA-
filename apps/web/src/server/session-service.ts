@@ -36,6 +36,7 @@ import {
 import { isSupportedLanguage, type LanguageCode } from "@moda/i18n";
 
 import { japanDate } from "./japan-date.ts";
+import type { SaleRecord } from "./approval.ts";
 import type { PharmacistReviewRound } from "./pharmacist-service";
 
 /** セッションが見つからないなど、ルール以外の理由で処理できないとき */
@@ -130,7 +131,9 @@ export type SessionEventType =
   // 候補・代わりの薬を薬剤師が選び、その薬の項目を聞く問診に戻した（T8b。backlog C-03）
   | "candidate_drugs_chosen"
   // 翻訳のチャットで1回訳した（中身は chatLog にだけ残す。backlog S-13）
-  | "chat_translated";
+  | "chat_translated"
+  // 薬剤師が PIN で承認し、販売記録を作った（薬剤師 ID と販売記録 ID だけ。T9a）
+  | "approved";
 
 export interface SessionEvent {
   readonly at: string;
@@ -150,6 +153,11 @@ export interface SessionRecord {
   readonly emergencies: readonly EmergencyEvent[];
   /** 薬剤師の確認（T8a）。確認の画面を開くたびに1つ足す（なければ空。中身は pharmacist-service.ts） */
   readonly pharmacistReviews?: readonly PharmacistReviewRound[];
+  /**
+   * 販売記録（承認と同じ書き込みで初めて作る。版は足すだけ。CLAUDE.md ルール1・6。中身は approval.ts）。
+   * データベースがないので接客の記録の中に持ち、承認と販売記録を1回の書き込みで残す
+   */
+  readonly saleRecord?: SaleRecord;
   /** 翻訳のチャットの記録（起きた順。なければ空。backlog S-13） */
   readonly chatLog?: readonly ChatLogEntry[];
   readonly events: readonly SessionEvent[];
@@ -192,6 +200,8 @@ export interface PatientView {
 export interface SessionStore {
   get(id: string): SessionRecord | undefined;
   set(record: SessionRecord): void;
+  /** すべての接客の記録（販売記録の一覧に使う） */
+  all(): Iterable<SessionRecord>;
 }
 
 /** サーバーのメモリに置く入れ物。開発サーバーの再読み込みで消えないよう globalThis に置く */
@@ -199,7 +209,7 @@ export function memoryStore(): SessionStore {
   const holder = globalThis as unknown as { __modaSessions?: Map<string, SessionRecord> };
   holder.__modaSessions ??= new Map();
   const map = holder.__modaSessions;
-  return { get: (id) => map.get(id), set: (record) => void map.set(record.id, record) };
+  return { get: (id) => map.get(id), set: (record) => void map.set(record.id, record), all: () => map.values() };
 }
 
 export interface ServiceDeps {

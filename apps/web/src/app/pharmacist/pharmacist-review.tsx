@@ -84,10 +84,11 @@ const STATUS_LABELS: Partial<Record<SessionStatus, string>> = {
   emergency_review: "緊急を確認中",
   emergency_ended: "緊急で終了",
   declined: "販売しないで終了",
+  approved: "承認済み",
 };
 
 const ERROR_MESSAGES: Record<string, string> = {
-  CONTRAINDICATED_NOT_SELECTABLE: "禁忌の薬は選べません（解除は承認の作業 T9 で作ります）。",
+  CONTRAINDICATED_NOT_SELECTABLE: "禁忌の薬は選べません（解除は次の作業 T9b で作ります）。",
   QUANTITY_NOT_ALLOWED: "この年齢・個数・包装の組み合わせでは販売できません（18歳未満の大箱・複数個など）。",
   INVALID_TRANSITION: "いまの状態ではこの操作はできません。画面を読み直しました。",
   INTERVIEW_INCOMPLETE: "問診が終わっていません。患者さんの画面に戻って、問診を最後まで進めてください。",
@@ -96,6 +97,11 @@ const ERROR_MESSAGES: Record<string, string> = {
   SESSION_NOT_FOUND: "この接客の記録が見つかりません（サーバーの再起動など）。",
   SESSION_ALREADY_ENDED: "この接客はすでに終わっています。",
   INVALID_REQUEST: "送った内容の形が違います。",
+  PROCEDURE_INCOMPLETE_FOR_APPROVAL: "承認の前に必要な販売手順が終わっていません。チェックリストを確かめてください。",
+  PIN_INVALID: "PIN が違います。",
+  PIN_LOCKED: "PIN を続けて間違えたため、しばらく使えません（5分ほど待ってください）。",
+  PIN_NOT_CONFIGURED: "薬剤師の PIN が設定されていません（サーバーの .env.local に MODA_PHARMACIST_PINS を書いてください）。",
+  UNKNOWN_PHARMACIST: "薬剤師を選んでください。",
 };
 
 /** 自由に入力された文（原文のまま出す。翻訳は T13） */
@@ -329,6 +335,7 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
             if (done) window.location.assign(patientUrl);
           }}
           onDecline={() => void run(() => pharmacistApi.decline(sessionId, reason))}
+          onApprove={(pharmacistId, pin) => void run(() => pharmacistApi.approve(sessionId, pharmacistId, pin))}
           onChooseCandidates={async (drugIds) => {
             // 候補の薬を選ぶと、その薬の項目を聞く問診に戻る（聞く項目がなければ、そのまま薬剤師の確認をやり直す）
             const next = await run(() => pharmacistApi.chooseCandidates(sessionId, drugIds));
@@ -361,6 +368,7 @@ function ReviewBody({
   onBack,
   onDecline,
   onChooseCandidates,
+  onApprove,
 }: {
   view: PharmacistView;
   busy: boolean;
@@ -372,7 +380,11 @@ function ReviewBody({
   onBack: () => void;
   onDecline: () => void;
   onChooseCandidates: (drugIds: StockedDrugId[]) => void;
+  onApprove: (pharmacistId: string, pin: string) => void;
 }) {
+  if (view.status === "approved" || (view.saleRecord !== null && view.status !== "pharmacist_review")) {
+    return <ApprovedSummary view={view} patientUrl={patientUrl} />;
+  }
   if (view.status === "declined") {
     return (
       <Section title="販売しないで終えました">
@@ -480,7 +492,7 @@ function ReviewBody({
                     />
                     <span className="font-semibold">販売する薬として選ぶ</span>
                     {contraindicated ? (
-                      <span className="text-sm text-red-900">禁忌のため選べません（解除は承認の作業 T9 で作ります）</span>
+                      <span className="text-sm text-red-900">禁忌のため選べません（解除は次の作業 T9b で作ります）</span>
                     ) : null}
                   </label>
                 </li>
@@ -503,7 +515,7 @@ function ReviewBody({
           <>
             <p className="text-sm text-slate-500">
               手順の版：{view.procedure.effectiveFrom} 施行。✓ は記録に足していきます（消したり書き換えたりしません）。
-              ✓ がそろうまで承認できない仕組みは、承認の作業（T9）で作ります。
+              承認の前の手順に ✓ がそろうまで、下の「承認する」は押せません。
             </p>
             <ul className="space-y-2">
               {view.procedure.steps.map((step) => (
@@ -521,7 +533,7 @@ function ReviewBody({
                     <span className="flex-1">
                       {step.label}
                       <span className="ml-2 rounded bg-slate-100 px-1.5 text-xs text-slate-600">
-                        {step.gate === "before_approval" ? "承認の前に" : "承認の後・会計の前に（記録は T9・T10）"}
+                        {step.gate === "before_approval" ? "承認の前に" : "承認の後・会計の前に（記録は T10）"}
                       </span>
                     </span>
                     {step.changedAt ? <span className="text-xs text-slate-500">{time(step.changedAt)}</span> : null}
@@ -579,8 +591,9 @@ function ReviewBody({
           </button>
           <p className="text-xs text-slate-500">受診をすすめる患者さん向けの画面は、次の作業（T11）で作ります。</p>
         </div>
-        <p className="text-sm text-slate-500">承認（PIN）は、次の作業（T9）で作ります。</p>
       </Section>
+
+      <ApproveSection view={view} busy={busy} onApprove={onApprove} />
     </>
   );
 }
@@ -638,7 +651,7 @@ function CandidatesSection({
                   <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-900">いま選んでいる薬</span>
                 ) : null}
                 <span className="text-sm">（{c.classification}）</span>
-                {contraindicated ? <span className="text-sm text-red-900">禁忌のため選べません（解除は T9）</span> : null}
+                {contraindicated ? <span className="text-sm text-red-900">禁忌のため選べません（解除は次の作業 T9b）</span> : null}
               </label>
               {known.length > 0 ? (
                 <ul className="list-disc pl-12 text-sm">
@@ -710,5 +723,132 @@ function DrugInfo({ info, age }: { info: PharmacistView["drugs"][number]["info"]
       <dt className="text-slate-500">服用できない年齢</dt>
       <dd>{info.minAge === null ? "制限なし" : `${info.minAge}歳未満`}</dd>
     </dl>
+  );
+}
+
+/**
+ * 薬剤師の PIN での承認（T9a。CLAUDE.md 絶対に守るルール1）。
+ * 承認の前に必要な販売手順の ✓ がそろうまで押せない（サーバーでも同じように止める）。PIN は送ったら画面から消す
+ */
+function ApproveSection({
+  view,
+  busy,
+  onApprove,
+}: {
+  view: PharmacistView;
+  busy: boolean;
+  onApprove: (pharmacistId: string, pin: string) => void;
+}) {
+  const [pharmacists, setPharmacists] = useState<readonly { id: string; name: string }[]>([]);
+  const [pharmacistId, setPharmacistId] = useState("");
+  const [pin, setPin] = useState("");
+  useEffect(() => {
+    let cancelled = false;
+    fetch("/api/pharmacists", { cache: "no-store" })
+      .then(async (r) => (r.ok ? ((await r.json()) as { pharmacists: { id: string; name: string }[] }) : { pharmacists: [] }))
+      .then((data) => {
+        if (!cancelled) setPharmacists(data.pharmacists);
+      })
+      .catch(() => {
+        /* 一覧を読めなければ選べないまま（承認できない側に止まる） */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const missing = (view.procedure?.steps ?? []).filter((s) => s.gate === "before_approval" && !s.checked);
+  const blocked =
+    view.saleDrugIds.length === 0
+      ? "販売する薬を選んでください。"
+      : view.procedureError
+        ? "販売手順を作れないため承認できません。"
+        : missing.length > 0
+          ? `承認の前に必要な手順が残っています：${missing.map((s) => s.label).join("、")}`
+          : null;
+  return (
+    <Section title="承認する（薬剤師の PIN）">
+      {blocked ? <p className="text-amber-900">{blocked}</p> : null}
+      <div className="flex flex-wrap items-end gap-3">
+        <label className="space-y-1">
+          <span className="block text-sm text-slate-600">薬剤師</span>
+          <select
+            value={pharmacistId}
+            onChange={(e) => setPharmacistId(e.target.value)}
+            className="rounded-lg border border-slate-300 px-3 py-2"
+          >
+            <option value="">選んでください</option>
+            {pharmacists.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="space-y-1">
+          <span className="block text-sm text-slate-600">PIN</span>
+          <input
+            type="password"
+            inputMode="numeric"
+            autoComplete="off"
+            maxLength={8}
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/D/g, ""))}
+            className="w-32 rounded-lg border border-slate-300 px-3 py-2"
+          />
+        </label>
+        <button
+          type="button"
+          disabled={busy || blocked !== null || pharmacistId === "" || pin.length < 4}
+          onClick={() => {
+            onApprove(pharmacistId, pin);
+            setPin("");
+          }}
+          className="rounded-xl bg-teal-700 px-5 py-2 font-semibold text-white disabled:opacity-50"
+        >
+          承認して販売記録を作る
+        </button>
+      </div>
+      <p className="text-xs text-slate-500">
+        承認すると、同時に販売記録ができます（あとから書き換えず、直すときは新しい版を足します）。承認の後の手順（書面を渡す・理解の確認など）と説明書の印刷は、次の作業（T10）で作ります。
+      </p>
+    </Section>
+  );
+}
+
+/** 承認したあとの表示（販売記録の版1の内容） */
+function ApprovedSummary({ view, patientUrl }: { view: PharmacistView; patientUrl: string }) {
+  const sale = view.saleRecord;
+  const v = sale?.versions.at(-1);
+  return (
+    <Section title="承認しました">
+      {sale && v ? (
+        <>
+          <p>
+            販売記録：<span className="font-mono text-sm">{sale.id}</span>（版{v.version}）／ 承認した薬剤師：{v.pharmacist.name} ／ 販売日時：
+            {new Date(v.soldAt).toLocaleString("ja-JP", { timeZone: "Asia/Tokyo" })}
+          </p>
+          <ul className="list-disc pl-6">
+            {v.items.map((item) => (
+              <li key={item.drugId}>
+                {item.name}（{item.classification}）{item.packageAmount !== null ? `${item.packageAmount}錠入り` : ""} × {item.quantity}
+              </li>
+            ))}
+          </ul>
+          <p className="text-sm text-slate-600">
+            理解の確認：{v.understanding === "confirmed" ? "済み" : "未（説明書を渡して確認したら、記録に版を足します。T10）"}
+          </p>
+        </>
+      ) : (
+        <p>販売記録を読み込めませんでした。</p>
+      )}
+      <div className="flex flex-wrap gap-3">
+        <a href="/pharmacist/records" className="inline-block rounded-xl border-2 border-slate-300 px-4 py-2 font-semibold">
+          販売記録の一覧を見る
+        </a>
+        <a href={patientUrl} className="inline-block rounded-xl border-2 border-slate-300 px-4 py-2 font-semibold">
+          患者さんの画面に戻る
+        </a>
+      </div>
+    </Section>
   );
 }
