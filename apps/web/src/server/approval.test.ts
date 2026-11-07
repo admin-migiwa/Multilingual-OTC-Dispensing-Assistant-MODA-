@@ -4,7 +4,13 @@ import assert from "node:assert/strict";
 import { DomainRuleError, assertActionAllowed, type InterviewAnswers, type StockedDrugId } from "@moda/domain";
 
 import { approveSale, completedStepIdsOf, listSaleRecords } from "./approval.ts";
-import { checkProcedureStep, chooseSaleDrugs, openPharmacistReview } from "./pharmacist-service.ts";
+import {
+  checkProcedureStep,
+  chooseSaleDrugs,
+  openPharmacistReview,
+  overrideContraindication,
+  returnToDrugSelection,
+} from "./pharmacist-service.ts";
 import { PIN_MAX_FAILURES, PinError, createPinVerifier } from "./pin.ts";
 import {
   SessionServiceError,
@@ -193,5 +199,73 @@ describe("薬剤師の PIN", () => {
 
   it("一覧にない薬剤師は止める", () => {
     assertError(() => createPinVerifier(TEST_PINS).verify("P9", "1234", NOW), "UNKNOWN_PHARMACIST");
+  });
+});
+
+// 禁忌の解除（T9b。CLAUDE.md ルール4・design.md「禁忌の判定と解除」・11/7 依頼主の判断）。
+// 禁忌になる場面は contraindication-tests.md の ☑ の行（K01：ぜんそくで C、K11：解熱鎮痛薬を飲んでいて C）を使う
+describe("禁忌の解除（T9b）", () => {
+  const override = (deps: ServiceDeps, id: string, extra: Partial<{ pin: string; reasonCode: string; reasonText: string | null; drugId: string }> = {}) =>
+    overrideContraindication(deps, createPinVerifier(TEST_PINS), id, {
+      drugId: "C",
+      pharmacistId: "P1",
+      pin: "1234",
+      reasonCode: "switching_not_combined",
+      reasonText: null,
+      ...extra,
+    });
+
+  it("K11：解熱鎮痛薬を飲んでいて禁忌の C も、薬剤師が「切り替えるため併用しない」で解除すれば、販売する薬に選んで承認でき、販売記録に解除の理由が残る", () => {
+    const deps = testDeps();
+    const id = reviewing(deps, ["C"], { currentMedications: ["analgesic"] });
+    assertError(() => chooseSaleDrugs(deps, id, ["C"]), "CONTRAINDICATED_NOT_SELECTABLE");
+    const record = override(deps, id);
+    assert.equal(record.events.at(-1)?.type, "contraindication_overridden");
+    assert.deepEqual(record.events.at(-1)?.detail, ["C", "switching_not_combined", "P1"]);
+    chooseSaleDrugs(deps, id, ["C"]);
+    check(deps, id, ["written_information_prepared"]);
+    const approved = approveSale(deps, createPinVerifier(TEST_PINS), id, { pharmacistId: "P2", pin: "5678" });
+    const overrides = approved.saleRecord?.versions[0]?.overrides ?? [];
+    assert.equal(overrides.length, 1);
+    assert.equal(overrides[0]?.reasonCode, "switching_not_combined");
+    assert.equal(overrides[0]?.pharmacist.id, "P1");
+    assert.ok((overrides[0]?.judgedReasons.length ?? 0) > 0);
+  });
+
+  it("K01：PIN が違えば解除できず、記録は変わらない", () => {
+    const deps = testDeps();
+    const id = reviewing(deps, ["C"], { asthmaHistory: "yes" });
+    const before = getSession(deps, id);
+    assertError(() => override(deps, id, { pin: "0000" }), "PIN_INVALID");
+    assert.equal(getSession(deps, id), before);
+  });
+
+  it("K01：「その他」は理由の文がなければ解除できない", () => {
+    const deps = testDeps();
+    const id = reviewing(deps, ["C"], { asthmaHistory: "yes" });
+    assertError(() => override(deps, id, { reasonCode: "other", reasonText: " " }), "OVERRIDE_REASON_INVALID");
+    assert.equal(override(deps, id, { reasonCode: "other", reasonText: "医師に確認した" }).pharmacistReviews?.at(-1)?.overrides?.[0]?.reasonText, "医師に確認した");
+  });
+
+  it("禁忌ではない薬は解除しない", () => {
+    const deps = testDeps();
+    const id = reviewing(deps, ["G"]);
+    assertError(() => override(deps, id, { drugId: "G" }), "NOT_CONTRAINDICATED");
+  });
+
+  it("K01：解除はその確認の中だけ。「戻る」で確認を閉じて開き直すと、もう一度解除しないと選べない", () => {
+    const deps = testDeps();
+    const id = reviewing(deps, ["C"], { asthmaHistory: "yes" });
+    override(deps, id, { reasonCode: "confirmed_not_applicable" });
+    returnToDrugSelection(deps, id);
+    openPharmacistReview(deps, id);
+    assertError(() => chooseSaleDrugs(deps, id, ["C"]), "CONTRAINDICATED_NOT_SELECTABLE");
+  });
+
+  it("解除の自由記述は、履歴（events）に入れない", () => {
+    const deps = testDeps();
+    const id = reviewing(deps, ["C"], { asthmaHistory: "yes" });
+    const record = override(deps, id, { reasonCode: "other", reasonText: "SECRET-NOTE" });
+    assert.equal(JSON.stringify(record.events).includes("SECRET-NOTE"), false);
   });
 });

@@ -15,6 +15,7 @@ import { selectProcedureVersion } from "../sales-procedure/data.ts";
 import { buildRequiredProcedure } from "../sales-procedure/procedure.ts";
 import { classifyPackage } from "../sales-procedure/quantity.ts";
 import type { AbusePreventionAnswers } from "../interview/items.ts";
+import { checkOverrideReason } from "./override.ts";
 import { assertSaleSelectable, questionsAskedForDrug, saleSelectionsFor } from "./review.ts";
 
 const DEMO_DATE = "2026-11-08";
@@ -130,6 +131,15 @@ describe("禁忌の薬は選べない（contraindication-tests.md の K 行）",
     assert.doesNotThrow(() => assertSaleSelectable(judgeDrugs(["C"], facts), ["C"]));
   });
 
+  // 解除の仕組み（CLAUDE.md ルール4・design.md「禁忌の判定と解除」）。K01 は禁忌になる場面として使う（解除の可否そのものは表にない）
+  it("K01：薬剤師が解除した C だけは、禁忌でも販売する薬として選べる（解除していない薬は選べないまま）", () => {
+    assert.doesNotThrow(() => assertSaleSelectable(judgeDrugs(["C"], asthma), ["C"], ["C"]));
+    assert.throws(
+      () => assertSaleSelectable(judgeDrugs(["C", "D"], asthma), ["C", "D"], ["C"]),
+      (error: unknown) => error instanceof DomainRuleError && error.code === "CONTRAINDICATED_NOT_SELECTABLE",
+    );
+  });
+
   it("禁忌判定をしていない薬は選べない", () => {
     assert.throws(
       () => assertSaleSelectable(judgeDrugs(["G"], BASE), ["J"]),
@@ -157,5 +167,23 @@ describe("その薬のために聞いた項目（interview-items.md の聞く条
     for (const drug of ["A", "G", "H"] as const) {
       assert.ok(questionsAskedForDrug({ answers, selectedDrugs: [drug], route: "product" }, drug).includes("Q09"));
     }
+  });
+});
+
+describe("禁忌の解除の理由（design.md の理由リスト＋11/7 依頼主の判断）", () => {
+  it("リストの理由は受け取り、「その他」は文がなければ止める", () => {
+    assert.deepEqual(checkOverrideReason("switching_not_combined", null), { code: "switching_not_combined", text: null });
+    assert.deepEqual(checkOverrideReason("other", " 医師に電話で確認 "), { code: "other", text: "医師に電話で確認" });
+    assert.throws(
+      () => checkOverrideReason("other", "  "),
+      (error: unknown) => error instanceof DomainRuleError && error.code === "OVERRIDE_REASON_INVALID",
+    );
+  });
+
+  it("リストにない理由は止める", () => {
+    assert.throws(
+      () => checkOverrideReason("because", null),
+      (error: unknown) => error instanceof DomainRuleError && error.code === "OVERRIDE_REASON_INVALID",
+    );
   });
 });

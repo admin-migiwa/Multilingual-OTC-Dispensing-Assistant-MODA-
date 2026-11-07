@@ -133,7 +133,9 @@ export type SessionEventType =
   // 翻訳のチャットで1回訳した（中身は chatLog にだけ残す。backlog S-13）
   | "chat_translated"
   // 薬剤師が PIN で承認し、販売記録を作った（薬剤師 ID と販売記録 ID だけ。T9a）
-  | "approved";
+  | "approved"
+  // 薬剤師が PIN で再認証して禁忌を解除した（薬の記号・理由の種類・薬剤師 ID だけ。自由記述は入れない。T9b）
+  | "contraindication_overridden";
 
 export interface SessionEvent {
   readonly at: string;
