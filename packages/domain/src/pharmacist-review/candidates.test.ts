@@ -123,13 +123,13 @@ describe("候補の薬を選んで、その薬の項目を聞く問診に戻す"
     assert.equal(judgeDrug("A", not.answers).verdict, "ok"); // K46
   });
 
-  it("K47：A と J を一緒に選ぶと A のために聞いた妊娠の答えを J にも使い、J だけに選び直すとその答えは残らない（選べるかは、選んだあとの組み合わせの答えで確かめる）", () => {
-    // A と J を選んで妊娠していると答えた11歳の女性：J は注意（禁忌ではない）
+  it("K47・K51：A と J を一緒に選んで妊娠していると答えた11歳の女性は、薬剤師が J だけに選び直しても、その答えを J の判定に使い続ける（J は注意）", () => {
     const start = symptomState(CHILD11);
     const both = applyAnswers(selectCandidateDrugs(start, ["A", "J"]), { pregnancy: "pregnant", dueWithin12Weeks: "no", breastfeeding: "no" });
-    assert.equal(judgeDrug("J", both.answers).verdict, "caution");
+    assert.equal(judgeDrug("J", both.answers).verdict, "caution"); // K47
     const onlyJ = selectCandidateDrugs(both, ["J"]);
-    // J だけなら12歳未満には妊娠を聞かない（interview-items.md Q03 の聞く条件）ので、A のために聞いた答えは残らない
-    assert.equal(onlyJ.answers.pregnancy, undefined);
+    assert.equal(onlyJ.answers.pregnancy, "pregnant");
+    assert.equal(nextQuestion(onlyJ), null); // J だけなら12歳未満には聞かないので、聞き直さない
+    assert.equal(judgeDrug("J", onlyJ.answers).verdict, "caution"); // K51
   });
 });

@@ -419,8 +419,23 @@ function ReviewBody({
                 </td>
               </tr>
             ))}
+            {view.keptQuestionIds.map((id) => (
+              <tr key={`kept-${id}`} className="border-t border-slate-100 bg-slate-50 align-top">
+                <td className="w-14 py-2 text-sm text-slate-500">{id}</td>
+                <td className="w-72 py-2 pr-3">
+                  {QUESTION_LABELS[id]}
+                  <span className="block text-xs text-slate-500">前に選んだ薬のために聞いた答え（判定に使います）</span>
+                </td>
+                <td className="py-2 font-semibold">
+                  <AnswerText id={id} answers={view.answers} />
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
+        {view.pastDrugNames.length > 0 ? (
+          <p className="text-sm text-slate-600">前に選んでいた薬：{view.pastDrugNames.join("、")}（選び直しで外れました）</p>
+        ) : null}
       </Section>
 
       <Section title="選んだ薬と禁忌の判定">
@@ -592,7 +607,7 @@ function CandidatesSection({
       <p className="text-sm text-slate-600">
         いまの答えでの仮の判定です（まだ聞いていない項目は判定していません。「問題なし」は、その薬の項目をすべて答えているときだけ出します）。
         症状から薬を自動で選ぶ仕組みはありません。症状の原文を見て選んでください。
-        {noDrug ? "" : "選ぶと、いま選んでいる薬と入れ替わります。"}
+        {noDrug ? "" : "チェックした薬の組み合わせに選び直します（いま選んでいる薬も、残すならチェックしてください）。"}
       </p>
       <ul className="space-y-2">
         {view.candidates.map((c) => {
@@ -618,6 +633,9 @@ function CandidatesSection({
                 />
                 <span className="rounded-lg border bg-white px-2 py-0.5 text-sm font-bold">{style.text}</span>
                 <span className="font-bold">{c.name}</span>
+                {view.drugs.some((d) => d.drugId === c.drugId) ? (
+                  <span className="rounded-full bg-teal-100 px-2 py-0.5 text-xs text-teal-900">いま選んでいる薬</span>
+                ) : null}
                 <span className="text-sm">（{c.classification}）</span>
                 {contraindicated ? <span className="text-sm text-red-900">禁忌のため選べません（解除は T9）</span> : null}
               </label>

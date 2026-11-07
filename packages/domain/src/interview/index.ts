@@ -25,6 +25,7 @@ export {
   applyAnswers,
   applyAnswersWithReport,
   selectDrugs,
+  keptQuestionsFromPastDrugs,
   factsForJudgment,
   abusePreventionAnswers,
   type InterviewState,

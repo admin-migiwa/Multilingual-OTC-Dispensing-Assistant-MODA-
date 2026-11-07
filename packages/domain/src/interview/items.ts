@@ -127,7 +127,9 @@ export const QUESTIONS: readonly QuestionDefinition[] = [
     id: "Q03a",
     stage: "basic",
     answerKeys: ["dueWithin12Weeks"],
-    askWhen: (ctx) => asksPregnancyQuestions(ctx) && ctx.answers.pregnancy === "pregnant",
+    // interview-items.md の聞く条件のとおり「Q03 で妊娠している」なら聞く。前に選んでいた薬（A）のために聞いた妊娠の答えが残っていて、
+    // いまの薬だけなら妊娠を聞かない年齢でも、その答えを判定に使うので続きを聞く（11/7 依頼主の判断。backlog C-17）
+    askWhen: (ctx) => ctx.answers.pregnancy === "pregnant",
   },
   { id: "Q04", stage: "basic", answerKeys: ["breastfeeding"], askWhen: asksPregnancyQuestions },
   {

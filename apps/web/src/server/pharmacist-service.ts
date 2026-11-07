@@ -26,6 +26,7 @@ import {
   isInterviewComplete,
   judgeDrugs,
   nextQuestion,
+  keptQuestionsFromPastDrugs,
   previewCandidates,
   selectCandidateDrugs,
   type CandidatePreview,
@@ -308,6 +309,11 @@ export interface PharmacistView {
   readonly answers: InterviewAnswers;
   /** いまの問診で聞いた項目（聞く順番） */
   readonly askedQuestionIds: readonly QuestionId[];
+  /**
+   * 前に選んでいて、選び直しで外れた薬の名前と、その薬のために聞いて残っている答えの項目（判定に使う。11/7 依頼主の判断。backlog C-17）
+   */
+  readonly pastDrugNames: readonly string[];
+  readonly keptQuestionIds: readonly QuestionId[];
   /** 「症状から探す」で入力された症状（原文） */
   readonly symptomText: string | null;
   /** 患者さんが選んだ薬と、その判定（薬剤師の確認中だけ。問診が終わっていないと判定しない） */
@@ -324,7 +330,7 @@ export interface PharmacistView {
   /** 薬剤師が一度でも「緊急ではない」と判断したか（翻訳のチャットに渡す。patientView と同じ。CLAUDE.md ルール2の例外） */
   readonly emergencyCleared: boolean;
   /**
-   * 候補の薬・代わりの薬（いま選んでいない取扱薬）の、いまの答えでの仮の判定（薬剤師の確認中だけ。backlog C-03）。
+   * 候補の薬・代わりの薬（取扱薬すべて。いま選んでいる薬も含む）の、いまの答えでの仮の判定（薬剤師の確認中だけ。backlog C-03）。
    * 禁忌にならない薬が先。選ぶと、その薬の項目を聞く問診に戻る
    */
   readonly candidates: readonly (CandidatePreview & { readonly name: string; readonly classification: string })[];
@@ -390,6 +396,8 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
     route: record.interview.route ?? null,
     answers: record.interview.answers,
     askedQuestionIds,
+    pastDrugNames: (record.interview.pastDrugs ?? []).map((d) => STOCKED_DRUGS.find((s) => s.id === d)?.name ?? d),
+    keptQuestionIds: keptQuestionsFromPastDrugs(record.interview),
     symptomText: record.symptomText,
     drugs,
     saleDrugIds,
@@ -403,7 +411,8 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
 }
 
 function candidatesOf(record: SessionRecord): PharmacistView["candidates"] {
-  const ids = STOCKED_DRUGS.map((d) => d.id).filter((drugId) => !record.interview.selectedDrugs.includes(drugId));
+  // いま選んでいる薬も並べる（例：A と J から J だけに選び直せるように。11/7 依頼主の判断・C-17）
+  const ids = STOCKED_DRUGS.map((d) => d.id);
   return previewCandidates(record.interview, ids).map((preview) => {
     const drug = STOCKED_DRUGS.find((d) => d.id === preview.drugId);
     if (!drug) throw new DomainRuleError("UNKNOWN_DRUG", `取扱薬 ${preview.drugId} が見つかりません`);
