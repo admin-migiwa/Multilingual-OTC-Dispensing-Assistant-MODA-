@@ -11,6 +11,8 @@ import { OVERRIDE_REASONS } from "@moda/domain";
 
 import type { SaleRecord } from "@/server/approval";
 
+import { ModaBrand } from "../../decor";
+
 /** 版を足した理由の表示 */
 const REASON_LABELS: Record<string, string> = {
   approved: "承認",
@@ -57,7 +59,10 @@ export function SaleRecords() {
         >
           ← 戻る
         </button>
-        <p className="text-sm font-semibold tracking-widest text-teal-700">MODA 薬剤師用</p>
+        <div className="flex items-center gap-3">
+          <ModaBrand />
+          <span className="rounded-full bg-teal-700 px-3 py-1 text-sm font-bold text-white">薬剤師用</span>
+        </div>
         <h1 className="text-3xl font-bold">販売記録の一覧</h1>
         <p className="text-sm text-slate-500">
           承認と同時に作った記録です。書き換えず、直すときや理解の確認の結果は新しい版として足します。サーバーを止めると消えます（ハッカソン版）。
@@ -70,7 +75,7 @@ export function SaleRecords() {
         {(records ?? []).map((record) => {
           const latest = record.versions.at(-1);
           return (
-            <li key={record.id} className="space-y-2 rounded-2xl border border-slate-200 p-4">
+            <li key={record.id} className="space-y-2 rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
               <p className="font-semibold">
                 {latest ? time(latest.soldAt) : ""} ／ 販売記録 <span className="font-mono text-sm">{record.id}</span>（版{latest?.version}）
                 {latest?.reason === "approval_cancelled" ? <span className="ml-2 rounded bg-red-100 px-2 text-red-900">承認を取り消し中</span> : null}

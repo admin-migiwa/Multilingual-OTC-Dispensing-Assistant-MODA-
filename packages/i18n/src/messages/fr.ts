@@ -161,4 +161,15 @@ export const fr: Messages = {
     title: "Paiement",
     body: "Veuillez payer à la caisse. Prenez soin de vous.",
   },
+  guide: {
+    language: "Touchez votre langue.",
+    steps: { questions: "Répondre aux questions", review: "Vérification du pharmacien", explain: "Votre médicament", checkout: "Paiement" },
+    start: "Touchez l'option qui vous correspond.",
+    search: "Cherchez le médicament souhaité, puis sélectionnez-le.",
+    question: "Répondez à une question à la fois, puis passez à la suivante. En cas de doute, demandez au personnel.",
+    symptom: "Décrivez vos symptômes avec vos propres mots.",
+    waiting: "Veuillez montrer cet iPad au personnel.",
+    guidance: "Lisez l'explication, puis répondez à la question ci-dessous.",
+    checkout: "Pour finir, dites-nous ce que vous avez pensé de l'explication d'aujourd'hui.",
+  },
 };

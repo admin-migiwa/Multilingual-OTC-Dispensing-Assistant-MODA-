@@ -161,4 +161,15 @@ export const en: Messages = {
     title: "Payment",
     body: "Please pay at the cashier. Take care of yourself.",
   },
+  guide: {
+    language: "Tap your language.",
+    steps: { questions: "Answer questions", review: "Pharmacist check", explain: "About your medicine", checkout: "Payment" },
+    start: "Tap the one that fits you.",
+    search: "Find the medicine you want and choose it.",
+    question: "Answer one at a time, then go to the next. If you are not sure, ask the staff.",
+    symptom: "Describe your symptoms in your own words.",
+    waiting: "Please show this iPad to the staff.",
+    guidance: "Please read the explanation, then answer the question below.",
+    checkout: "Lastly, please tell us about today's explanation.",
+  },
 };

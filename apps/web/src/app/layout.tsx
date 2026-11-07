@@ -19,7 +19,8 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="ja">
-      <body className="min-h-dvh bg-white text-slate-900 antialiased">
+      {/* 背景は淡いティールの重ね合わせ（ぼかしは iPad で重くなるので使わない）。印刷のときは白 */}
+      <body className="min-h-dvh bg-teal-50 bg-[radial-gradient(circle_at_10%_0%,#ccfbf1_0,transparent_45%),radial-gradient(circle_at_90%_100%,#e0f2fe_0,transparent_50%)] text-slate-900 antialiased print:bg-white print:bg-none">
         {children}
         <ServiceWorkerRegister />
       </body>
