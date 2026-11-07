@@ -84,9 +84,9 @@ export function StaffAfterApprovalPanel({
       // 理解の確認の答えが変わったら、開き直す（たたんだままにしない）
       key={`${after?.understanding ?? "loading"}:${needsAgain}`}
       open={needsAgain || after?.understanding === "confirmed"}
-      className="rounded-2xl border border-teal-300 bg-white p-3"
+      className="rounded-2xl border border-indigo-300 bg-indigo-50 p-3"
     >
-      <summary className="cursor-pointer text-sm font-semibold text-teal-900">薬剤師用：会計の前の手順と会計案内</summary>
+      <summary className="cursor-pointer text-sm font-semibold text-indigo-900">薬剤師用：会計の前の手順と会計案内</summary>
       <div className="mt-3 space-y-3 text-sm">
         {error ? (
           <p role="alert" className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-red-900">
@@ -147,7 +147,7 @@ export function StaffAfterApprovalPanel({
                     if (next !== null) onCheckout();
                   })()
                 }
-                className="rounded-lg bg-teal-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
+                className="rounded-lg bg-indigo-700 px-4 py-2 font-semibold text-white disabled:opacity-50"
               >
                 会計案内に進む
               </button>
@@ -159,7 +159,7 @@ export function StaffAfterApprovalPanel({
         )}
         <a
           href={`/pharmacist/${encodeURIComponent(sessionId)}`}
-          className="inline-block rounded-lg border border-teal-400 px-3 py-1.5 text-xs font-semibold text-teal-900 hover:bg-teal-50"
+          className="inline-block rounded-lg border border-indigo-400 px-3 py-1.5 text-xs font-semibold text-indigo-900 hover:bg-indigo-50"
         >
           薬剤師の確認の画面を開く（説明書の作り直し・印刷など）
         </a>
