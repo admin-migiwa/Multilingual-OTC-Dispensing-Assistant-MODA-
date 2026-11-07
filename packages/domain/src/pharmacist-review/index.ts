@@ -14,3 +14,11 @@ export {
   checkOverrideReason,
   type OverrideReasonCode,
 } from "./override.ts";
+export {
+  SYMPTOM_CATEGORIES,
+  matchingSymptomCategories,
+  drugMatchesSearch,
+  visibleCandidates,
+  type SymptomCategory,
+  type SymptomCategoryId,
+} from "./drug-finder.ts";
