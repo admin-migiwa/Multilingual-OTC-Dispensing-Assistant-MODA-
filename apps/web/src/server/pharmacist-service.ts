@@ -16,7 +16,10 @@ import {
   DomainRuleError,
   QUESTIONS,
   STOCKED_DRUGS,
+  INGREDIENTS,
   abusePreventionAnswers,
+  doseForAge,
+  findStockedDrug,
   assertInterviewComplete,
   assertSaleSelectable,
   buildRequiredProcedure,
@@ -282,7 +285,41 @@ export function declineSale(deps: ServiceDeps, id: string, reason: string): Sess
 // 薬剤師の画面に返す内容（日本語の画面だけが使う。患者さんの画面には返さない）
 // ---------------------------------------------------------------------------
 
+/**
+ * 薬の基本の情報（添付文書の基本の項目にあたるもの。docs/demo-data/drugs.md の架空のデータ。11/7 依頼主の要望）。
+ * 成分は架空成分の記号と種類だけを出す（実在の成分名・商品名は出さない）
+ */
+export interface DrugInfoView {
+  readonly ingredients: readonly { readonly name: string; readonly kind: string }[];
+  /** 表に「ほか」とあり、成分の全部はわからない */
+  readonly hasUnlistedIngredients: boolean;
+  /** 効き目の分類 */
+  readonly category: string;
+  /** 用法・用量（表のとおり） */
+  readonly usage: string;
+  /** 年齢別の用量の表がある薬だけ：患者さんの年齢に当たる1回量（服用しない年齢なら null） */
+  readonly doseForPatient: { readonly dose: string | null } | null;
+  readonly packages: string;
+  /** 服用できない年齢（この年齢未満）。制限なしは null */
+  readonly minAge: number | null;
+}
+
+function drugInfoOf(drugId: StockedDrugId, age: number | undefined): DrugInfoView {
+  const drug = findStockedDrug(drugId);
+  const row = age === undefined ? null : doseForAge(drugId, age);
+  return {
+    ingredients: drug.ingredients.map((id) => ({ name: INGREDIENTS[id].name, kind: INGREDIENTS[id].kind })),
+    hasUnlistedIngredients: drug.hasUnlistedIngredients,
+    category: drug.category,
+    usage: drug.usage,
+    doseForPatient: row === null ? null : { dose: row.dose },
+    packages: drug.packages,
+    minAge: drug.minAge,
+  };
+}
+
 export interface PharmacistDrugView {
+  readonly info: DrugInfoView;
   readonly drugId: StockedDrugId;
   readonly name: string;
   readonly classification: string;
@@ -333,7 +370,11 @@ export interface PharmacistView {
    * 候補の薬・代わりの薬（取扱薬すべて。いま選んでいる薬も含む）の、いまの答えでの仮の判定（薬剤師の確認中だけ。backlog C-03）。
    * 禁忌にならない薬が先。選ぶと、その薬の項目を聞く問診に戻る
    */
-  readonly candidates: readonly (CandidatePreview & { readonly name: string; readonly classification: string })[];
+  readonly candidates: readonly (CandidatePreview & {
+    readonly name: string;
+    readonly classification: string;
+    readonly info: DrugInfoView;
+  })[];
 }
 
 export function pharmacistView(record: SessionRecord, now: Date): PharmacistView {
@@ -355,6 +396,7 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
     const drug = STOCKED_DRUGS.find((d) => d.id === judgment.drugId);
     if (!drug) throw new DomainRuleError("UNKNOWN_DRUG", `取扱薬 ${judgment.drugId} が見つかりません`);
     return {
+      info: drugInfoOf(drug.id, record.interview.answers.age),
       drugId: drug.id,
       name: drug.name,
       classification: drug.classification,
@@ -416,6 +458,6 @@ function candidatesOf(record: SessionRecord): PharmacistView["candidates"] {
   return previewCandidates(record.interview, ids).map((preview) => {
     const drug = STOCKED_DRUGS.find((d) => d.id === preview.drugId);
     if (!drug) throw new DomainRuleError("UNKNOWN_DRUG", `取扱薬 ${preview.drugId} が見つかりません`);
-    return { ...preview, name: drug.name, classification: drug.classification };
+    return { ...preview, name: drug.name, classification: drug.classification, info: drugInfoOf(drug.id, record.interview.answers.age) };
   });
 }

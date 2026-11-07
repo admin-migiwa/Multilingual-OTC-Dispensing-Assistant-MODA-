@@ -466,6 +466,7 @@ function ReviewBody({
                       ))}
                     </ul>
                   ) : null}
+                  <DrugInfo info={drug.info} age={view.answers.age} />
                   <p className="text-sm text-slate-700">
                     この薬のために聞いた項目：{drug.questionIds.map((q) => `${q} ${QUESTION_LABELS[q]}`).join("、")}
                   </p>
@@ -648,6 +649,9 @@ function CandidatesSection({
                   ))}
                 </ul>
               ) : null}
+              <div className="pl-9">
+                <DrugInfo info={c.info} age={view.answers.age} />
+              </div>
               {c.status === "needs_questions" && !contraindicated ? (
                 <p className="pl-9 text-sm">選ぶと追加で聞く項目：{c.questionIds.map((q) => `${q} ${QUESTION_LABELS[q]}`).join("、")}</p>
               ) : null}
@@ -675,5 +679,36 @@ function CandidatesSection({
         <div className="mt-3 space-y-3">{body}</div>
       </details>
     </section>
+  );
+}
+
+/**
+ * 薬の基本の情報（成分・効き目の分類・用法用量・包装・服用できない年齢。docs/demo-data/drugs.md の架空のデータ。11/7 依頼主の要望）。
+ * 添付文書の代わりではない（ハッカソン版は架空の薬だけ）。用量は、年齢別の表がある薬だけ患者さんの年齢に当たる量を出す
+ */
+function DrugInfo({ info, age }: { info: PharmacistView["drugs"][number]["info"]; age: number | undefined }) {
+  return (
+    <dl className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-0.5 rounded-lg bg-white/70 px-3 py-2 text-sm text-slate-800">
+      <dt className="text-slate-500">成分</dt>
+      <dd>
+        {info.ingredients.map((i) => `${i.name}（${i.kind}）`).join("、")}
+        {info.hasUnlistedIngredients ? "　ほか" : ""}
+      </dd>
+      <dt className="text-slate-500">効き目の分類</dt>
+      <dd>{info.category}</dd>
+      <dt className="text-slate-500">用法・用量</dt>
+      <dd>
+        {info.usage}
+        {info.doseForPatient !== null && age !== undefined ? (
+          <span className="block font-semibold">
+            {age}歳の1回量：{info.doseForPatient.dose ?? "服用しない年齢です"}
+          </span>
+        ) : null}
+      </dd>
+      <dt className="text-slate-500">包装</dt>
+      <dd>{info.packages}</dd>
+      <dt className="text-slate-500">服用できない年齢</dt>
+      <dd>{info.minAge === null ? "制限なし" : `${info.minAge}歳未満`}</dd>
+    </dl>
   );
 }
