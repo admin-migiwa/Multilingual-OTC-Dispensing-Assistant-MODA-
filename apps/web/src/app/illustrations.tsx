@@ -150,6 +150,21 @@ export function IllustThanks({ className = "h-16 w-16" }: IllustProps) {
   );
 }
 
+/** 救急車（119番の案内の赤い帯の中。白と赤だけで描く） */
+export function IllustAmbulance({ className = "h-12 w-16" }: IllustProps) {
+  return (
+    <svg viewBox="0 0 64 44" aria-hidden="true" className={className}>
+      <path d="M4 10h34v26H4z" fill="#ffffff" />
+      <path d="M38 16h12l10 10v10H38z" fill="#ffffff" />
+      <path d="M42 19h7l6 7H42z" fill="#fecaca" />
+      <path d="M17 15h6v5h5v6h-5v5h-6v-5h-5v-6h5z" fill="#b91c1c" />
+      <rect x="14" y="5" width="8" height="5" rx="1.5" fill="#fecaca" />
+      <circle cx="15" cy="37" r="5" fill="#7f1d1d" stroke="#ffffff" strokeWidth="2" />
+      <circle cx="49" cy="37" r="5" fill="#7f1d1d" stroke="#ffffff" strokeWidth="2" />
+    </svg>
+  );
+}
+
 // ---------------------------------------------------------------------------
 
 /** 画面の上の「この画面ですること」（絵と短い説明） */

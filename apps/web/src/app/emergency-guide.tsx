@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import type { EmergencyHit } from "@moda/domain";
 import { LANGUAGES, getMessages, needsAiTranslationNotice, type LanguageCode } from "@moda/i18n";
 
+import { IllustAmbulance, IllustPharmacist } from "./illustrations";
 import { FollowUpPharmacistPanel, type FollowUpState } from "./emergency-follow-up";
 
 /**
@@ -104,16 +105,22 @@ export function EmergencyGuide({
               ))}
             </ul>
           ) : (
-            <p lang={language} className="text-2xl font-bold">
-              {getMessages(language).emergency.staffHelp}
-            </p>
+            <div className="flex items-center gap-4">
+              <IllustPharmacist className="h-20 w-20 shrink-0" />
+              <p lang={language} className="min-w-0 text-2xl font-bold">
+                {getMessages(language).emergency.staffHelp}
+              </p>
+            </div>
           )}
           {aiNotice}
         </div>
 
-        <div lang="ja" className="space-y-4 rounded-2xl border-2 border-slate-300 p-5">
+        <div lang="ja" className="space-y-4 rounded-2xl bg-white p-5 shadow-sm ring-2 ring-slate-200">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-xl font-bold">薬剤師の確認：119番の案内を出しますか？</h2>
+            <h2 className="flex items-center gap-2 text-xl font-bold">
+              <span aria-hidden="true" className="h-6 w-1.5 shrink-0 rounded-full bg-red-600" />
+              薬剤師の確認：119番の案内を出しますか？
+            </h2>
             {/* 明らかに救急のときに、下まで操作せずにすぐ案内へ進めるように上にも置く */}
             <button
               type="button"
@@ -198,6 +205,7 @@ export function EmergencyGuide({
       {language === null ? (
         <div className="space-y-4 rounded-3xl border-4 border-red-700 bg-red-50 p-6">
           <div className="flex items-center gap-4 rounded-2xl bg-red-700 px-5 py-4 text-white">
+            <IllustAmbulance className="h-12 w-16 shrink-0" />
             <span className="text-5xl font-black tracking-wider">119</span>
           </div>
           <div lang="ja">{languagePicker}</div>
@@ -206,7 +214,7 @@ export function EmergencyGuide({
         <GuideBody language={language} aiNotice={aiNotice} />
       )}
 
-      <div lang="ja" className="space-y-3 rounded-2xl border-2 border-slate-300 p-5">
+      <div lang="ja" className="space-y-3 rounded-2xl bg-white p-5 shadow-sm ring-2 ring-slate-200">
         <p className="text-base">{jaEmergency.call119}</p>
         {cancelFailed ? (
           <p className="text-sm text-slate-700">取り消しを記録できませんでした。通信を確かめて、もう一度押してください。</p>
@@ -254,9 +262,10 @@ function GuideBody({ language, aiNotice }: { language: LanguageCode; aiNotice: R
       <h1 className="text-3xl font-bold text-red-800">{t.title}</h1>
       <p className="text-xl">{t.body}</p>
 
-      <div className="flex items-center gap-4 rounded-2xl bg-red-700 px-5 py-4 text-white">
+      <div className="flex flex-wrap items-center gap-4 rounded-2xl bg-red-700 px-5 py-4 text-white">
+        <IllustAmbulance className="h-12 w-16 shrink-0" />
         <span className="text-5xl font-black tracking-wider">119</span>
-        <span className="text-lg font-semibold">{t.call119}</span>
+        <span className="min-w-0 flex-1 text-lg font-semibold">{t.call119}</span>
       </div>
 
       <p className="rounded-2xl bg-white px-5 py-4 text-lg font-semibold">{t.staffHelp}</p>
