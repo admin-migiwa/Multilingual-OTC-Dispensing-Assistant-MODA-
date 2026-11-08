@@ -48,6 +48,8 @@ const escapeXml = (s) => s.replace(/[<>&'"]/g, (c) => ({ "<": "&lt;", ">": "&gt;
  * 1文を読み上げて WAV に保存する。
  * voice: { name, rate, pitch, pause?, style?, emphasisRate?, emphasisPitch?, emphasisGainDb? }
  * 原稿の {…} で囲んだ大事な言葉は、少しゆっくり・少し高めに読ませ、さらにその部分だけ後から音量を上げる。
+ * [名前] は読まずに、その言葉の位置（秒）を marks.名前 で返す（場面の動きをナレーションの途中の言葉に合わせるため）。
+ * | は一呼吸（話の向きが変わるところに置く）。
  * （Azure の volume 指定はほとんど効かないため、言葉の位置を Azure の「しおり（bookmark）」で受け取り、FFmpeg で上げる）
  */
 export async function azureSpeak(text, voice, outWav, config = loadAzureConfig()) {
@@ -56,16 +58,28 @@ export async function azureSpeak(text, voice, outWav, config = loadAzureConfig()
   // 同じ原稿なら毎回同じ揺れになるよう、原稿から決まる乱数を使う（作り直しても結果が変わらない）。
   const rand = seededRandom(text);
   const wob = voice.wobble;
-  if (wob) {
-    const signed = (range) => {
-      const v = (rand() * 2 - 1) * range;
-      return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
-    };
-    body = body
-      .split(/(?<=[、。])/)
-      .map((p) => `<prosody rate="${signed(wob.rate)}" pitch="${signed(wob.pitch)}">${p}</prosody>`)
-      .join("");
-  }
+  const signed = (range) => {
+    const v = (rand() * 2 - 1) * range;
+    return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+  };
+  const wobbleChunk = (chunk) =>
+    wob
+      ? chunk
+          .split(/(?<=[、。])/)
+          .map((p) => `<prosody rate="${signed(wob.rate)}" pitch="${signed(wob.pitch)}">${p}</prosody>`)
+          .join("")
+      : chunk;
+  // 気持ちの込め方：^…^ は明るく（少し高く・少し速く）、~…~ はやわらかく（少し低く・ゆっくり）。句の切れ目で区切って使う
+  const TONE = { "^": voice.brightTone ?? { pitch: "+7%", rate: "+3%" }, "~": voice.softTone ?? { pitch: "-4%", rate: "-7%" } };
+  body = body
+    .split(/(\^[^^]*\^|~[^~]*~)/)
+    .filter(Boolean)
+    .map((c) => {
+      const tone = TONE[c[0]];
+      if (!tone || c[c.length - 1] !== c[0] || c.length < 2) return wobbleChunk(c);
+      return `<prosody pitch="${tone.pitch}" rate="${tone.rate}">${wobbleChunk(c.slice(1, -1))}</prosody>`;
+    })
+    .join("");
   // 文の切れ目（。）に少し間を入れると、読み上げっぽさが減る（voice.pause＝ミリ秒。揺れがあるときは長さを少し変える）
   if (voice.pause) {
     body = body.replace(/。(<\/prosody>)?(?=.)/g, (_m, close = "") => {
@@ -73,6 +87,9 @@ export async function azureSpeak(text, voice, outWav, config = loadAzureConfig()
       return `。${close}<break time="${ms}ms"/>`;
     });
   }
+  // [名前] のすぐ後に {…} があると、同じ位置のしおりが1つしか届かないので、その強調の始まり（s番号）で代わりにする
+  const markToEmphasis = {};
+  for (const m of text.matchAll(/\[([a-z0-9_]+)\]\{/g)) markToEmphasis[m[1]] = (text.slice(0, m.index).match(/\{/g) ?? []).length;
   const slow = voice.emphasisRate ?? "-12%";
   const lift = voice.emphasisPitch ?? "+3%";
   let n = 0;
@@ -80,6 +97,8 @@ export async function azureSpeak(text, voice, outWav, config = loadAzureConfig()
     const i = n++;
     return `<bookmark mark="s${i}"/><prosody rate="${slow}" pitch="${lift}">${w}</prosody><bookmark mark="e${i}"/>`;
   });
+  body = body.replace(/\[([a-z0-9_]+)\]/g, (_, m) => `<bookmark mark="m_${m}"/>`);
+  body = body.replace(/\|/g, `<break time="${voice.breath ?? 380}ms"/>`);
   const prosody = `<prosody rate="${voice.rate ?? "+0%"}" pitch="${voice.pitch ?? "+0%"}">${body}</prosody>`;
   const inner = voice.style ? `<mstts:express-as style="${voice.style}">${prosody}</mstts:express-as>` : prosody;
   const ssml =
@@ -118,5 +137,7 @@ export async function azureSpeak(text, voice, outWav, config = loadAzureConfig()
   const r = spawnSync(findFfmpeg(), ["-y", "-loglevel", "error", "-i", raw, "-af", af, outWav], { encoding: "utf8" });
   if (r.status !== 0) throw new Error(`FFmpeg が失敗しました：${r.stderr}`);
   rmSync(raw);
-  return { spans };
+  for (const [name, i] of Object.entries(markToEmphasis)) if (marks[`m_${name}`] == null && marks[`s${i}`] != null) marks[`m_${name}`] = marks[`s${i}`];
+  const named = Object.fromEntries(Object.entries(marks).filter(([k]) => k.startsWith("m_")).map(([k, v]) => [k.slice(2), Number(v.toFixed(3))]));
+  return { spans, marks: named };
 }

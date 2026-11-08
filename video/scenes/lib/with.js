@@ -16,7 +16,8 @@ const WITH_EVENTS = [
   { t: 15.9, kind: "swoosh" },
   { t: 19.2, kind: "pop" },
 ];
-const WITH_CHIPS = [[6.5, "ok"], [12.3, "ok"], [17.0, "ok"]];
+// ①まとめが届く・②薬を選ぶ・③承認・④説明書が患者さんへ・⑤最後に記録
+const WITH_CHIPS = [[6.5, "ok"], [12.3, "ok"], [14.6, "ok"], [17.0, "ok"], [19.4, "ok"]];
 
 const PAN_X = 1320, PAN_Y = 480, PAN_W = 440, PAN_H = 560;
 const SLOTS = [PAN_Y - 165, PAN_Y + 5, PAN_Y + 185];

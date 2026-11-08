@@ -139,7 +139,7 @@ const PARTS = {
   // 実演の下に敷く：場面2の曲を小さめに（旋律なし）。小節の切れ目で終わるので繰り返しても自然
   demo(b, t0, len) {
     const prog = ["F", "C", "Dm", "Bb"];
-    const bars = Math.floor(len / BAR);
+    const bars = Math.ceil(len / BAR); // 最後まで鳴らす（途中で切れて無音にならないように。はみ出しは消える）
     for (let i = 0; i < bars; i++) {
       const c = CH[prog[i % 4]];
       pad(b, t0 + i * BAR, c, BAR + 0.1, 0.024);
@@ -151,7 +151,7 @@ const PARTS = {
 };
 
 /** cues から曲を作り、WAV（モノラル）の中身を返す。場面の切れ目は0.4秒で重ねてつなぐ */
-export function makeMusic(cues, duration) {
+export function makeMusic(cues, duration, { fadeIn = 0.6, fadeOut = 1.2 } = {}) {
   const out = new Float32Array(Math.ceil(duration * RATE));
   for (const cue of cues) {
     const part = PARTS[cue.part];
@@ -169,7 +169,7 @@ export function makeMusic(cues, duration) {
   // 最初と最後をなめらかに
   for (let i = 0; i < out.length; i++) {
     const t = i / RATE;
-    out[i] *= Math.min(1, t / 0.6, (duration - t) / 1.2);
+    out[i] *= Math.min(1, t / fadeIn, Math.max(0, duration - t) / fadeOut);
   }
   // 大きさをそろえる（いちばん大きいところを 0.5 に）
   let peak = 0;

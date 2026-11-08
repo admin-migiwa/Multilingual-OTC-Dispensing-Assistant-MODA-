@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>デモの患者さんのカード（緊急）</title>
+<style>html,body{margin:0;background:transparent}canvas{display:block;background:transparent}</style></head>
+<body><canvas id="c" width="1920" height="1080"></canvas>
+<script src="lib/common.js"></script>
+<script>
+// 緊急の実演：40歳・男性・中国語、胸が痛い（架空）
+window.CARD = {
+  img: "img/patient-emergency.png", // 依頼主が用意したイラスト（架空の患者さん。胸の痛み）
+  lines: ["40歳・男性・中国語", "胸が痛い"],
+  small: ["40歳・男性", "中国語を話す", "胸が痛い"],
+  look: { skin: "#f4d3b8", skinShade: "#dfb08c", hair: "#2b2422", hairLight: "#5a4a44", top: "#8fb8e8", topShade: "#6f98c8", collar: "#e8f1fb", long: false, mood: "worried", hand: "chest" },
+};
+</script>
+<script src="lib/card.js"></script>
+</body></html>

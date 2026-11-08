@@ -1,0 +1,8 @@
+{
+  "engine": "azure",
+  "azure": {
+    "name": "ja-JP-MayuNeural", "rate": "+8%", "pitch": "+0%", "pause": 180,
+    "emphasisPitch": "+5%", "emphasisGainDb": 4, "wobble": { "rate": 4, "pitch": 3 }, "drift": true
+  },
+  "windows": { "voice": "Ayumi", "pitch": 0.85, "rate": 1.4 }
+}

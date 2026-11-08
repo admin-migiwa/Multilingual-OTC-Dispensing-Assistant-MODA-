@@ -2,7 +2,7 @@
 // 読み上げは Azure AI Speech（azure-tts.mjs、原稿だけを送る）か、Windows に入っている声（tts.ps1、パソコンの中だけ）で作る。
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { azureSpeak } from "./azure-tts.mjs";
@@ -35,13 +35,16 @@ async function synthesize(line, voiceSetting, cacheDir) {
   if (!voice) throw new Error(`声の設定「${engine}」が NARRATION_VOICE にありません`);
   const key = createHash("sha1").update(JSON.stringify([line.text, engine, voice])).digest("hex").slice(0, 12);
   const wav = join(cacheDir, `${key}.wav`);
-  if (!existsSync(wav)) {
+  const marksFile = join(cacheDir, `${key}.marks.json`);
+  const needsMarks = engine === "azure" && /\[[a-z0-9_]+\]/.test(line.text);
+  if (!existsSync(wav) || (needsMarks && !existsSync(marksFile))) {
     const txt = join(cacheDir, `${key}.txt`);
     writeFileSync(txt, line.text, "utf8");
     if (engine === "azure") {
-      await azureSpeak(line.text, voice, wav);
+      const { marks } = await azureSpeak(line.text, voice, wav);
+      writeFileSync(marksFile, JSON.stringify(marks), "utf8");
     } else if (engine === "windows") {
-      writeFileSync(txt, line.text.replace(/[{}]/g, ""), "utf8"); // 強調の印 {} は Windows の声では使わない
+      writeFileSync(txt, line.text.replace(/[{}|^~]|\[[a-z0-9_]+\]/g, ""), "utf8"); // 強調・しおり・一呼吸の印は Windows の声では使わない
       run("powershell", [
         "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", join(here, "tts.ps1"),
         "-TextFile", txt, "-Out", wav, "-Voice", voice.voice, "-Pitch", String(voice.pitch), "-Rate", String(voice.rate),
@@ -50,7 +53,8 @@ async function synthesize(line, voiceSetting, cacheDir) {
       throw new Error(`声の種類「${engine}」には対応していません`);
     }
   }
-  return { wav, engine, voice };
+  const marks = existsSync(marksFile) ? JSON.parse(readFileSync(marksFile, "utf8")) : {};
+  return { wav, engine, voice, marks };
 }
 
 const BGM_VOLUME = 0.42; // BGM はナレーションより十分小さく。さらにナレーションの間は自動で下げる
@@ -87,7 +91,9 @@ export async function mixAudio({ ffmpeg, sfxWav, bgmWav, lines, voice, outWav })
       voiceLabels.push(`[n${i}]`);
       next++;
     }
-    filters.push(`${voiceLabels.join("")}amix=inputs=${voiceLabels.length}:normalize=0:duration=longest,asplit=2[voice][vsc]`);
+    // 声の列は最後まで伸ばす（声が終わったところで BGM を下げる仕組みごと止まり、BGM が途切れないように）
+    const total = duration(ffmpeg, sfxWav);
+    filters.push(`${voiceLabels.join("")}amix=inputs=${voiceLabels.length}:normalize=0:duration=longest,apad=whole_dur=${total.toFixed(3)},asplit=2[voice][vsc]`);
   }
   if (bgmIndex >= 0) {
     if (voiceLines.length) {
@@ -106,4 +112,27 @@ export async function mixAudio({ ffmpeg, sfxWav, bgmWav, lines, voice, outWav })
   filters.push(`${finalLabels.join("")}amix=inputs=${finalLabels.length}:normalize=0:duration=first,alimiter=limit=0.95[out]`);
   run(ffmpeg, ["-y", "-loglevel", "error", ...inputs, "-filter_complex", filters.join(";"), "-map", "[out]", "-ar", "44100", outWav]);
   return outWav;
+}
+
+/**
+ * 1文を読み上げて（同じ文ならキャッシュを使う）、声が終わるまでの長さ（秒）と、[名前] のしおりの位置（秒）を返す。
+ * 場面の長さと動きのタイミングをナレーションに合わせるために使う
+ */
+export async function lineTiming(text, voice, ffmpeg) {
+  const cacheDir = resolve(here, "out", "voice", "cache");
+  mkdirSync(cacheDir, { recursive: true });
+  const { wav, marks } = await synthesize({ text }, voice, cacheDir);
+  return { dur: speechEnd(wav, ffmpeg), marks };
+}
+
+function speechEnd(wav, ffmpeg) {
+  const total = duration(ffmpeg, wav);
+  // 読み上げ音声の後ろには無音が付いていることがある。声が実際に終わる位置を長さにする（隙間が空かないように）
+  const r = spawnSync(ffmpeg, ["-hide_banner", "-i", wav, "-af", "silencedetect=noise=-45dB:d=0.15", "-f", "null", "-"], { encoding: "utf8" });
+  const starts = [...r.stderr.matchAll(/silence_start: ([\d.]+)/g)].map((m) => Number(m[1]));
+  const ends = [...r.stderr.matchAll(/silence_end: ([\d.]+)/g)].map((m) => Number(m[1]));
+  const last = starts[starts.length - 1];
+  // 最後の無音が終わりまで続いている（silence_end がない、または終わりと同じ）なら、そこで声が終わっている
+  if (last != null && (ends.length < starts.length || Math.abs(ends[ends.length - 1] - total) < 0.05)) return last;
+  return total;
 }

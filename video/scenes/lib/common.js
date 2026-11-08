@@ -7,7 +7,7 @@ const W = 1920, H = 1080;
 const ctx = document.getElementById("c").getContext("2d");
 const FONT = '"Segoe UI", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif';
 let GT = 0;
-// ナレーションの声。engine で使う方を選ぶ（環境変数 VOICE_ENGINE で一時的に切り替えられる）
+// ナレーションの声（実演の部分は scenes/voice.json を使う。変えるときは両方そろえる）。engine で使う方を選ぶ（環境変数 VOICE_ENGINE で一時的に切り替えられる）
 //   azure：Azure AI Speech のニューラル音声。rate・pitch は「+5%」のような書き方
 //   windows：Windows に入っている声。pitch：0〜2、rate：0.5〜6（どちらも1が標準）
 window.NARRATION_VOICE = {
@@ -89,94 +89,134 @@ function alpha(a, fn) {
 // ---- 人の絵：腕・まばたき・体の揺れ・汗 ----
 // arm: [肩からの角度（0=真下、正=体の外側）, ひじの曲げ]
 function arm(side, a, bend, color, line, skin) {
-  const sx = side * 92, sy = 175, l1 = 120, l2 = 110;
+  // 肩から肘、肘から手。輪郭線は使わず、袖と同じ色で太めに
+  const sx = side * 98, sy = 150, l1 = 118, l2 = 108;
   const a1 = side * a;
   const ex = sx + Math.sin(a1) * l1, ey = sy + Math.cos(a1) * l1;
   const a2 = a1 + side * bend;
   const hx = ex + Math.sin(a2) * l2, hy = ey + Math.cos(a2) * l2;
   ctx.lineCap = "round"; ctx.lineJoin = "round";
-  ctx.strokeStyle = line; ctx.lineWidth = 54;
+  ctx.strokeStyle = line; ctx.lineWidth = 50;
   ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
   ctx.strokeStyle = color; ctx.lineWidth = 46;
   ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey); ctx.lineTo(hx, hy); ctx.stroke();
   ctx.fillStyle = skin;
-  ctx.beginPath(); ctx.arc(hx, hy, 24, 0, Math.PI * 2); ctx.fill();
+  ctx.beginPath(); ctx.ellipse(hx, hy, 24, 27, a2, 0, Math.PI * 2); ctx.fill();
 }
+/*
+ * 人物（11/8 夜：依頼主の参考画像に合わせて描き直し）。輪郭線なし・やわらかい色・点の目・小さな口・頬。
+ * o：body/bodyLine/skin/hair/long/coat/phase/scale、armL/armR=[腕の角度, 肘の曲がり]、
+ *    mood："neutral"|"happy"|"worried"|"headache"、talk、look（目線）、nod、tilt、sweat
+ */
 function person(x, y, o) {
   const t = GT;
-  const bob = Math.sin(t * 2.4 + (o.phase || 0)) * 5;
+  const bob = Math.sin(t * 2.4 + (o.phase || 0)) * 4;
   ctx.save();
   ctx.translate(x, y + bob);
   if (o.scale) ctx.scale(o.scale, o.scale);
-  ctx.fillStyle = o.body; ctx.strokeStyle = o.bodyLine; ctx.lineWidth = 3;
-  rr(-120, 120, 240, 360, 110); ctx.fill(); ctx.stroke();
+  // 胴体：なで肩で、下はカウンターに隠れる
+  ctx.fillStyle = o.body;
+  ctx.beginPath();
+  ctx.moveTo(-112, 160); ctx.quadraticCurveTo(-118, 116, -60, 112);
+  ctx.lineTo(60, 112); ctx.quadraticCurveTo(118, 116, 112, 160);
+  ctx.lineTo(118, 490); ctx.lineTo(-118, 490); ctx.closePath(); ctx.fill();
   if (o.coat) {
-    ctx.fillStyle = C.tealSoft;
-    ctx.beginPath(); ctx.moveTo(-45, 125); ctx.lineTo(0, 200); ctx.lineTo(45, 125); ctx.closePath(); ctx.fill();
-    ctx.fillStyle = C.teal; rr(30, 230, 54, 30, 6); ctx.fill();
+    // 白衣：中のミントのシャツ、襟、名札、ポケット
+    ctx.fillStyle = o.inner; ctx.beginPath(); ctx.moveTo(-50, 112); ctx.lineTo(0, 212); ctx.lineTo(50, 112); ctx.closePath(); ctx.fill();
+    ctx.fillStyle = o.skin; rr(-22, 92, 44, 36, 12); ctx.fill();
+    ctx.fillStyle = o.body;
+    ctx.beginPath(); ctx.moveTo(-72, 112); ctx.lineTo(-24, 112); ctx.lineTo(-2, 228); ctx.lineTo(-30, 236); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(72, 112); ctx.lineTo(24, 112); ctx.lineTo(2, 228); ctx.lineTo(30, 236); ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = o.bodyLine; ctx.lineWidth = 3; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(-72, 112); ctx.lineTo(-2, 230); ctx.moveTo(72, 112); ctx.lineTo(2, 230); ctx.moveTo(0, 230); ctx.lineTo(0, 490); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-96, 350); ctx.lineTo(-96, 420); ctx.lineTo(-40, 420); ctx.lineTo(-40, 350); ctx.stroke();
+    ctx.fillStyle = C.teal; rr(34, 240, 54, 28, 6); ctx.fill();
+  } else {
+    // 患者さん：丸首のトップス。首
+    ctx.fillStyle = o.skin; rr(-22, 92, 44, 36, 12); ctx.fill();
+    ctx.fillStyle = o.body; ctx.beginPath(); ctx.ellipse(0, 114, 34, 14, 0, 0, Math.PI); ctx.fill();
   }
   arm(-1, o.armL[0], o.armL[1], o.body, o.bodyLine, o.skin);
   arm(1, o.armR[0], o.armR[1], o.body, o.bodyLine, o.skin);
+  // 頭
   ctx.save();
   ctx.translate(0, 110);
   ctx.rotate(o.tilt || 0);
   ctx.translate(0, -110 + (o.nod || 0));
-  ctx.fillStyle = o.skin; rr(-24, 90, 48, 40, 14); ctx.fill();
-  ctx.beginPath(); ctx.arc(0, 30, 92, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = o.hair;
-  ctx.beginPath();
+  const hw = 88, hh = 92;
   if (o.long) {
-    ctx.arc(0, 18, 98, Math.PI * 0.95, Math.PI * 2.05);
-    ctx.lineTo(98, 90); ctx.lineTo(70, 90); ctx.lineTo(70, 10);
-    ctx.lineTo(-70, 10); ctx.lineTo(-70, 90); ctx.lineTo(-98, 90);
+    // 後ろ髪（ボブ。毛先は内側に）
+    ctx.fillStyle = o.hair; ctx.beginPath();
+    ctx.moveTo(-hw - 6, 0); ctx.quadraticCurveTo(-hw - 22, 100, -hw + 8, 134); ctx.quadraticCurveTo(-hw + 30, 146, -hw + 44, 128);
+    ctx.lineTo(hw - 44, 128); ctx.quadraticCurveTo(hw - 30, 146, hw - 8, 134); ctx.quadraticCurveTo(hw + 22, 100, hw + 6, 0);
+    ctx.closePath(); ctx.fill();
+  }
+  ctx.fillStyle = o.skin;
+  ctx.beginPath(); ctx.ellipse(0, 30, hw, hh, 0, 0, Math.PI * 2); ctx.fill();
+  for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sd * (hw - 2), 44, 11, 16, 0, 0, Math.PI * 2); ctx.fill(); }
+  // 前髪
+  ctx.fillStyle = o.hair; ctx.beginPath();
+  if (o.long) {
+    ctx.ellipse(0, 8, hw + 8, hh * 0.86, 0, Math.PI, Math.PI * 2);
+    ctx.lineTo(hw + 8, 8);
+    ctx.quadraticCurveTo(hw * 0.55, 44, hw * 0.1, 8); // 横に流した前髪
+    ctx.quadraticCurveTo(-hw * 0.35, 40, -hw - 8, 8);
   } else {
-    ctx.arc(0, 22, 96, Math.PI * 1.02, Math.PI * 1.98);
-    ctx.quadraticCurveTo(40, -10, -90, 5);
+    ctx.ellipse(0, 6, hw + 8, hh * 0.9, 0, Math.PI, Math.PI * 2);
+    ctx.lineTo(hw + 8, 6); ctx.quadraticCurveTo(hw * 0.7, 30, hw * 0.3, 10);
+    ctx.quadraticCurveTo(-hw * 0.1, 34, -hw * 0.45, 8); ctx.quadraticCurveTo(-hw * 0.85, 26, -hw - 8, 6);
   }
   ctx.closePath(); ctx.fill();
+  // 表情
   const blink = ((t + (o.phase || 0)) % 3.3) < 0.13;
   const look = o.look || 0;
-  ctx.strokeStyle = C.ink; ctx.fillStyle = C.ink; ctx.lineCap = "round";
-  if (o.mood === "happy") {
-    ctx.lineWidth = 7;
-    for (const ex of [-32, 32]) { ctx.beginPath(); ctx.arc(ex + look, 44, 12, Math.PI * 1.15, Math.PI * 1.85); ctx.stroke(); }
-  } else if (blink) {
-    ctx.lineWidth = 6;
-    for (const ex of [-32, 32]) { ctx.beginPath(); ctx.moveTo(ex - 10 + look, 38); ctx.lineTo(ex + 10 + look, 38); ctx.stroke(); }
-  } else {
-    for (const ex of [-32, 32]) { ctx.beginPath(); ctx.arc(ex + look, 38, 9, 0, Math.PI * 2); ctx.fill(); }
-  }
-  if (o.mood === "worried") {
-    ctx.lineWidth = 6;
-    ctx.beginPath(); ctx.moveTo(-48 + look, 6); ctx.lineTo(-18 + look, 14); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(48 + look, 6); ctx.lineTo(18 + look, 14); ctx.stroke();
-  }
-  ctx.lineWidth = 7;
-  ctx.beginPath();
-  if (o.mood === "happy") ctx.arc(look * 0.5, 62, 22, Math.PI * 0.15, Math.PI * 0.85);
-  else if (o.talk) { const m = 6 + Math.abs(Math.sin(t * 14)) * 10; ctx.ellipse(look * 0.5, 76, 13, m, 0, 0, Math.PI * 2); ctx.fillStyle = "#7a3b2e"; ctx.fill(); }
-  else if (o.mood === "worried") ctx.arc(look * 0.5, 92, 20, Math.PI * 1.2, Math.PI * 1.8);
-  else { ctx.moveTo(-16 + look * 0.5, 75); ctx.lineTo(16 + look * 0.5, 75); }
-  ctx.stroke();
-  if (o.mood === "happy") {
-    ctx.fillStyle = "rgba(244,114,94,.35)";
-    for (const ex of [-56, 56]) { ctx.beginPath(); ctx.ellipse(ex, 66, 16, 10, 0, 0, Math.PI * 2); ctx.fill(); }
-  }
-  if (o.sweat > 0) {
-    ctx.globalAlpha = o.sweat;
-    ctx.fillStyle = "#7cc4f0";
+  const mood = o.mood || "neutral";
+  const closed = mood === "happy" || mood === "headache";
+  const ey = 44, ex = 32;
+  ctx.lineCap = "round";
+  for (const sd of [-1, 1]) {
+    const cx = sd * ex + look * 0.4;
+    // 眉（細く、やわらかく）
+    ctx.strokeStyle = o.hair; ctx.lineWidth = 3.5; ctx.globalAlpha = 0.7;
     ctx.beginPath();
-    ctx.moveTo(86, -24); ctx.quadraticCurveTo(104, 2, 94, 12); ctx.quadraticCurveTo(76, 14, 80, -4); ctx.closePath();
-    ctx.fill();
+    if (mood === "worried" || mood === "headache") { ctx.moveTo(cx - sd * 12, 16); ctx.lineTo(cx + sd * 12, 22); }
+    else { ctx.moveTo(cx - 12, 20); ctx.quadraticCurveTo(cx, 16, cx + 12, 20); }
+    ctx.stroke(); ctx.globalAlpha = 1;
+    ctx.strokeStyle = C.ink; ctx.fillStyle = C.ink;
+    if (closed) {
+      ctx.lineWidth = 5; ctx.beginPath();
+      if (mood === "happy") ctx.arc(cx, ey + 4, 10, Math.PI * 1.12, Math.PI * 1.88);
+      else ctx.arc(cx, ey - 6, 10, Math.PI * 0.12, Math.PI * 0.88);
+      ctx.stroke();
+    } else if (blink) {
+      ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(cx - 9, ey); ctx.lineTo(cx + 9, ey); ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.ellipse(cx, ey, 7, 8, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(cx + 2.5, ey - 3, 2, 0, Math.PI * 2); ctx.fill();
+    }
+  }
+  const mx = look * 0.4;
+  ctx.strokeStyle = "#9a5a4a"; ctx.lineWidth = 4;
+  ctx.beginPath();
+  if (mood === "happy") { ctx.arc(mx, 68, 16, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke(); }
+  else if (o.talk) { const m = 5 + Math.abs(Math.sin(t * 14)) * 8; ctx.ellipse(mx, 80, 10, m, 0, 0, Math.PI * 2); ctx.fillStyle = "#c0574a"; ctx.fill(); }
+  else if (mood === "worried" || mood === "headache") { ctx.arc(mx, 94, 12, Math.PI * 1.2, Math.PI * 1.8); ctx.stroke(); }
+  else { ctx.arc(mx, 72, 9, Math.PI * 0.2, Math.PI * 0.8); ctx.stroke(); }
+  // 頬
+  ctx.fillStyle = "rgba(245,140,120,.30)";
+  for (const sd of [-1, 1]) { ctx.beginPath(); ctx.ellipse(sd * 58, 70, 15, 8, 0, 0, Math.PI * 2); ctx.fill(); }
+  if (o.sweat > 0) {
+    ctx.globalAlpha = o.sweat; ctx.fillStyle = "#7cc4f0";
+    ctx.beginPath(); ctx.moveTo(hw - 2, -24); ctx.quadraticCurveTo(hw + 16, 2, hw + 6, 12); ctx.quadraticCurveTo(hw - 12, 14, hw - 8, -4); ctx.closePath(); ctx.fill();
     ctx.globalAlpha = 1;
   }
   ctx.restore();
   ctx.restore();
 }
 
-// 患者さん・薬剤師の決まった見た目
-const PATIENT = { body: C.shirt, bodyLine: C.shirtLine, skin: C.skin, hair: C.hair, long: true, phase: 0.7 };
-const PHARMACIST = { body: C.coat, bodyLine: C.coatLine, skin: C.skin2, hair: C.hair2, coat: true, phase: 2.1 };
+// 患者さん・薬剤師の決まった見た目（参考画像：黄色のトップスとボブ／白衣にミントのシャツと短髪）
+const PATIENT = { body: "#f3cf63", bodyLine: "#e4bc4a", skin: "#f9dcc4", hair: "#5b3f2e", long: true, phase: 0.7 };
+const PHARMACIST = { body: "#ffffff", bodyLine: "#d6e1e4", skin: "#f6d6bd", hair: "#2e2a2b", coat: true, inner: "#bfe6d8", phase: 2.1 };
 const PX = 300, PY = 420;   // 患者さん
 const RX = 1700, RY = 420;  // 薬剤師
 const HX = 900, HY = 400;   // 中央（MODA の位置）
@@ -220,17 +260,19 @@ function sceneLabel(s, bg, fg, a) {
   });
 }
 
-// ①②③の札（業務の手順）。state: "" | "q"（？）| "ok"（✓）
+// ①〜⑤の札（販売の前に薬剤師が確かめること）。state: "" | "q"（？）| "ok"（✓）
 const STEP_CHIPS = [
   { n: "①", label: "問診" },
-  { n: "②", label: "禁忌の確認" },
-  { n: "③", label: "書面・記録", note: "第1類以上" },
+  { n: "②", label: "禁忌" },
+  { n: "③", label: "区分の手順" },
+  { n: "④", label: "説明・理解" },
+  { n: "⑤", label: "記録" },
 ];
 function stepChips(states, a, y = 88) {
   alpha(a, () => {
-    const widths = [230, 290, 320];
-    const gap = 16;
-    let x = 480;
+    const widths = [170, 170, 230, 230, 170];
+    const gap = 12;
+    let x = 400;
     STEP_CHIPS.forEach((c, i) => {
       const w = widths[i];
       const st = states[i] || {};
@@ -240,15 +282,15 @@ function stepChips(states, a, y = 88) {
       const ok = st.mark === "ok", q = st.mark === "q";
       shadowed(() => { ctx.fillStyle = ok ? C.teal : "#fff"; rr(-w / 2, -32, w, 64, 32); ctx.fill(); });
       const fg = ok ? "#fff" : C.ink;
-      text(`${c.n} ${c.label}`, -w / 2 + 24, c.note ? -6 : 0, 26, fg, 800, "left");
+      text(`${c.n} ${c.label}`, -w / 2 + 20, c.note ? -6 : 0, 24, fg, 800, "left");
       if (c.note) text(c.note, -w / 2 + 62, 20, 16, ok ? C.tealSoft : C.muted, 700, "left");
       if (q) {
-        ctx.fillStyle = C.warnSoft; ctx.beginPath(); ctx.arc(w / 2 - 34, 0, 22, 0, Math.PI * 2); ctx.fill();
-        ctx.save(); ctx.translate(w / 2 - 34, 1); ctx.rotate(Math.sin(GT * 6 + i) * 0.12);
+        ctx.fillStyle = C.warnSoft; ctx.beginPath(); ctx.arc(w / 2 - 28, 0, 20, 0, Math.PI * 2); ctx.fill();
+        ctx.save(); ctx.translate(w / 2 - 28, 1); ctx.rotate(Math.sin(GT * 6 + i) * 0.12);
         text("？", 0, 0, 30, C.warn, 900); ctx.restore();
       } else if (ok) {
         ctx.strokeStyle = "#fff"; ctx.lineWidth = 6; ctx.lineCap = "round"; ctx.lineJoin = "round";
-        ctx.beginPath(); ctx.moveTo(w / 2 - 46, 0); ctx.lineTo(w / 2 - 37, 10); ctx.lineTo(w / 2 - 20, -10); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(w / 2 - 40, 0); ctx.lineTo(w / 2 - 31, 10); ctx.lineTo(w / 2 - 16, -10); ctx.stroke();
       }
       ctx.restore();
       x += w + gap;
