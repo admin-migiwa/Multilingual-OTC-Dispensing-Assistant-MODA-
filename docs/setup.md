@@ -61,5 +61,5 @@ Vercel で GitHub リポジトリを取り込むときは、次のように設�
 
 ## 秘密情報について
 
-API キーなどは `.env.local` に書き、**絶対にコミットしないでください**（`.gitignore` で除外済み）。
+API キーなどは `apps/web/.env.local` に書き、**絶対にコミットしないでください**（`.gitignore` で除外済み）。
 書くべき項目は [`.env.example`](../.env.example) を参照してください。
