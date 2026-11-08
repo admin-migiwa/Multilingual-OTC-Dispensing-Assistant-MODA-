@@ -68,7 +68,7 @@ export const es: Messages = {
         },
       },
       Q08: {
-        text: "¿Alguna vez ha tenido una alergia (erupción, dificultad para respirar, etc.) a un medicamento?",
+        text: "¿Alguna vez ha tenido una reacción alérgica (erupción, dificultad para respirar, etc.) a algún medicamento?",
         drugNameLabel: "Nombre del medicamento",
       },
       Q09: {
@@ -109,7 +109,7 @@ export const es: Messages = {
     body: "Es posible que sus síntomas necesiten atención en un hospital de inmediato.",
     call119: "Llame al 119 y diga primero \"Kyukyu desu\" (es una emergencia).",
     staffHelp: "Nuestro personal le ayudará de inmediato. Muestre esta pantalla a un miembro del personal.",
-    consultLine: "Si no está seguro de llamar a una ambulancia, puede consultar una línea de urgencias (#7119, etc.; el número cambia según la zona).",
+    consultLine: "Si no está seguro de si debe llamar a una ambulancia, puede llamar a una línea de consulta de urgencias (#7119, etc.; el número cambia según la zona).",
     childLine: "Para consultas sobre niños en días festivos o por la noche, llame al #8000.",
     visitorHotline: "Si está de visita en Japón, puede llamar a la \"Japan Visitor Hotline\" de la Organización Nacional de Turismo de Japón (JNTO) al 050-3816-2787 (24 horas, todos los días; inglés, chino y coreano; ayuda en emergencias como enfermedades o lesiones).",
     infoPagesTitle: "Páginas web de referencia",
@@ -140,8 +140,8 @@ export const es: Messages = {
   },
   referral: {
     title: "Por favor, consulte a un médico en un hospital o una clínica",
-    body: "Lo sentimos. Con su estado actual, no podemos ofrecerle un medicamento sin receta. Le recomendamos acudir a un hospital o una clínica.",
-    tellDoctor: "En el hospital, informe al médico de sus síntomas de hoy y de los medicamentos que toma actualmente. Si tiene una libreta de registro de medicamentos, llévela.",
+    body: "Lo sentimos. Los medicamentos sin receta no son adecuados para su estado actual. Le recomendamos acudir a un hospital o una clínica.",
+    tellDoctor: "En el hospital, informe al médico de sus síntomas de hoy y de los medicamentos que toma actualmente. Si tiene una libreta de medicamentos, llévela.",
     consultTitle: "Dónde consultar en idiomas distintos del japonés",
     askStaff: "Si tiene alguna duda, pregunte al personal.",
   },

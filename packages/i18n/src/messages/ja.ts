@@ -18,7 +18,7 @@ export const ja = {
     redo: "前の答えをやり直す",
     emergencyButton: "具合が急に悪くなった",
     aiTranslationNotice: "この文は AI が翻訳したものです（まだ人が確認していません）。",
-    networkError: "通信が止まりました。スタッフがすぐにお手伝いします。",
+    networkError: "通信が切れました。スタッフがすぐにお手伝いします。",
     retry: "もう一度試す",
   },
   languageSelect: {
@@ -53,7 +53,7 @@ export const ja = {
       },
       Q03: {
         text: "妊娠していますか？",
-        options: { pregnant: "妊娠している", maybe: "妊娠しているかもしれない", notPregnant: "していない", notApplicable: "該当しない" },
+        options: { pregnant: "妊娠している", maybe: "妊娠しているかもしれない", notPregnant: "妊娠していない", notApplicable: "該当しない" },
       },
       Q03a: { text: "出産予定日まで12週以内ですか？" },
       Q04: { text: "授乳中ですか？" },
@@ -146,7 +146,7 @@ export const ja = {
   // 外国語で相談できるところは、緊急案内と同じ emergency.visitorHotline・visitorHotlinePage・residentConsultationPage を使う
   referral: {
     title: "病院や診療所で診てもらってください",
-    body: "申し訳ありません。今の状態では、お店の薬（市販薬）ではお応えできません。病院や診療所での受診をおすすめします。",
+    body: "申し訳ありません。今の状態には、お店の薬（市販薬）は合いません。病院や診療所での受診をおすすめします。",
     tellDoctor: "病院では、今日の症状と、いま飲んでいる薬を伝えてください。お薬手帳があれば持って行ってください。",
     consultTitle: "外国語で相談できるところ",
     askStaff: "わからないことは、スタッフに聞いてください。",

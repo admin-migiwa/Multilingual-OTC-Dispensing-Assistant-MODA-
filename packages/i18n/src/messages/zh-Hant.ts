@@ -102,12 +102,12 @@ export const zhHant: Messages = {
       R04: { text: "您打算用於什麼症狀？" },
     },
     notUnderstood: "抱歉，我們沒能理解您的回答。請再回答一次。",
-    done: "問題到此結束。藥劑師將進行確認，請稍候。",
+    done: "問題到此結束。藥師將進行確認，請稍候。",
   },
   emergency: {
     title: "請立即呼叫救護車",
     body: "您的症狀可能需要馬上到醫院就診。",
-    call119: "請撥打119，並首先說「救急です（kyukyu desu）」（是急救）。",
+    call119: "請撥打119，並首先說「救急です（kyukyu desu）」（意思是「這是急救」）。",
     staffHelp: "工作人員會馬上為您提供協助。請把這個畫面給工作人員看。",
     consultLine: "如果不確定是否需要叫救護車，可以撥打急救諮詢電話（#7119 等，號碼依地區而異）。",
     childLine: "兒童在假日或夜間的諮詢電話是 #8000。",
@@ -118,7 +118,7 @@ export const zhHant: Messages = {
     residentConsultationPage: "居住在日本的人士：多語言生活諮詢窗口一覽（自治體國際化協會 CLAIR；日語網頁，有英語網頁的連結）",
   },
   emergencyFollowUp: {
-    intro: "這是藥劑師的問題。請選擇符合的答案。",
+    intro: "這是藥師的問題。請選擇符合的答案。",
     questions: {
       EF01: { text: "這個症狀是突然開始的嗎？" },
       EF02: {
@@ -136,12 +136,12 @@ export const zhHant: Messages = {
     scale: { text: "請用0到10的數字選擇您現在的難受程度。", min: "0：不難受", max: "10：能想像到的最難受" },
   },
   pharmacist: {
-    waiting: "藥劑師正在確認內容，請稍候。",
+    waiting: "藥師正在確認內容，請稍候。",
   },
   referral: {
     title: "請到醫院或診所就診",
-    body: "非常抱歉。以您目前的狀況，本店的成藥無法滿足您的需要。建議您到醫院或診所就診。",
-    tellDoctor: "就診時，請告訴醫師您今天的症狀和目前正在服用的藥。如有用藥紀錄手冊，請一併攜帶。",
+    body: "非常抱歉。以您目前的狀況，不適合使用本店販售的非處方藥。建議您到醫院或診所就診。",
+    tellDoctor: "就診時，請告訴醫師您今天的症狀和目前正在服用的藥。如有用藥手冊，請一併攜帶。",
     consultTitle: "可以用日語以外的語言諮詢的地方",
     askStaff: "如有不明白的地方，請詢問工作人員。",
   },
@@ -150,7 +150,7 @@ export const zhHant: Messages = {
     printed: "說明書已列印。我們也會一併提供日文版說明書。",
     understandQuestion: "您理解說明了嗎？",
     understandOptions: { understood: "理解了", partly: "有些地方不太明白", notUnderstood: "沒有理解" },
-    askAgain: "不明白的地方，藥劑師會再為您說明。",
+    askAgain: "不明白的地方，藥師會再為您說明。",
     japaneseOriginal: "日文原文（說明書）",
   },
   feedback: {
@@ -164,7 +164,7 @@ export const zhHant: Messages = {
   },
   guide: {
     language: "請點選您的語言。",
-    steps: { questions: "回答問題", review: "藥劑師確認", explain: "用藥說明", checkout: "結帳" },
+    steps: { questions: "回答問題", review: "藥師確認", explain: "用藥說明", checkout: "結帳" },
     start: "請點選符合您情況的一項。",
     search: "請找到您想要的藥，然後選擇。",
     question: "請逐一回答，然後進入下一步。如有不明白的地方，請詢問工作人員。",

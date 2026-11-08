@@ -68,7 +68,7 @@ export const fr: Messages = {
         },
       },
       Q08: {
-        text: "Avez-vous déjà eu une allergie (éruption cutanée, difficulté à respirer, etc.) à un médicament ?",
+        text: "Avez-vous déjà fait une réaction allergique (éruption cutanée, difficulté à respirer, etc.) à un médicament ?",
         drugNameLabel: "Nom du médicament",
       },
       Q09: {
@@ -140,8 +140,8 @@ export const fr: Messages = {
   },
   referral: {
     title: "Veuillez consulter un médecin à l'hôpital ou dans une clinique",
-    body: "Nous sommes désolés. Dans votre état actuel, nous ne pouvons pas vous proposer de médicament sans ordonnance. Nous vous conseillons de consulter un médecin à l'hôpital ou dans une clinique.",
-    tellDoctor: "À l'hôpital, indiquez au médecin vos symptômes d'aujourd'hui et les médicaments que vous prenez actuellement. Si vous avez un carnet de suivi des médicaments, apportez-le.",
+    body: "Nous sommes désolés. Les médicaments sans ordonnance ne conviennent pas à votre état actuel. Nous vous conseillons de consulter un médecin à l'hôpital ou dans une clinique.",
+    tellDoctor: "À l'hôpital, indiquez au médecin vos symptômes d'aujourd'hui et les médicaments que vous prenez actuellement. Si vous avez un carnet de médicaments, apportez-le.",
     consultTitle: "Où obtenir de l'aide dans d'autres langues que le japonais",
     askStaff: "Si quelque chose n'est pas clair, demandez au personnel.",
   },

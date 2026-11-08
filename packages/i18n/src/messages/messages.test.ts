@@ -136,7 +136,7 @@ describe("受診をすすめる案内（docs/demo-data/referral.md の RF01〜RF
   it("日本語の原文は、依頼主が選んだ表（RF01〜RF05）の文と同じ", () => {
     const referral = getMessages("ja").referral;
     assert.equal(referral.title, "病院や診療所で診てもらってください");
-    assert.equal(referral.body, "申し訳ありません。今の状態では、お店の薬（市販薬）ではお応えできません。病院や診療所での受診をおすすめします。");
+    assert.equal(referral.body, "申し訳ありません。今の状態には、お店の薬（市販薬）は合いません。病院や診療所での受診をおすすめします。");
     assert.equal(referral.tellDoctor, "病院では、今日の症状と、いま飲んでいる薬を伝えてください。お薬手帳があれば持って行ってください。");
     assert.equal(referral.consultTitle, "外国語で相談できるところ");
     assert.equal(referral.askStaff, "わからないことは、スタッフに聞いてください。");

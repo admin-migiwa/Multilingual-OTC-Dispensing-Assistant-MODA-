@@ -106,7 +106,7 @@ export const pt: Messages = {
   },
   emergency: {
     title: "Chame uma ambulância agora",
-    body: "Os seus sintomas podem precisar de atendimento no hospital imediatamente.",
+    body: "Talvez você precise de atendimento em um hospital imediatamente.",
     call119: "Ligue para o 119 e diga primeiro \"Kyukyu desu\" (é uma emergência).",
     staffHelp: "Nossa equipe vai ajudar você agora. Mostre esta tela a um funcionário.",
     consultLine: "Se não tiver certeza se deve chamar uma ambulância, você pode ligar para uma linha de consulta de emergência (#7119 etc.; o número muda conforme a região).",
@@ -125,7 +125,7 @@ export const pt: Messages = {
         text: "Desde quando?",
         options: { minutes: "Há alguns minutos", withinHour: "Na última hora", today: "Hoje", yesterdayOrEarlier: "Ontem ou antes" },
       },
-      EF03: { text: "Ainda continua agora?" },
+      EF03: { text: "O sintoma ainda continua?" },
       EF04: { text: "Está piorando?" },
       EF05: { text: "É o pior que você já sentiu?" },
       EF06: { text: "Tem dificuldade para respirar?" },
@@ -140,8 +140,8 @@ export const pt: Messages = {
   },
   referral: {
     title: "Por favor, consulte um médico em um hospital ou clínica",
-    body: "Sentimos muito. No seu estado atual, não podemos oferecer um remédio sem receita. Recomendamos que consulte um médico em um hospital ou clínica.",
-    tellDoctor: "No hospital, informe ao médico os seus sintomas de hoje e os remédios que você está tomando agora. Se tiver uma caderneta de registro de medicamentos, leve-a.",
+    body: "Sentimos muito. Os remédios sem receita não são adequados para o seu estado atual. Recomendamos que consulte um médico em um hospital ou clínica.",
+    tellDoctor: "No hospital, informe ao médico os seus sintomas de hoje e os remédios que você está tomando agora. Se tiver uma caderneta de medicamentos, leve-a.",
     consultTitle: "Onde obter ajuda em idiomas além do japonês",
     askStaff: "Se tiver alguma dúvida, pergunte à equipe.",
   },
