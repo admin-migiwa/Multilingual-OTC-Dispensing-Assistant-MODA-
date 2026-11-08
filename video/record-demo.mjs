@@ -82,7 +82,66 @@ class Recorder {
 const TAP_CSS = `.__tap{position:fixed;z-index:2147483647;width:44px;height:44px;margin:-22px 0 0 -22px;border-radius:50%;
   background:rgba(17,160,127,.35);border:3px solid rgba(17,160,127,.9);pointer-events:none;animation:__tap .6s ease-out forwards}
   @keyframes __tap{0%{transform:scale(.4);opacity:1}100%{transform:scale(1.6);opacity:0}}`;
+// カメラ（body を拡大・移動）、操作の吹き出し、クローズアップ（まわりを暗くして枠で囲む）。
+// 吹き出しと枠は html の直下に置く（body の拡大の影響を受けないように）
+const OVERLAY_CSS = `.__note{position:fixed;z-index:2147483646;max-width:520px;padding:12px 20px 12px 18px;border-radius:14px;background:#fff;
+  color:#12332d;font:800 22px/1.35 "Yu Gothic UI","Hiragino Sans",sans-serif;box-shadow:0 10px 30px rgba(15,60,50,.22);border-left:8px solid #11a07f;
+  opacity:0;transform:translateY(8px);transition:opacity .3s,transform .3s;pointer-events:none}
+  .__note.on{opacity:1;transform:none}
+  .__note small{display:block;font-weight:700;font-size:15px;color:#4b6b64;margin-top:2px}
+  .__spot{position:fixed;z-index:2147483645;border:4px solid #11a07f;border-radius:16px;box-shadow:0 0 0 4000px rgba(18,40,36,.38);
+  opacity:0;transition:opacity .45s;pointer-events:none}
+  .__spot.on{opacity:1}`;
 async function setupPage(page) {
+  await page.addInitScript((css) => {
+    const cam = { z: 1, tx: 0, ty: 0 };
+    const apply = (ms) => {
+      const b = document.body;
+      b.style.transformOrigin = "0 0";
+      b.style.transition = `transform ${ms}ms cubic-bezier(.45,0,.2,1)`;
+      b.style.transform = cam.z === 1 && !cam.tx && !cam.ty ? "" : `translate(${cam.tx}px,${cam.ty}px) scale(${cam.z})`;
+    };
+    // r：いま画面に見えている位置（拡大されたまま）。その要素が画面のまん中あたりに来るように寄る
+    window.__camFocus = (r, z, ms = 900) => {
+      const s = window.scrollY, W = window.innerWidth, H = window.innerHeight;
+      const bx = (r.x - cam.tx) / cam.z, by = (r.y + s - cam.ty) / cam.z;
+      const cx = bx + r.width / cam.z / 2, cy = by + r.height / cam.z / 2;
+      const bh = Math.max(document.body.offsetHeight, H + s);
+      let tx = W / 2 - z * cx, ty = H * 0.5 + s - z * cy;
+      tx = Math.min(0, Math.max(W - z * W, tx));
+      ty = Math.min(s, Math.max(H + s - z * bh, ty));
+      Object.assign(cam, { z, tx, ty });
+      apply(ms);
+    };
+    window.__camReset = (ms = 700) => { Object.assign(cam, { z: 1, tx: 0, ty: 0 }); apply(ms); };
+    const layer = () => {
+      if (!document.getElementById("__ovcss")) { const st = document.createElement("style"); st.id = "__ovcss"; st.textContent = css; document.head.appendChild(st); }
+      return document.documentElement;
+    };
+    window.__note = (text, sub, r) => {
+      window.__noteOff();
+      const d = document.createElement("div"); d.className = "__note"; d.id = "__note";
+      d.textContent = text;
+      if (sub) { const sm = document.createElement("small"); sm.textContent = sub; d.appendChild(sm); }
+      layer().appendChild(d);
+      const W = window.innerWidth, H = window.innerHeight, w = d.offsetWidth, h = d.offsetHeight;
+      let x = Math.min(Math.max(16, r.x + r.width / 2 - w / 2), W - w - 16);
+      let y = r.y - h - 22;
+      if (y < 12) y = Math.min(r.y + r.height + 22, H - h - 12);
+      d.style.left = x + "px"; d.style.top = y + "px";
+      window.requestAnimationFrame(() => d.classList.add("on"));
+    };
+    window.__noteOff = () => { const d = document.getElementById("__note"); if (d) { d.id = ""; d.classList.remove("on"); window.setTimeout(() => d.remove(), 350); } };
+    window.__spot = (r) => {
+      window.__spotOff();
+      const d = document.createElement("div"); d.className = "__spot"; d.id = "__spot";
+      const p = 10;
+      Object.assign(d.style, { left: r.x - p + "px", top: r.y - p + "px", width: r.width + p * 2 + "px", height: r.height + p * 2 + "px" });
+      layer().appendChild(d);
+      window.requestAnimationFrame(() => d.classList.add("on"));
+    };
+    window.__spotOff = () => { const d = document.getElementById("__spot"); if (d) { d.id = ""; d.classList.remove("on"); window.setTimeout(() => d.remove(), 500); } };
+  }, OVERLAY_CSS);
   await page.addInitScript((css) => {
     window.__tap = (x, y) => {
       if (!document.getElementById("__tapcss")) { const s = document.createElement("style"); s.id = "__tapcss"; s.textContent = css; document.head.appendChild(s); }
@@ -103,7 +162,53 @@ function makeActions(page, rec) {
     await wait(after);
   }
   const btn = (name, exact = false) => page.getByRole("button", { name, exact }).first();
+  const rectOf = (loc) => loc.evaluate((el) => { const r = el.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+  // その要素に寄る（画面の外なら、いったん引いてからスクロールして寄る）
+  async function focus(loc, z = 1.5) {
+    const r = await rectOf(loc);
+    const H = await page.evaluate(() => window.innerHeight);
+    if (r.y < 40 || r.y + r.height > H - 40) {
+      await page.evaluate(() => window.__camReset(500)); await wait(550);
+      await loc.evaluate((el) => el.scrollIntoView({ behavior: "smooth", block: "center" })); await wait(800);
+    }
+    await page.evaluate(([rr, zz]) => window.__camFocus(rr, zz), [await rectOf(loc), z]);
+    await wait(950);
+  }
+  // 操作の手本：寄る → 何をするかの吹き出し → 押す → 結果を見せる
+  async function op(loc, note, { sub = null, z = 1.5, pre = 700, after = 1500, reset = false } = {}) {
+    await focus(loc, z);
+    if (note) await page.evaluate(([t, sb, rr]) => window.__note(t, sb, rr), [note, sub, await rectOf(loc)]);
+    await wait(pre);
+    const box = await loc.boundingBox();
+    if (box) await page.evaluate(([x, y]) => window.__tap?.(x, y), [box.x + box.width / 2, box.y + box.height / 2]);
+    await wait(280);
+    await loc.click();
+    await wait(after);
+    await page.evaluate(() => window.__noteOff());
+    if (reset) { await page.evaluate(() => window.__camReset()); await wait(750); }
+  }
   return {
+    op,
+    focus,
+    btn,
+    // 引いて全体を見せる
+    async wide(ms = 900) { await page.evaluate(() => { window.__noteOff(); window.__spotOff(); window.__camReset(); }); await wait(ms); },
+    // クローズアップ：寄って、まわりを暗くして枠で囲み、説明の吹き出しを出す
+    async closeup(loc, note, { sub = null, z = 1.3, hold = 3200 } = {}) {
+      await focus(loc, z);
+      const r = await rectOf(loc);
+      await page.evaluate(([rr, t, sb]) => { window.__spot(rr); if (t) window.__note(t, sb, rr); }, [r, note, sub]);
+      await wait(hold);
+      await page.evaluate(() => { window.__spotOff(); window.__noteOff(); });
+      await wait(400);
+    },
+    // 吹き出しだけ出す（押さない）
+    async note(loc, text, { sub = null, hold = 1800, z = 1.4 } = {}) {
+      await focus(loc, z);
+      await page.evaluate(([t, sb, rr]) => window.__note(t, sb, rr), [text, sub, await rectOf(loc)]);
+      await wait(hold);
+      await page.evaluate(() => window.__noteOff());
+    },
     wait,
     tap: (name, exact = false, after) => tapLocator(btn(name, exact), after),
     tapText: (text, exact = false, after) => tapLocator(page.getByText(text, { exact }).first(), after),
@@ -142,8 +247,9 @@ function makeActions(page, rec) {
           if (speedForRest) rec.speed(1);
           await wait(rule[2] ?? 0);
           if (rule[4]) rec.cue(rule[4]);
-          await tapLocator(btn(rule[1], true), rule[3] ? 900 : gap);
-          if (rule[3]) await tapLocator(btn(rule[3], true), gap);
+          if (rule[5]) await op(btn(rule[1], true), rule[5], { sub: rule[6] ?? null, after: 900 });
+          else await tapLocator(btn(rule[1], true), rule[3] ? 900 : gap);
+          if (rule[3]) await (rule[5] ? op(btn(rule[3], true), null, { after: gap, reset: true }) : tapLocator(btn(rule[3], true), gap));
           if (speedForRest) rec.speed(speedForRest);
           rules = rules.filter((r) => r !== rule);
           continue;
@@ -169,115 +275,145 @@ function makeActions(page, rec) {
 // rec.cue("名前")：ナレーションを合わせる目印（動画の中の時刻を out/demo/<場面>.cues.json に残す）
 // rec.speed(x)：ここから x 倍の早送り。AI の返事を待つ間（aiWait）は自動で早送りにする
 // まだ ✓ が付いていない（押せる）ものに、上から順に ✓ を付ける（区分によって手順の数が変わるため）
-async function checkAll(page, a, scope) {
+async function checkAll(a, scope, note = null, sub = null) {
   for (let i = 0; i < 8; i++) {
     const box = scope.locator("input[type=checkbox]:not(:checked):not(:disabled)").first();
     if (!(await box.count())) return;
-    await a.tapLoc(box, 900);
+    if (note) await a.op(box, note, { sub, after: 1100 });
+    else await a.tapLoc(box, 700);
   }
 }
 
 const CLIPS = {
-  // 本筋（11/8 夜版）：英語・30歳女性・熱と頭痛を症状で相談。胃潰瘍で治療中と答える
+  // 本筋（11/8 夜版2）：英語・30歳女性・熱と頭痛を症状で相談。胃潰瘍で治療中と答える
   // → 薬剤師の画面でモダペインS錠（第1類）が禁忌と表示 → 禁忌でないモダねつさまし錠（第2類）を選ぶ
   // → 患者さんが薬と個数を確かめる → 説明書・手順・PIN で承認・理解の確認・会計・記録。
-  // 目印（cue）は compose.mjs のナレーションの言葉の位置に合わせる点。早送りの量も compose.mjs が決め直す
+  // 大事な操作は、寄る → 何をするかの吹き出し → 押す、の順にゆっくり見せる。年齢・性別など大事でない操作は短く。
+  // 目印（cue）は compose.mjs のナレーションの言葉の位置に合わせる点
   async main(page, rec, a) {
     const pin = pharmacistPin();
     await page.goto(BASE + "/"); await a.wait(1500);
     rec.cue("start");
-    await a.tapText("English", true, 900);
-    await a.type("input", "30"); await a.tap("Next", true);
-    await a.tap("Female", true);
+    await a.op(page.getByText("English", { exact: true }).first(), "言語を選ぶ", { sub: "9つの言語から", reset: true, after: 1000 });
+    await a.type("input", "30"); await a.tap("Next", true, 600);
+    await a.tap("Female", true, 800);
     rec.cue("symptom");
-    await a.tap("Find a medicine by symptoms", false, 900);
-    await a.type("textarea >> nth=0", "I have had a fever and a headache since yesterday.", 45);
-    await a.wait(600);
+    await a.op(a.btn("Find a medicine by symptoms"), "症状から相談する", { reset: true, after: 900 });
+    const ta = page.locator("textarea").first();
+    await a.focus(ta, 1.5);
+    await page.evaluate((r) => window.__note("症状を英語で書く", "「昨日から熱と頭痛があります」", r), await ta.evaluate((el) => el.getBoundingClientRect().toJSON()));
+    await ta.click();
+    await ta.pressSequentially("I have had a fever and a headache since yesterday.", { delay: 45 });
+    await a.wait(900);
     rec.cue("questions");
-    await a.tap("Next", true, 1000);
-    await a.answerSmart([[/treated for any illness/i, "Stomach ulcer", 1200, "Next", "ulcer"], [/asthma/i, "No", 600]], ["I am not pregnant", "No", "None"], 1000);
-    await a.wait(1500);
-    await a.tapText("薬剤師用：確認の画面を開く", false, 1200);
+    await a.op(a.btn("Next", true), null, { reset: true, after: 1100 });
+    await a.answerSmart(
+      [[/treated for any illness/i, "Stomach ulcer", 600, "Next", "ulcer", "治療中の病気：胃潰瘍を選ぶ", "選べる答えは、母国語で出る"], [/asthma/i, "No", 300]],
+      ["I am not pregnant", "No", "None"], 1100,
+    );
+    await a.wide(1200);
+    await a.op(page.getByText("薬剤師用：確認の画面を開く").first(), "薬剤師の画面を開く", { reset: true, after: 1300 });
     // 薬剤師：答えのまとめ（日本語）→ 症状を日本語に訳す（訳し戻し）
     await a.scrollTo("患者さんの答えのまとめ");
     rec.cue("review");
-    await a.wait(1500);
-    await a.tap("日本語に訳す", false, 500);
-    await a.tap("訳す", true, 300);
+    const summary = page.locator("section").filter({ has: page.getByRole("heading", { name: "患者さんの答えのまとめ" }) }).first();
+    await a.closeup(summary.getByRole("heading").first(), "答えが日本語でまとまる", { sub: "治療中の病気：胃潰瘍", z: 1.3, hold: 2200 });
+    await a.op(a.btn("日本語に訳す"), "症状を日本語に訳す", { after: 700 });
+    await a.op(a.btn("訳す", true), null, { after: 300 });
     await a.aiWait(() => page.getByText("日本語の参考訳").first().waitFor({ timeout: 90000 }));
+    await a.wait(600);
     rec.cue("translate");
-    await a.wait(2500);
+    const chat = page.locator("div").filter({ hasText: "日本語の参考訳" }).filter({ hasText: "訳し戻した文" }).last();
+    await a.closeup(chat, "訳し戻しで、意味のずれを確かめる", { sub: "英語 → 日本語 → 英語", z: 1.3, hold: 3800 });
     // 候補を「熱・痛み」で絞り込む → モダペインS錠に「禁忌：胃潰瘍」→ モダねつさまし錠を選ぶ
+    await a.wide(600);
     rec.cue("candidates");
-    await a.tapText("熱・痛み（頭痛", false, 1500);
-    await a.scrollCenter("禁忌：胃潰瘍");
+    await a.op(page.getByText("熱・痛み（頭痛").first(), "「熱・痛み」で候補を絞り込む", { reset: true, after: 1200 });
+    const contraCard = page.locator("li").filter({ hasText: "モダペインS錠" }).filter({ hasText: "禁忌：胃潰瘍" }).first();
+    await contraCard.evaluate((el) => el.scrollIntoView({ behavior: "smooth", block: "center" })); await a.wait(900);
     rec.cue("contra");
-    await a.wait(3000);
+    await a.closeup(contraCard, "禁忌：胃潰瘍で治療中", { sub: "問診の答えから、自動でチェック", z: 1.15, hold: 4200 });
     rec.cue("pick");
-    await a.tapLoc(page.locator("label", { hasText: "モダねつさまし錠" }).locator("input[type=checkbox]").first(), 1000);
-    await a.tap("選んだ薬の項目を聞く問診に戻る（患者さんの画面へ）", false, 1200);
+    await a.op(page.locator("label", { hasText: "モダねつさまし錠" }).locator("input[type=checkbox]").first(), "禁忌でない薬を選ぶ", { sub: "モダねつさまし錠（第2類）", after: 1200 });
+    await a.op(a.btn("選んだ薬の項目を聞く問診に戻る（患者さんの画面へ）"), "患者さんの画面に戻す", { reset: true, after: 1200 });
     // 患者さん：薬と個数を確かめる → 追加の質問
     rec.cue("confirm");
-    await a.wait(2000);
-    await a.tap("1", true, 700);
-    await a.tap("✓ Yes, this medicine", false, 1200);
-    await a.answerSmart([], ["No", "None"], 900);
-    await a.wait(1000);
-    await a.tapText("薬剤師用：確認の画面を開く", false, 1200);
+    await a.wait(1200);
+    await a.op(a.btn("1", true), "個数を選ぶ", { after: 800 });
+    await a.op(a.btn("✓ Yes, this medicine"), "患者さんが、母国語で薬を確かめる", { reset: true, after: 1200 });
+    await a.answerSmart([], ["No", "None"], 1000);
+    await a.wide(800);
+    await a.op(page.getByText("薬剤師用：確認の画面を開く").first(), "薬剤師の画面へ", { reset: true, after: 1200 });
     // 説明書を作る（英語の参考訳・日本語の原文・訳し戻し）
     await a.scrollTo("選んだ薬と禁忌の判定");
     rec.cue("leaflet");
-    await a.check("販売する薬として選ぶ", 800);
-    await a.tap("説明書を作る", false, 300);
+    await a.op(page.locator("label", { hasText: "販売する薬として選ぶ" }).locator("input[type=checkbox]").first(), "販売する薬として選ぶ", { after: 900 });
+    await a.op(a.btn("説明書を作る"), "説明書を作る", { sub: "原文と英語の訳を並べる", after: 300 });
     await a.aiWait(() => btnWait(page, "説明書を作り直す"));
-    await a.wait(2500);
+    await a.wait(800);
+    const guide = page.locator("section").filter({ has: page.getByRole("button", { name: "説明書を作り直す" }) }).first();
+    await a.closeup(guide.getByRole("heading").first(), "英語の説明書ができた", { sub: "日本語の原文と、訳し戻しも見られる", z: 1.3, hold: 2600 });
     // 手順 → PIN で承認
+    await a.wide(500);
     await a.scrollTo("販売手順のチェックリスト");
     rec.cue("approve");
-    await a.wait(1200);
-    await checkAll(page, a, page.locator("section").filter({ has: page.getByRole("heading", { name: "販売手順のチェックリスト" }) }));
+    await checkAll(a, page.locator("section").filter({ has: page.getByRole("heading", { name: "販売手順のチェックリスト" }) }), "区分ごとの手順に ✓", "第2類：禁忌の確認");
+    await a.wide(500);
     await a.scrollTo("承認して販売記録を作る");
     await page.locator("select").first().selectOption({ index: 1 }).catch(() => {});
     rec.cue("pin");
-    await a.type("input[type=password]", pin, 60);
-    await a.tap("承認して販売記録を作る", false, 2000);
-    await a.tap("説明書を印刷する", false, 800).catch(() => {});
-    await a.tap("患者さんの画面で説明を始める", false, 1200);
+    const pw = page.locator("input[type=password]").first();
+    await a.focus(pw, 1.4);
+    await page.evaluate((r) => window.__note("薬剤師が PIN を入れる", "PIN は画面に出ない", r), await pw.evaluate((el) => el.getBoundingClientRect().toJSON()));
+    await pw.click(); await pw.pressSequentially(pin, { delay: 90 });
+    await a.wait(500);
+    await a.op(a.btn("承認して販売記録を作る"), "承認して販売記録を作る", { after: 1800, reset: true });
+    await a.tap("説明書を印刷する", false, 600).catch(() => {});
+    await a.op(a.btn("患者さんの画面で説明を始める"), "患者さんの画面で説明を始める", { reset: true, after: 1200 });
     // 患者さん：説明と理解の確認
     rec.cue("explain");
-    await a.wait(2000);
+    await a.wait(1800);
     await a.scrollBy(500); await a.wait(1000);
-    await a.tap("Yes, I understood", false, 1500);
-    // 会計の前の手順 → 会計案内と評価
+    await a.op(a.btn("Yes, I understood"), "説明がわかったと答える", { reset: true, after: 1300 });
+    // 会計の前の手順 → 会計案内と評価（短く）
     rec.cue("checkout");
     await a.open("薬剤師用：会計の前の手順と会計案内");
-    await checkAll(page, a, page.locator("details", { hasText: "会計の前の手順" }).first());
+    await checkAll(a, page.locator("details", { hasText: "会計の前の手順" }).first());
     await a.tap("会計案内に進む", false, 1000);
-    await a.wait(1200);
-    await a.tap("Easy to understand", false, 1800);
+    await a.wait(800);
+    await a.op(a.btn("Easy to understand"), "評価を選ぶ", { reset: true, after: 1300 });
     // 販売記録の一覧（版の履歴）
     await page.goto(BASE + "/pharmacist/records"); await a.wait(1000);
     rec.cue("records");
-    await a.open("版の履歴"); await a.wait(4000);
+    await a.open("版の履歴", 900);
+    await a.closeup(page.locator("details").first(), "販売記録は上書きせず、版を重ねる", { sub: "版1＝承認、版2＝理解の確認", z: 1.45, hold: 4200 });
+    await a.wait(600);
   },
   // 緊急：中国語・症状の欄に「我胸口痛」→ 問診が止まる → 薬剤師の確認 → 119番の案内
   async emergency(page, rec, a) {
     await page.goto(BASE + "/"); await a.wait(800);
-    rec.speed(4);
+    rec.speed(3);
     await a.tapText("简体中文", true);
     await a.type("input", "40"); await a.tap("下一步", true);
     await a.tap("男性", true);
     await a.tap("根据症状找药");
     rec.speed(1);
     rec.cue("type");
-    await a.type("textarea >> nth=0", "我胸口痛", 160);
-    await a.tap("下一步", true, 300);
+    const ta = page.locator("textarea").first();
+    await a.focus(ta, 1.5);
+    await page.evaluate((r) => window.__note("症状の欄に「我胸口痛」", "胸が痛い", r), await ta.evaluate((el) => el.getBoundingClientRect().toJSON()));
+    await ta.click(); await ta.pressSequentially("我胸口痛", { delay: 220 });
+    await a.wait(600);
+    await a.op(a.btn("下一步", true), null, { after: 300, reset: true });
     rec.cue("stop");
-    await a.wait(2500);
+    await a.wait(1200);
+    await a.closeup(page.getByText("工作人员会马上为您提供帮助").first(), "問診がすぐに止まる", { sub: "母国語で「スタッフがすぐにお手伝いします」", z: 1.3, hold: 3200 });
+    await a.wide(500);
     await a.scrollTo("薬剤師の確認：119番の案内を出しますか");
-    await a.wait(1500);
     rec.cue("guide");
-    await a.tap("119番の案内を出す", false, 4500);
+    await a.closeup(page.getByText("当てはまった緊急症状").first(), "薬剤師が根拠を確かめる", { z: 1.3, hold: 2400 });
+    await a.op(a.btn("119番の案内を出す"), "119番の案内を出す", { after: 3200, reset: true });
+    await a.wait(800);
   },
 };
 

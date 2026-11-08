@@ -44,7 +44,7 @@ async function synthesize(line, voiceSetting, cacheDir) {
       const { marks } = await azureSpeak(line.text, voice, wav);
       writeFileSync(marksFile, JSON.stringify(marks), "utf8");
     } else if (engine === "windows") {
-      writeFileSync(txt, line.text.replace(/[{}|]|\[[a-z0-9_]+\]/g, ""), "utf8"); // 強調・しおり・一呼吸の印は Windows の声では使わない
+      writeFileSync(txt, line.text.replace(/[{}|^~]|\[[a-z0-9_]+\]/g, ""), "utf8"); // 強調・しおり・一呼吸の印は Windows の声では使わない
       run("powershell", [
         "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", join(here, "tts.ps1"),
         "-TextFile", txt, "-Out", wav, "-Voice", voice.voice, "-Pitch", String(voice.pitch), "-Rate", String(voice.rate),

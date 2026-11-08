@@ -58,16 +58,28 @@ export async function azureSpeak(text, voice, outWav, config = loadAzureConfig()
   // 同じ原稿なら毎回同じ揺れになるよう、原稿から決まる乱数を使う（作り直しても結果が変わらない）。
   const rand = seededRandom(text);
   const wob = voice.wobble;
-  if (wob) {
-    const signed = (range) => {
-      const v = (rand() * 2 - 1) * range;
-      return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
-    };
-    body = body
-      .split(/(?<=[、。])/)
-      .map((p) => `<prosody rate="${signed(wob.rate)}" pitch="${signed(wob.pitch)}">${p}</prosody>`)
-      .join("");
-  }
+  const signed = (range) => {
+    const v = (rand() * 2 - 1) * range;
+    return `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`;
+  };
+  const wobbleChunk = (chunk) =>
+    wob
+      ? chunk
+          .split(/(?<=[、。])/)
+          .map((p) => `<prosody rate="${signed(wob.rate)}" pitch="${signed(wob.pitch)}">${p}</prosody>`)
+          .join("")
+      : chunk;
+  // 気持ちの込め方：^…^ は明るく（少し高く・少し速く）、~…~ はやわらかく（少し低く・ゆっくり）。句の切れ目で区切って使う
+  const TONE = { "^": voice.brightTone ?? { pitch: "+7%", rate: "+3%" }, "~": voice.softTone ?? { pitch: "-4%", rate: "-7%" } };
+  body = body
+    .split(/(\^[^^]*\^|~[^~]*~)/)
+    .filter(Boolean)
+    .map((c) => {
+      const tone = TONE[c[0]];
+      if (!tone || c[c.length - 1] !== c[0] || c.length < 2) return wobbleChunk(c);
+      return `<prosody pitch="${tone.pitch}" rate="${tone.rate}">${wobbleChunk(c.slice(1, -1))}</prosody>`;
+    })
+    .join("");
   // 文の切れ目（。）に少し間を入れると、読み上げっぽさが減る（voice.pause＝ミリ秒。揺れがあるときは長さを少し変える）
   if (voice.pause) {
     body = body.replace(/。(<\/prosody>)?(?=.)/g, (_m, close = "") => {

@@ -28,30 +28,30 @@ const CLIPS = [
   {
     name: "main", title: "実演：症状から相談（英語）", checklist: true,
     lines: [
-      { cue: "start", text: "ここからは実際の画面です。患者さんは言語を選び、[symptom]症状を{母国語で}書いて、[questions]質問に{1問ずつ}答えます。" },
-      { cue: "ulcer", text: "持病など、薬を選ぶのに必要なことも、もれなく聞いていきます。" },
-      { cue: "review", text: "薬剤師の画面では答えが日本語でまとまり、症状は日本語に訳したうえで、[translate]{訳し戻し}で意味のずれも確かめられます。" },
-      { cue: "candidates", text: "候補の薬は、問診の答えから{禁忌を自動でチェック}するので、[contra]胃潰瘍で治療中のこの患者さんには、この薬が{禁忌}と表示されます。|[pick]そこで薬剤師は、禁忌でない薬を選びます。" },
-      { cue: "confirm", text: "選んだ薬は、患者さんも{母国語で確かめ}て、個数を選びます。" },
-      { cue: "leaflet", text: "続いて、原文と{母国語の訳}を並べた説明書を準備し、[approve]区分ごとの手順がそろったところで、[pin]{薬剤師がPINで承認}します。" },
-      { cue: "explain", text: "承認のあと、患者さんは母国語の説明書を読んで{わかったかどうか}を答え、[checkout]会計の案内と評価まで、母国語で進みます。" },
-      { cue: "records", text: "販売記録は{上書きせず}、版を重ねて残します。" },
+      { cue: "start", text: "^まずは、患者さんの画面です。^言語を選び、[symptom]症状を{母国語で}書くと、[questions]質問が{1問ずつ}出てきます。" },
+      { cue: "ulcer", text: "治療中の病気には、{胃潰瘍}と答えました。" },
+      { cue: "review", text: "薬剤師の画面には、答えが日本語でまとまっています。症状は日本語に訳し、[translate]{訳し戻し}で、意味がずれていないかも確かめられます。" },
+      { cue: "candidates", text: "候補の薬は、問診の答えから{禁忌を自動でチェック}します。[contra]~胃潰瘍で治療中のこの患者さんには、この薬は{禁忌}です。~|[pick]そこで薬剤師は、禁忌でない薬を選びます。" },
+      { cue: "confirm", text: "選んだ薬は、患者さんも{母国語で確かめ}て、個数を選べます。" },
+      { cue: "leaflet", text: "続いて、原文と{母国語の訳}を並べた説明書を作り、[approve]区分ごとの手順がそろったら、[pin]{薬剤師がPINで承認}します。" },
+      { cue: "explain", text: "^承認のあとは、^患者さんが母国語の説明書を読んで、{わかったかどうか}を答え、[checkout]会計の案内と評価まで、母国語で進みます。" },
+      { cue: "records", text: "販売記録は{上書きせず}、版を重ねて残るので、~あとから見直すときも安心です。~" },
     ],
-    // 右の5項目に ✓ を付ける時刻（目印からの秒。並べ替えたあとの時刻で数える）
-    checks: [["review", 0], ["pick", 0.6], ["explain", -0.8], ["checkout", 0.4], ["records", 0.8]],
+    // 5つに ✓ を付ける時刻（目印からの秒。並べ替えたあとの時刻で数える）。✓ のときだけ右に出す
+    checks: [["review", 0.2], ["pick", 1.2], ["explain", -0.6], ["checkout", 0.4], ["records", 1.0]],
   },
   {
     name: "emergency", title: "実演：緊急の場面（中国語）",
     lines: [
-      { cue: "type", text: "次は、中国語の患者さんです。胸の痛みなど{緊急の言葉}が入ると、[stop]問診はすぐに止まり、[guide]{119番の案内}は、薬剤師が確かめてから母国語で出します。" },
+      { cue: "type", text: "^次は、中国語の患者さんです。^胸の痛みなど{緊急の言葉}が入ると、[stop]問診はすぐに止まります。|[guide]{119番の案内}は、薬剤師が根拠を確かめてから、母国語で出します。" },
     ],
   },
 ];
 const CHECK_ITEMS = ["① 問診", "② 禁忌の確認", "③ 区分の手順", "④ 説明・理解", "⑤ 販売の記録"];
 
-const MAX_FAST = 3; // これより速くは早送りしない
-const IDLE_FAST = 1.4; // 声のない待ち時間はこの速さまで縮める（速すぎると追えないので控えめに）
+const IDLE_FAST = 1.25; // 声のない待ち時間だけ、この速さまで縮める（声の間は早送りしない。目が追えるように）
 const MAX_SLOW = 1.5; // これよりゆっくりにはせず、残りは止めて待つ
+const GAP = 0.6; // 文と文の間（一呼吸）
 const LEAD = 0.15; // 画面の動きを、その言葉より少し先に見せる
 
 function run(args) {
@@ -84,28 +84,32 @@ async function plan(clip, cues, len) {
   let tau = 0, prevV = 0, voiceEnd = -Infinity;
   const push = (v, d) => {
     const lv = v - prevV;
-    if (lv > 0.01) segs.push([prevV, v, Math.max(d, lv / MAX_FAST)]);
-    tau += lv > 0.01 ? Math.max(d, lv / MAX_FAST) : 0;
+    if (lv > 0.01) { segs.push([prevV, v, Math.max(d, 0.05)]); tau += Math.max(d, 0.05); }
     prevV = v;
   };
   for (const [name, v] of points) {
     const lv = v - prevV;
     let d;
     if (markOwner[name] && starts[markOwner[name]] != null) {
-      d = starts[markOwner[name]] + timing[markOwner[name]].marks[name] - LEAD - tau;
-      if (d < lv / MAX_FAST) process.stderr.write(`注意：${clip.name} の「${name}」は、声に間に合わせるには ${(lv / Math.max(d, 0.01)).toFixed(1)} 倍速が必要です（${MAX_FAST} 倍で止めます）\n`);
+      // 声の途中の言葉：その言葉の少し前に画面が来るように（早送りはせず、足りなければ止めて待つ）
+      d = Math.max(lv, starts[markOwner[name]] + timing[markOwner[name]].marks[name] - LEAD - tau);
     } else if (prevV === 0 && segs.length === 0) {
       d = Math.min(lv, 1.0); // 始まりの読み込みは短く
     } else {
-      const minD = voiceEnd + 0.5 - tau;
-      d = Math.max(minD, Math.min(lv, minD + 2.0), lv / IDLE_FAST);
+      // 次の文の読み始め：前の文が終わって一呼吸おくまで待つ。声のない時間だけ少し縮める
+      d = Math.max(voiceEnd + GAP - tau, lv / IDLE_FAST);
     }
     push(v, d);
     at[name] = tau;
-    if (anchorOf[name]) { starts[name] = tau + LEAD; voiceEnd = starts[name] + timing[name].dur; }
+    if (anchorOf[name]) {
+      // 文の中の言葉が、画面（等倍）より先に読まれないよう、読み始めを遅らせる
+      let start = tau + LEAD;
+      for (const [m, off] of Object.entries(timing[name].marks)) start = Math.max(start, tau + (cues[m] - v) - off + LEAD + 0.1);
+      starts[name] = start;
+      voiceEnd = start + timing[name].dur;
+    }
   }
-  const minEnd = voiceEnd + 0.8 - tau;
-  push(len, Math.max(minEnd, Math.min(len - prevV, minEnd + 1.5), (len - prevV) / IDLE_FAST));
+  push(len, Math.max(voiceEnd + 1.0 - tau, (len - prevV) / IDLE_FAST));
   const lines = clip.lines.map((l) => ({ t: starts[l.cue], max: timing[l.cue].dur + 0.5, text: l.text }));
   return { segs, at, lines, total: tau };
 }
@@ -113,8 +117,9 @@ async function plan(clip, cues, len) {
 const esc = (s) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/:/g, "\\:");
 function checklistFilters(times) {
   const x = 1580, y0 = 170, w = 310, rowH = 62;
+  const show = times.map((t) => `between(t,${(t - 0.4).toFixed(2)},${(t + 2.8).toFixed(2)})`).join("+");
   const f = [
-    `drawbox=x=${x}:y=${y0}:w=${w}:h=${70 + rowH * 5}:color=white@0.94:t=fill`,
+    `drawbox=x=${x}:y=${y0}:w=${w}:h=${70 + rowH * 5}:color=white@0.95:t=fill`,
     `drawtext=fontfile='${FONT}':text='${esc("販売の前の5つ")}':fontcolor=0x334155:fontsize=26:x=${x + 22}:y=${y0 + 20}`,
   ];
   CHECK_ITEMS.forEach((label, i) => {
@@ -125,7 +130,18 @@ function checklistFilters(times) {
     f.push(`drawtext=fontfile='${FONT}':text='${esc(label)}':fontcolor=white:fontsize=26:x=${x + 30}:y=${y + 12}:enable='${on}'`);
     f.push(`drawtext=fontfile='${SYMBOL}':text='✓':fontcolor=white:fontsize=34:x=${x + w - 62}:y=${y + 6}:enable='${on}'`);
   });
-  return f;
+  // 全部を「✓ のときだけ」出す
+  return f.map((x0) => (x0.includes("enable='") ? x0.replace(/enable='([^']*)'/, (_m, e) => `enable='(${e})*(${show})'`) : `${x0}:enable='${show}'`));
+}
+
+// node compose.mjs --plan：動画は作らず、速さの計画（長さと目印の時刻）だけ出す
+if (process.argv.includes("--plan")) {
+  for (const c of CLIPS) {
+    const p = await plan(c, JSON.parse(readFileSync(out(`demo/${c.name}.cues.json`), "utf8")), dur(out(`demo/${c.name}.mp4`)));
+    process.stdout.write(`${c.name}：${p.total.toFixed(1)} 秒　${Object.entries(p.at).map(([k, v]) => `${k} ${v.toFixed(1)}`).join("・")}
+`);
+  }
+  process.exit(0);
 }
 
 // 1) 実演の録画を、ナレーションに合わせて区間ごとに速さを変え、見出しと5項目を重ねる（音はあとで付ける）
@@ -173,17 +189,20 @@ const demoAudio = await mixAudio({ ffmpeg: ff, sfxWav: silence, bgmWav: bgm, lin
 const demoFull = out("demo/_demo.mp4");
 run(["-i", demoVideo, "-i", demoAudio, "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", demoFull]);
 
-// 3) 冒頭 → 実演 → 締め
+// 3) 冒頭 → 実演 → 締め（つなぎ目は重ねて切り替える：冒頭→実演 0.6秒、実演→締め 1.2秒）
 const final = out("final.mp4");
+const openLen = dur(out("opening.mp4"));
+const X1 = 0.6, X2 = 1.2;
 run([
   "-i", out("opening.mp4"), "-i", demoFull, "-i", out("ending.mp4"),
   "-filter_complex",
   "[0:v]fps=30,format=yuv420p,setsar=1[v0];[1:v]fps=30,format=yuv420p,setsar=1[v1];[2:v]fps=30,format=yuv420p,setsar=1[v2];" +
+  `[v0][v1]xfade=transition=fade:duration=${X1}:offset=${(openLen - X1).toFixed(3)}[v01];` +
+  `[v01][v2]xfade=transition=fade:duration=${X2}:offset=${(openLen - X1 + demoLen - X2).toFixed(3)}[v];` +
   "[0:a]aresample=44100[a0];[1:a]aresample=44100[a1];[2:a]aresample=44100[a2];" +
-  "[v0][a0][v1][a1][v2][a2]concat=n=3:v=1:a=1[v][a]",
+  `[a0][a1]acrossfade=d=${X1}[a01];[a01][a2]acrossfade=d=${X2}[a]`,
   "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-c:a", "aac", "-b:a", "160k", final,
 ]);
-const openLen = dur(out("opening.mp4"));
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
 process.stdout.write(`完成版を作りました：${final}（${dur(final).toFixed(1)} 秒。冒頭 ${openLen.toFixed(1)}・実演 ${demoLen.toFixed(1)} 秒）\n`);
-for (const l of lines) process.stdout.write(`  ${mmss(openLen + l.t)} ${l.text.replace(/[{}|]|\[[a-z0-9_]+\]/g, "").slice(0, 30)}…\n`);
+for (const l of lines) process.stdout.write(`  ${mmss(openLen - X1 + l.t)} ${l.text.replace(/[{}|^~]|\[[a-z0-9_]+\]/g, "").slice(0, 30)}…\n`);
