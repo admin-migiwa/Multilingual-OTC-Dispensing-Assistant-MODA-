@@ -271,12 +271,19 @@ export const MAX_SESSIONS_IN_MEMORY = 1000;
 
 /**
  * Map を入れ物にする。数が上限を超えたら、**いちばん長く更新されていない、販売記録のない接客**から消す。
- * - 書き込むたびに順番の最後へ移すので、いま進めている接客は消えにくい
+ * - 読み書きするたびに順番の最後へ移すので、いま進めている接客や、薬剤師が画面で見ている接客は消えにくい
  * - 販売記録のある接客は消さない（販売記録は上書き・削除しない。CLAUDE.md 絶対に守るルール6。作るには薬剤師の PIN が要るので、作り続けられることもない）
  */
 export function boundedMapStore(map: Map<string, SessionRecord>, maxSessions: number): SessionStore {
   return {
-    get: (id) => map.get(id),
+    get: (id) => {
+      const record = map.get(id);
+      if (record) {
+        map.delete(id);
+        map.set(id, record);
+      }
+      return record;
+    },
     set: (record) => {
       map.delete(record.id);
       map.set(record.id, record);

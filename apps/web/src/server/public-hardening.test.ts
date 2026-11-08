@@ -101,6 +101,16 @@ describe("メモリに置く接客の数の上限", () => {
     assert.ok(store.get("c"));
   });
 
+  it("読んだだけの接客も、いま使っているものとして消しにくくする", () => {
+    const store = boundedMapStore(new Map(), 2);
+    store.set(rec("a"));
+    store.set(rec("b"));
+    store.get("a"); // 薬剤師が画面で見ている
+    store.set(rec("c"));
+    assert.equal(store.get("b"), undefined);
+    assert.ok(store.get("a"));
+  });
+
   it("販売記録のある接客は、上限を超えても消さない", () => {
     const store = boundedMapStore(new Map(), 2);
     store.set(rec("sold1", true));
