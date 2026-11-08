@@ -1,7 +1,6 @@
 // 実演（実際のアプリの操作）を自動で録画する。
 // アプリを本番用ビルドで起動しておき（例：pnpm --filter @moda/web start -p 3100）、
-//   node record-demo.mjs main      → out/demo/main.mp4（ベトナム語・症状から相談・説明書と販売記録まで）
-//   node record-demo.mjs contra    → out/demo/contra.mp4（英語・ぜんそくで禁忌）
+//   node record-demo.mjs main      → out/demo/main.mp4（英語・症状から相談・胃潰瘍で禁忌 → 別の薬・説明書と販売記録まで）
 //   node record-demo.mjs emergency → out/demo/emergency.mp4（中国語・胸の痛みで緊急）
 // 画面は 16:9（1440x810 を 1920x1080 で撮る）。押した場所に丸い印を出す。問診などは早送りにする（speed）。
 // 薬剤師の PIN は apps/web/.env.local の MODA_PHARMACIST_PINS から読む（画面やログには出さない）。
@@ -123,6 +122,8 @@ function makeActions(page, rec) {
       await loc.pressSequentially(text, { delay });
       await wait(400);
     },
+    // その文字が画面のまん中に来るように動かす
+    async scrollCenter(text) { await page.getByText(text).first().evaluate((el) => el.scrollIntoView({ behavior: "smooth", block: "center" })); await wait(900); },
     async scrollTo(text) { await page.getByText(text).first().scrollIntoViewIfNeeded(); await wait(700); },
     async scrollBy(y) { await page.mouse.wheel(0, y); await wait(700); },
     // AI の返事を待つ間は早送り（4倍）にして、終わったら元の速さに戻す
@@ -134,9 +135,19 @@ function makeActions(page, rec) {
         const names = await page.evaluate(() => [...document.querySelectorAll("button")].map((b) => b.innerText.trim()));
         const ok = names.find((n) => n.startsWith("✓"));
         if (ok) { if (names.includes("1")) await tapLocator(btn("1", true), 500); await tapLocator(btn(ok, true), gap); continue; }
-        const q = await page.evaluate(() => [...document.querySelectorAll("h1,h2,h3,legend,p")].map((e) => e.innerText.trim()).filter((t) => /[?？]$/.test(t)).pop() || "");
+        const q = await page.evaluate(() => [...document.querySelectorAll("h1,h2,h3,legend,p")].map((e) => e.innerText.trim()).filter((t) => /[?？](\s*[(（][^)）]*[)）])?$/.test(t)).pop() || "");
         const rule = rules.find(([re, ans]) => re.test(q) && names.includes(ans));
-        if (rule) { if (speedForRest) rec.speed(1); await wait(rule[2] ?? 0); await tapLocator(btn(rule[1], true), gap); if (speedForRest) rec.speed(speedForRest); continue; }
+        if (rule) {
+          // rule：[質問の文, 答え, 押す前に待つミリ秒, 続けて押すボタン（複数選びの「Next」など）, 目印の名前]
+          if (speedForRest) rec.speed(1);
+          await wait(rule[2] ?? 0);
+          if (rule[4]) rec.cue(rule[4]);
+          await tapLocator(btn(rule[1], true), rule[3] ? 900 : gap);
+          if (rule[3]) await tapLocator(btn(rule[3], true), gap);
+          if (speedForRest) rec.speed(speedForRest);
+          rules = rules.filter((r) => r !== rule);
+          continue;
+        }
         const pick = prefer.find((x) => names.includes(x));
         if (!pick) return;
         await tapLocator(btn(pick, true), gap);
@@ -157,82 +168,91 @@ function makeActions(page, rec) {
 // ---- 場面ごとの操作 ----
 // rec.cue("名前")：ナレーションを合わせる目印（動画の中の時刻を out/demo/<場面>.cues.json に残す）
 // rec.speed(x)：ここから x 倍の早送り。AI の返事を待つ間（aiWait）は自動で早送りにする
+// まだ ✓ が付いていない（押せる）ものに、上から順に ✓ を付ける（区分によって手順の数が変わるため）
+async function checkAll(page, a, scope) {
+  for (let i = 0; i < 8; i++) {
+    const box = scope.locator("input[type=checkbox]:not(:checked):not(:disabled)").first();
+    if (!(await box.count())) return;
+    await a.tapLoc(box, 900);
+  }
+}
+
 const CLIPS = {
-  // 本筋（11/8 午後版）：英語・30歳女性・熱と頭痛を症状で相談 → 薬剤師がモダペインS錠（第1類）を選ぶ
-  // → 患者さんが薬と個数を確かめる → 説明書・承認・理解の確認・会計・記録。見せどころは等倍
+  // 本筋（11/8 夜版）：英語・30歳女性・熱と頭痛を症状で相談。胃潰瘍で治療中と答える
+  // → 薬剤師の画面でモダペインS錠（第1類）が禁忌と表示 → 禁忌でないモダねつさまし錠（第2類）を選ぶ
+  // → 患者さんが薬と個数を確かめる → 説明書・手順・PIN で承認・理解の確認・会計・記録。
+  // 目印（cue）は compose.mjs のナレーションの言葉の位置に合わせる点。早送りの量も compose.mjs が決め直す
   async main(page, rec, a) {
     const pin = pharmacistPin();
     await page.goto(BASE + "/"); await a.wait(1500);
     rec.cue("start");
     await a.tapText("English", true, 900);
-    rec.speed(1.5);
     await a.type("input", "30"); await a.tap("Next", true);
     await a.tap("Female", true);
-    rec.speed(1);
-    await a.tap("Find a medicine by symptoms", false, 900);
     rec.cue("symptom");
-    await a.type("textarea >> nth=0", "I have had a fever and a headache since yesterday.", 55);
-    await a.wait(800);
-    await a.tap("Next", true, 1000);
+    await a.tap("Find a medicine by symptoms", false, 900);
+    await a.type("textarea >> nth=0", "I have had a fever and a headache since yesterday.", 45);
+    await a.wait(600);
     rec.cue("questions");
-    await a.answerSmart([[/asthma/i, "No", 1800]], ["I am not pregnant", "No", "None"], 1000);
-    await a.wait(1800);
+    await a.tap("Next", true, 1000);
+    await a.answerSmart([[/treated for any illness/i, "Stomach ulcer", 1200, "Next", "ulcer"], [/asthma/i, "No", 600]], ["I am not pregnant", "No", "None"], 1000);
+    await a.wait(1500);
     await a.tapText("薬剤師用：確認の画面を開く", false, 1200);
-    // 薬剤師：答えのまとめ → 症状を日本語に訳す（訳し戻し）
+    // 薬剤師：答えのまとめ（日本語）→ 症状を日本語に訳す（訳し戻し）
+    await a.scrollTo("患者さんの答えのまとめ");
     rec.cue("review");
-    await a.scrollTo("患者さんの答えのまとめ"); await a.wait(1500);
+    await a.wait(1500);
     await a.tap("日本語に訳す", false, 500);
     await a.tap("訳す", true, 300);
     await a.aiWait(() => page.getByText("日本語の参考訳").first().waitFor({ timeout: 90000 }));
-    await a.wait(3500);
-    // 候補を「熱・痛み」で絞り込み、モダペインS錠を選ぶ
-    rec.cue("candidates");
-    await a.tapText("熱・痛み（頭痛", false, 2500);
-    await a.tapLoc(page.locator("input[type=checkbox]").first(), 1000);
-    await a.tap("選んだ薬の項目を聞く問診に戻る（患者さんの画面へ）", false, 1200);
-    // 患者さん：薬と個数を確かめる → 追加の質問（お酒）
-    rec.cue("confirm");
+    rec.cue("translate");
     await a.wait(2500);
+    // 候補を「熱・痛み」で絞り込む → モダペインS錠に「禁忌：胃潰瘍」→ モダねつさまし錠を選ぶ
+    rec.cue("candidates");
+    await a.tapText("熱・痛み（頭痛", false, 1500);
+    await a.scrollCenter("禁忌：胃潰瘍");
+    rec.cue("contra");
+    await a.wait(3000);
+    rec.cue("pick");
+    await a.tapLoc(page.locator("label", { hasText: "モダねつさまし錠" }).locator("input[type=checkbox]").first(), 1000);
+    await a.tap("選んだ薬の項目を聞く問診に戻る（患者さんの画面へ）", false, 1200);
+    // 患者さん：薬と個数を確かめる → 追加の質問
+    rec.cue("confirm");
+    await a.wait(2000);
     await a.tap("1", true, 700);
     await a.tap("✓ Yes, this medicine", false, 1200);
-    await a.answerSmart([], ["No"], 900);
+    await a.answerSmart([], ["No", "None"], 900);
     await a.wait(1000);
     await a.tapText("薬剤師用：確認の画面を開く", false, 1200);
     // 説明書を作る（英語の参考訳・日本語の原文・訳し戻し）
+    await a.scrollTo("選んだ薬と禁忌の判定");
     rec.cue("leaflet");
-    await a.scrollTo("選んだ薬と禁忌の判定"); await a.wait(1200);
     await a.check("販売する薬として選ぶ", 800);
     await a.tap("説明書を作る", false, 300);
     await a.aiWait(() => btnWait(page, "説明書を作り直す"));
-    await a.wait(3000);
-    await a.open("確認用：日本語に訳し戻した文", 2000);
+    await a.wait(2500);
     // 手順 → PIN で承認
+    await a.scrollTo("販売手順のチェックリスト");
     rec.cue("approve");
-    await a.scrollTo("承認の前に必要な手順"); await a.wait(1800);
-    await a.check("書面の準備", 800);
+    await a.wait(1200);
+    await checkAll(page, a, page.locator("section").filter({ has: page.getByRole("heading", { name: "販売手順のチェックリスト" }) }));
     await a.scrollTo("承認して販売記録を作る");
     await page.locator("select").first().selectOption({ index: 1 }).catch(() => {});
-    rec.speed(1.5);
+    rec.cue("pin");
     await a.type("input[type=password]", pin, 60);
-    rec.speed(1);
     await a.tap("承認して販売記録を作る", false, 2000);
-    rec.speed(2);
     await a.tap("説明書を印刷する", false, 800).catch(() => {});
-    rec.speed(1);
     await a.tap("患者さんの画面で説明を始める", false, 1200);
     // 患者さん：説明と理解の確認
     rec.cue("explain");
-    await a.wait(2500);
+    await a.wait(2000);
     await a.scrollBy(500); await a.wait(1000);
     await a.tap("Yes, I understood", false, 1500);
     // 会計の前の手順 → 会計案内と評価
     rec.cue("checkout");
-    rec.speed(2);
     await a.open("薬剤師用：会計の前の手順と会計案内");
-    await a.check("書面を渡す");
-    await a.check("法定項目の記録");
+    await checkAll(page, a, page.locator("details", { hasText: "会計の前の手順" }).first());
     await a.tap("会計案内に進む", false, 1000);
-    rec.speed(1);
     await a.wait(1200);
     await a.tap("Easy to understand", false, 1800);
     // 販売記録の一覧（版の履歴）
@@ -240,31 +260,9 @@ const CLIPS = {
     rec.cue("records");
     await a.open("版の履歴"); await a.wait(4000);
   },
-  // 禁忌：ベトナム語・名前でモダペインS錠・ぜんそく「ある」（ここまでは早送り）
-  async contra(page, rec, a) {
-    await page.goto(BASE + "/"); await a.wait(800);
-    rec.cue("start");
-    rec.speed(4);
-    await a.tapText("Tiếng Việt", true);
-    await a.type("input", "30"); await a.tap("Tiếp theo", true);
-    await a.tap("Nữ", true);
-    await a.tap("Tôi biết loại thuốc mình muốn");
-    await a.type("input", "モダペイン", 40);
-    await a.tap("Chọn thuốc này");
-    await a.answerSmart([[/hen suyễn/i, "Có", 1500]], ["Không mang thai", "Không có", "Không"], 600, 4);
-    await a.tapText("薬剤師用：確認の画面を開く");
-    rec.speed(1);
-    await a.scrollTo("選んだ薬と禁忌の判定");
-    rec.cue("contra");
-    await a.wait(4500);
-    rec.cue("alt");
-    await a.tapText("代わりの薬を選ぶ", false, 1000);
-    await a.scrollBy(400); await a.wait(3500);
-  },
-  // 緊急：中国語・症状の欄に「我胸口痛」
+  // 緊急：中国語・症状の欄に「我胸口痛」→ 問診が止まる → 薬剤師の確認 → 119番の案内
   async emergency(page, rec, a) {
     await page.goto(BASE + "/"); await a.wait(800);
-    rec.cue("start");
     rec.speed(4);
     await a.tapText("简体中文", true);
     await a.type("input", "40"); await a.tap("下一步", true);
@@ -273,10 +271,11 @@ const CLIPS = {
     rec.speed(1);
     rec.cue("type");
     await a.type("textarea >> nth=0", "我胸口痛", 160);
-    await a.tap("下一步", true, 3000);
-    rec.cue("check");
+    await a.tap("下一步", true, 300);
+    rec.cue("stop");
+    await a.wait(2500);
     await a.scrollTo("薬剤師の確認：119番の案内を出しますか");
-    await a.wait(3000);
+    await a.wait(1500);
     rec.cue("guide");
     await a.tap("119番の案内を出す", false, 4500);
   },

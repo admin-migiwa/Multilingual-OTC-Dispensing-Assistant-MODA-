@@ -13,16 +13,15 @@
 <script src="lib/common.js"></script>
 <script>
 /*
- * デモ動画の締め（10秒）。絵コンテの場面8。
+ * デモ動画の締め（7秒。11/8：「薬局薬剤師が企画し…」は依頼主の判断で外した）。絵コンテの場面8。
  * 勤務先・店舗数・地域は出さない（決まったこと #20）。
  */
-const DURATION = 10;
+const DURATION = 7;
 window.DURATION = DURATION;
 window.SOUND_EVENTS = [{ t: 0.8, kind: "pop" }, { t: 2.0, kind: "stamp" }];
 window.MUSIC = [{ t: 0, len: DURATION, part: "outro" }];
 window.NARRATION = [
-  { t: 0.7, max: 2.9, text: "{言葉がちがっても}、同じ安全を。" },
-  { t: 3.3, max: 6.0, text: "薬局薬剤師が企画し、{試験運用}に向けて準備を進めています。" },
+  { t: 0.7, max: 3.4, text: "{言葉がちがっても}、同じ安全を。モダ。" },
 ];
 
 window.draw = function (t) {
@@ -41,7 +40,6 @@ window.draw = function (t) {
   alpha(k1, () => text("言葉がちがっても、同じ安全を。", W / 2, 170 + (1 - k1) * 24, 76, C.ink, 800));
   const k2 = pop(t, 2.0, 0.5);
   if (k2 > 0) { ctx.save(); ctx.translate(W / 2, 330); ctx.scale(k2, k2); text("MODA", 0, 0, 110, C.teal, 800); ctx.restore(); }
-  alpha(prog(t, 3.0, 0.6), () => text("薬局薬剤師が企画 ／ 試験運用に向けて準備中", W / 2, 950, 34, C.muted, 700));
   const dark = Math.max(1 - prog(t, 0, 0.4), prog(t, DURATION - 0.6, 0.6));
   if (dark > 0) { ctx.fillStyle = `rgba(${C.fade},${dark})`; ctx.fillRect(0, 0, W, H); }
 };
