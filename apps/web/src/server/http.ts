@@ -10,24 +10,10 @@ import { DomainRuleError } from "@moda/domain";
 
 import { AiError } from "./ai";
 import { PinError } from "./pin";
+import { BadRequestError } from "./read-body.ts";
 import { SessionServiceError } from "./session-service";
 
-export class BadRequestError extends Error {
-  readonly code = "INVALID_REQUEST";
-}
-
-export async function readJson(request: Request): Promise<Record<string, unknown>> {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    throw new BadRequestError("送られた内容を読み取れません");
-  }
-  if (body === null || typeof body !== "object" || Array.isArray(body)) {
-    throw new BadRequestError("送られた内容の形が違います");
-  }
-  return body as Record<string, unknown>;
-}
+export { BadRequestError, DEFAULT_MAX_BODY_BYTES, readJson } from "./read-body.ts";
 
 function errorResponse(status: number, code: string): Response {
   return Response.json({ error: code }, { status, headers: { "Cache-Control": "no-store" } });

@@ -9,7 +9,10 @@ import { useEffect, useState } from "react";
 
 import { OVERRIDE_REASONS } from "@moda/domain";
 
-import type { SaleRecord } from "@/server/approval";
+import type { SaleRecord as ServerSaleRecord } from "@/server/approval";
+
+/** 一覧の API は接客の記号（sessionId）を返さない（公開前の点検 11/8） */
+type SaleRecord = Omit<ServerSaleRecord, "sessionId">;
 
 import { ModaBrand } from "../../decor";
 

@@ -9,6 +9,7 @@
 
 import { anthropicAiClient } from "./anthropic.ts";
 import { mockAiClient } from "./mock.ts";
+import { aiRateLimitsFromEnv, rateLimitedAiClient } from "./rate-limit.ts";
 import { AiError, type AiClient } from "./types.ts";
 
 export { AiError, type AiClient, type AiContent, type AiErrorCode, type AiImageType, type AiRequest } from "./types.ts";
@@ -28,8 +29,8 @@ export function createAiClient(env: Env): AiClient {
 
 let cached: AiClient | undefined;
 
-/** サーバーで使う AI。初めて使うときに環境変数から作る */
+/** サーバーで使う AI。初めて使うときに環境変数から作る。公開した URL で使いすぎないよう、回数の上限をかける（rate-limit.ts） */
 export function defaultAiClient(): AiClient {
-  cached ??= createAiClient(process.env);
+  cached ??= rateLimitedAiClient(createAiClient(process.env), aiRateLimitsFromEnv(process.env));
   return cached;
 }

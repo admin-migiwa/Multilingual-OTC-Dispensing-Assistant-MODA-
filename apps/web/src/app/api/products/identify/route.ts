@@ -19,7 +19,7 @@ export async function POST(request: Request) {
     if (!Number.isFinite(length) || length <= 0 || length > MAX_BODY_BYTES) {
       throw new BadRequestError("送られた内容が大きすぎるか、大きさがわかりません");
     }
-    const body = await readJson(request);
+    const body = await readJson(request, MAX_BODY_BYTES);
     if (typeof body.text === "string") return identifyFromText(body.text);
     const image = body.image as Record<string, unknown> | null | undefined;
     if (!image || typeof image !== "object" || typeof image.mediaType !== "string" || typeof image.base64 !== "string") {
