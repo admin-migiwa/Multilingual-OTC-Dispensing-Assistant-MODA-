@@ -266,12 +266,35 @@ export interface SessionStore {
   all(): Iterable<SessionRecord>;
 }
 
+/** メモリに置く接客の数の上限（公開前の点検 11/8）。デモでは十分に多く、接客を作り続けられてもメモリを使い切らない数 */
+export const MAX_SESSIONS_IN_MEMORY = 1000;
+
+/**
+ * Map を入れ物にする。数が上限を超えたら、**いちばん長く更新されていない、販売記録のない接客**から消す。
+ * - 書き込むたびに順番の最後へ移すので、いま進めている接客は消えにくい
+ * - 販売記録のある接客は消さない（販売記録は上書き・削除しない。CLAUDE.md 絶対に守るルール6。作るには薬剤師の PIN が要るので、作り続けられることもない）
+ */
+export function boundedMapStore(map: Map<string, SessionRecord>, maxSessions: number): SessionStore {
+  return {
+    get: (id) => map.get(id),
+    set: (record) => {
+      map.delete(record.id);
+      map.set(record.id, record);
+      if (map.size <= maxSessions) return;
+      for (const [id, stored] of map) {
+        if (map.size <= maxSessions) break;
+        if (id !== record.id && !stored.saleRecord) map.delete(id);
+      }
+    },
+    all: () => map.values(),
+  };
+}
+
 /** サーバーのメモリに置く入れ物。開発サーバーの再読み込みで消えないよう globalThis に置く */
 export function memoryStore(): SessionStore {
   const holder = globalThis as unknown as { __modaSessions?: Map<string, SessionRecord> };
   holder.__modaSessions ??= new Map();
-  const map = holder.__modaSessions;
-  return { get: (id) => map.get(id), set: (record) => void map.set(record.id, record), all: () => map.values() };
+  return boundedMapStore(holder.__modaSessions, MAX_SESSIONS_IN_MEMORY);
 }
 
 export interface ServiceDeps {
