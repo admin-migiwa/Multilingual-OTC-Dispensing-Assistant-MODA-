@@ -234,7 +234,8 @@ run([
   `[v01][v2]xfade=transition=fadewhite:duration=${X2}:offset=${(openLen - X1 + demoLen - X2).toFixed(3)}[v];` +
   "[0:a]aresample=44100[a0];[1:a]aresample=44100[a1];[2:a]aresample=44100[a2];" +
   `[a0][a1]acrossfade=d=${X1}[a01];[a01][a2]acrossfade=d=${X2}[a]`,
-  "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-c:a", "aac", "-b:a", "160k", final,
+  // 色の形式は yuv420p に（4:4:4 のままだと、ふつうの再生ソフトで開けない）。moov を先頭に置いてすぐ再生できるように
+  "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-vf", "scale=in_range=full:out_range=limited,format=yuv420p", "-profile:v", "high", "-crf", "18", "-preset", "medium", "-c:a", "aac", "-b:a", "160k", "-movflags", "+faststart", final,
 ]);
 const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 process.stdout.write(`完成版を作りました：${final}（${dur(final).toFixed(1)} 秒。冒頭 ${openLen.toFixed(1)}・実演 ${demoLen.toFixed(1)} 秒）\n`);
