@@ -1,0 +1,127 @@
+name: 進捗ページの更新
+
+# Claude の会話が作ったプルリクエストの状況と、docs/spec.md のタスクの表の「状況」の列から、
+# 「進捗」のラベルが付いた Issue を1つ自動で書き換える。アプリの動きには関係しない。
+on:
+  pull_request:
+    types: [opened, reopened, closed, edited, synchronize, ready_for_review, converted_to_draft]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: read
+
+# 何度も続けて動いたときは、最後の1回だけ残す（毎回すべてを読み直すので、それで足りる）
+concurrency:
+  group: progress-issue
+  cancel-in-progress: true
+
+jobs:
+  update:
+    name: 進捗の Issue を書き換える
+    # 外部からのプルリクエストでは書き込みの権限がないので動かさない
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const LABEL = '進捗';
+            const TITLE = '進捗（自動更新）';
+
+            const jst = (iso) => new Date(new Date(iso).getTime() + 9 * 3600e3);
+            const fmt = (iso) => {
+              const d = jst(iso);
+              const p = (n) => String(n).padStart(2, '0');
+              return `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+            };
+            const dayKey = (iso) => jst(iso).toISOString().slice(0, 10);
+            const taskOf = (pr) => {
+              const m = `${pr.title} ${pr.head.ref}`.match(/(?:^|[^A-Za-z0-9])[Tt](\d{1,2})(?![0-9])/);
+              return m ? `T${m[1]}` : '—';
+            };
+            const cell = (s) => String(s).replace(/\|/g, '｜').replace(/\r?\n/g, ' ');
+
+            // 1. 作業中（まだ main に取り込んでいない）プルリクエスト
+            const open = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', per_page: 100 });
+            open.sort((a, b) => b.updated_at.localeCompare(a.updated_at));
+
+            // 2. 今日（日本時間）取り込んだプルリクエスト
+            const closed = await github.rest.pulls.list({ owner, repo, state: 'closed', sort: 'updated', direction: 'desc', per_page: 50 });
+            const today = dayKey(new Date().toISOString());
+            const merged = closed.data
+              .filter((pr) => pr.merged_at && dayKey(pr.merged_at) === today)
+              .sort((a, b) => b.merged_at.localeCompare(a.merged_at));
+
+            // 3. docs/spec.md のタスクの表（main の内容）
+            let tasks = [];
+            try {
+              const file = await github.rest.repos.getContent({ owner, repo, path: 'docs/spec.md', ref: 'main' });
+              const text = Buffer.from(file.data.content, 'base64').toString('utf8');
+              for (const line of text.split('\n')) {
+                const m = line.match(/^\| (T\d+) \|[^|]*\|([^|]*)\|.*\|([^|]*)\|\s*$/);
+                if (m) tasks.push({ id: m[1], name: m[2].trim().split('：')[0].slice(0, 30), status: m[3].trim() });
+              }
+            } catch (e) {
+              core.warning(`docs/spec.md を読めなかった：${e.message}`);
+            }
+
+            const lines = [];
+            lines.push(`最終更新：${fmt(new Date().toISOString())}（日本時間）。プルリクエストを作る・直す・取り込むたびに自動で書き換わります。この本文は手で直さないでください。`);
+            lines.push('');
+            lines.push(`## 作業中（main に取り込む前）：${open.length}件`);
+            lines.push('');
+            if (open.length === 0) {
+              lines.push('なし');
+            } else {
+              lines.push('| PR | タスク | 内容 | 状態 | 最後の動き |');
+              lines.push('| --- | --- | --- | --- | --- |');
+              for (const pr of open) {
+                const flags = [pr.draft ? '下書き' : 'レビュー待ち・取り込み待ち'];
+                if ((pr.body || '').includes('要レビュー')) flags.push('要レビュー');
+                lines.push(`| #${pr.number} | ${taskOf(pr)} | ${cell(pr.title)} | ${flags.join('・')} | ${fmt(pr.updated_at)} |`);
+              }
+            }
+            lines.push('');
+            lines.push(`## 今日取り込んだもの：${merged.length}件`);
+            lines.push('');
+            if (merged.length === 0) {
+              lines.push('なし');
+            } else {
+              lines.push('| PR | タスク | 内容 | 取り込んだ時刻 |');
+              lines.push('| --- | --- | --- | --- |');
+              for (const pr of merged) {
+                lines.push(`| #${pr.number} | ${taskOf(pr)} | ${cell(pr.title)} | ${fmt(pr.merged_at)} |`);
+              }
+            }
+            lines.push('');
+            lines.push('## タスクの状況（docs/spec.md の表から）');
+            lines.push('');
+            if (tasks.length === 0) {
+              lines.push('表を読めませんでした。');
+            } else {
+              lines.push('| ID | タスク | 状況 |');
+              lines.push('| --- | --- | --- |');
+              for (const t of tasks) lines.push(`| ${t.id} | ${cell(t.name)} | ${cell(t.status)} |`);
+            }
+            const body = lines.join('\n');
+
+            // ラベルと Issue がなければ作る
+            try {
+              await github.rest.issues.getLabel({ owner, repo, name: LABEL });
+            } catch {
+              await github.rest.issues.createLabel({ owner, repo, name: LABEL, color: '0e8a16', description: '自動で書き換わる進捗の Issue' });
+            }
+            const found = await github.rest.issues.listForRepo({ owner, repo, labels: LABEL, state: 'open', per_page: 1 });
+            if (found.data.length > 0) {
+              await github.rest.issues.update({ owner, repo, issue_number: found.data[0].number, title: TITLE, body });
+              core.info(`Issue #${found.data[0].number} を書き換えた`);
+            } else {
+              const created = await github.rest.issues.create({ owner, repo, title: TITLE, body, labels: [LABEL] });
+              core.info(`Issue #${created.data.number} を作った`);
+            }
