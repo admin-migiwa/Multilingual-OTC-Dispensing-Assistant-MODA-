@@ -116,9 +116,20 @@ function drawCard(k) {
   lines.forEach((line, i) => {
     text(line, x + lerp(50, 30, e), y + lerp(132, 82, e) + i * lerp(72, 44, e), i === 0 ? lerp(52, 30, e) : lerp(42, 26, e), "#3b2a00", i === 0 ? 800 : 700, "left");
   });
-  // 患者さんの絵：大きいカードでは右側、小さいカードでは下の余白
-  portrait(lerp(x + w - 210, x + w / 2, e), lerp(y + 150, y + 370, e), lerp(0.9, 0.66, e), card.look);
+  // 患者さんの絵：依頼主が用意したイラスト（scenes/img）。大きいカードでは右側、小さいカードでは下の余白。なければ描いた絵（portrait）
+  if (card.img && window.CARD_IMG && window.CARD_IMG.complete) {
+    const im = window.CARD_IMG, iw = lerp(360, 300, e), ih = iw * im.height / im.width;
+    const ix = lerp(x + w - iw - 30, x + (w - iw) / 2, e), iy = lerp(y + h - ih - 20, y + h - ih - 24, e);
+    ctx.save(); rr(ix, iy, iw, ih, 18); ctx.clip(); ctx.drawImage(im, ix, iy, iw, ih); ctx.restore();
+  } else {
+    portrait(lerp(x + w - 210, x + w / 2, e), lerp(y + 150, y + 370, e), lerp(0.9, 0.66, e), card.look);
+  }
   ctx.restore();
   ctx.restore();
 }
 window.drawCard = drawCard;
+// イラストの読み込み（render-overlay.mjs は window.CARD_IMG_READY を待ってから描く）
+window.CARD_IMG_READY = new Promise((ok) => {
+  if (!window.CARD.img) return ok();
+  const im = new Image(); im.onload = () => ok(); im.onerror = () => ok(); im.src = window.CARD.img; window.CARD_IMG = im;
+});

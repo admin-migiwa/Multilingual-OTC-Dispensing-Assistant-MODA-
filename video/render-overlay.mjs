@@ -18,7 +18,7 @@ mkdirSync(outDir, { recursive: true });
 const browser = await chromium.launch({ channel: "msedge" });
 const page = await browser.newPage({ viewport: { width: 1920, height: 1080 } });
 await page.goto(pathToFileURL(resolve(sceneArg)).href);
-await page.evaluate(async () => { await document.fonts.ready; });
+await page.evaluate(async () => { await document.fonts.ready; await window.CARD_IMG_READY; });
 const canvas = page.locator("#c");
 const frames = Math.ceil((T0 + MOVE + TAIL) * FPS);
 for (let i = 0; i < frames; i++) {
