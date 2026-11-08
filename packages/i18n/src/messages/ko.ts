@@ -78,7 +78,7 @@ export const ko: Messages = {
           painReliever: "해열진통제",
           antihistamine: "알레르기·비염약",
           kampo: "한방약",
-          prescription: "병원에서 처방받은 약(약 수첩이 있으면 보여 주세요)",
+          prescription: "병원에서 처방받은 약(약 수첩 'Okusuri Techo'가 있으면 보여 주세요)",
         },
         drugNameLabel: "약 이름",
       },
@@ -141,7 +141,7 @@ export const ko: Messages = {
   referral: {
     title: "병원이나 의원에서 진찰을 받으세요",
     body: "죄송합니다. 지금 상태에는 가게에서 파는 약(일반의약품)이 맞지 않습니다. 병원이나 의원에서 진찰받으시기를 권합니다.",
-    tellDoctor: "병원에서는 오늘의 증상과 지금 복용 중인 약을 알려 주세요. 약 수첩이 있으면 가지고 가세요.",
+    tellDoctor: "병원에서는 오늘의 증상과 지금 복용 중인 약을 알려 주세요. 약 수첩(Okusuri Techo)이 있으면 가지고 가세요.",
     consultTitle: "일본어 이외의 언어로 상담할 수 있는 곳",
     askStaff: "모르는 것이 있으면 직원에게 물어보세요.",
   },

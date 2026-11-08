@@ -78,7 +78,7 @@ export const en: Messages = {
           painReliever: "Fever or pain reliever",
           antihistamine: "Allergy or nasal medicine",
           kampo: "Kampo (Japanese herbal medicine)",
-          prescription: "Medicine prescribed by a doctor (please show your medication record if you have one)",
+          prescription: "Medicine prescribed by a doctor (please show your medication record, \"Okusuri Techo,\" if you have one)",
         },
         drugNameLabel: "Name of the medicine",
       },
@@ -141,7 +141,7 @@ export const en: Messages = {
   referral: {
     title: "Please see a doctor at a hospital or clinic",
     body: "We are sorry. Over-the-counter medicines are not suitable for your current condition. We recommend that you see a doctor at a hospital or clinic.",
-    tellDoctor: "At the hospital, please tell the doctor about your symptoms today and the medicines you are taking now. If you have a medication record, please bring it.",
+    tellDoctor: "At the hospital, please tell the doctor about your symptoms today and the medicines you are taking now. If you have a medication record (Okusuri Techo), please bring it.",
     consultTitle: "Where you can get help in languages other than Japanese",
     askStaff: "If anything is unclear, please ask our staff.",
   },

@@ -78,7 +78,7 @@ export const pt: Messages = {
           painReliever: "Remédio para febre ou dor",
           antihistamine: "Remédio para alergia ou nariz",
           kampo: "Kampo (medicina herbal japonesa)",
-          prescription: "Remédio receitado pelo médico (mostre sua caderneta de medicamentos, se tiver)",
+          prescription: "Remédio receitado pelo médico (mostre sua caderneta de medicamentos, \"Okusuri Techo\", se tiver)",
         },
         drugNameLabel: "Nome do remédio",
       },
@@ -141,7 +141,7 @@ export const pt: Messages = {
   referral: {
     title: "Por favor, consulte um médico em um hospital ou clínica",
     body: "Sentimos muito. Os remédios sem receita não são adequados para o seu estado atual. Recomendamos que consulte um médico em um hospital ou clínica.",
-    tellDoctor: "No hospital, informe ao médico os seus sintomas de hoje e os remédios que você está tomando agora. Se tiver uma caderneta de medicamentos, leve-a.",
+    tellDoctor: "No hospital, informe ao médico os seus sintomas de hoje e os remédios que você está tomando agora. Se tiver uma caderneta de medicamentos (Okusuri Techo), leve-a.",
     consultTitle: "Onde obter ajuda em idiomas além do japonês",
     askStaff: "Se tiver alguma dúvida, pergunte à equipe.",
   },

@@ -78,7 +78,7 @@ export const zhHans: Messages = {
           painReliever: "退烧止痛药",
           antihistamine: "过敏或鼻炎药",
           kampo: "汉方药",
-          prescription: "医院开的药（如有用药手册请出示）",
+          prescription: "医院开的药（如有用药手册“Okusuri Techo”请出示）",
         },
         drugNameLabel: "药物名称",
       },
@@ -141,7 +141,7 @@ export const zhHans: Messages = {
   referral: {
     title: "请到医院或诊所就诊",
     body: "非常抱歉。以您目前的状况，不适合使用本店的非处方药。建议您到医院或诊所就诊。",
-    tellDoctor: "就诊时，请告诉医生您今天的症状和目前正在服用的药。如有用药手册，请一并携带。",
+    tellDoctor: "就诊时，请告诉医生您今天的症状和目前正在服用的药。如有用药手册（Okusuri Techo），请一并携带。",
     consultTitle: "可以用日语以外的语言咨询的地方",
     askStaff: "如有不明白的地方，请询问工作人员。",
   },

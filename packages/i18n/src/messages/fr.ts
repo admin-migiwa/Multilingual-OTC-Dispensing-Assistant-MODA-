@@ -78,7 +78,7 @@ export const fr: Messages = {
           painReliever: "Médicament contre la fièvre ou la douleur",
           antihistamine: "Médicament contre l'allergie ou pour le nez",
           kampo: "Kampo (médecine japonaise à base de plantes)",
-          prescription: "Médicament prescrit par un médecin (montrez votre carnet de médicaments si vous en avez un)",
+          prescription: "Médicament prescrit par un médecin (montrez votre carnet de médicaments « Okusuri Techo » si vous en avez un)",
         },
         drugNameLabel: "Nom du médicament",
       },
@@ -141,7 +141,7 @@ export const fr: Messages = {
   referral: {
     title: "Veuillez consulter un médecin à l'hôpital ou dans une clinique",
     body: "Nous sommes désolés. Les médicaments sans ordonnance ne conviennent pas à votre état actuel. Nous vous conseillons de consulter un médecin à l'hôpital ou dans une clinique.",
-    tellDoctor: "À l'hôpital, indiquez au médecin vos symptômes d'aujourd'hui et les médicaments que vous prenez actuellement. Si vous avez un carnet de médicaments, apportez-le.",
+    tellDoctor: "À l'hôpital, indiquez au médecin vos symptômes d'aujourd'hui et les médicaments que vous prenez actuellement. Si vous avez un carnet de médicaments (Okusuri Techo), apportez-le.",
     consultTitle: "Où obtenir de l'aide dans d'autres langues que le japonais",
     askStaff: "Si quelque chose n'est pas clair, demandez au personnel.",
   },

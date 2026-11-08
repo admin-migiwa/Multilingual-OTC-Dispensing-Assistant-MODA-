@@ -123,6 +123,17 @@ describe("定型文（9言語）", () => {
   });
 });
 
+describe("お薬手帳の言い方（11/8 依頼主の判断）", () => {
+  it("日本語以外では、問診（Q09）と受診の案内のどちらにも、手帳の表紙と見比べられる「Okusuri Techo」を添える", () => {
+    for (const lang of LANGUAGES) {
+      if (lang.code === "ja") continue;
+      const messages = getMessages(lang.code);
+      assert.match(messages.interview.questions.Q09.options.prescription, /Okusuri Techo/, lang.code);
+      assert.match(messages.referral.tellDoctor, /Okusuri Techo/, lang.code);
+    }
+  });
+});
+
 describe("受診をすすめる案内（docs/demo-data/referral.md の RF01〜RF05）", () => {
   it("どの言語にも、見出し・受診をすすめる文・病院で伝えること・相談先の見出し・スタッフへの案内がそろっている", () => {
     for (const lang of LANGUAGES) {
