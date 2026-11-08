@@ -8,7 +8,7 @@
 //       node record-demo.mjs main / emergency（アプリを起動しておく）
 import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { findFfmpeg } from "./ffmpeg-path.mjs";
 import { makeMusic } from "./music.mjs";
@@ -58,8 +58,8 @@ const PROGRESS = [
   ["⑤ 販売記録", "承認と同時に残る", "approved", "explain"],
 ];
 
-const IDLE_FAST = 1.9; // 声のない待ち時間だけ、この速さまで縮める（声の間は早送りしない。目が追えるように）
-const MAX_SLOW = 1.5; // これよりゆっくりにはせず、残りは止めて待つ
+const IDLE_FAST = 1.75; // 声のない待ち時間だけ、この速さまで縮める（声の間は早送りしない。目が追えるように）
+const MAX_SLOW = 2.4; // ここまでは全体をゆっくりにして待つ（止めるとラグに見えるので、止めるのは最後の手段）
 const GAP = 0.4; // 文と文の間（一呼吸）
 const LEAD = 0.15; // 画面の動きを、その言葉より少し先に見せる
 
@@ -147,25 +147,17 @@ function progressFilters(at, end) {
 }
 
 // デモの患者さん（架空）のカード：紹介のナレーションのあいだはまん中に大きく、そのあとは左上に小さく
-function patientFilters(pt, at, end) {
-  const f = [];
-  const on = `between(t,${(at.intro + 0.2).toFixed(2)},${(at.start ?? at.type) - 0.25})`;
-  const cx = 560, cy = 300, cw = 800, ch = 130 + pt.big.length * 74;
-  f.push(`drawbox=x=0:y=0:w=iw:h=ih:color=0x0f2a25@0.35:t=fill:enable='${on}'`);
-  f.push(`drawbox=x=${cx}:y=${cy}:w=${cw}:h=${ch}:color=white@0.98:t=fill:enable='${on}'`);
-  f.push(`drawbox=x=${cx}:y=${cy}:w=${cw}:h=12:color=0x11a07f:t=fill:enable='${on}'`);
-  f.push(`drawtext=fontfile='${FONT}':text='${esc("デモの患者さん（架空）")}':fontcolor=0x11a07f:fontsize=32:x=${cx + 50}:y=${cy + 46}:enable='${on}'`);
-  pt.big.forEach((line, i) => f.push(`drawtext=fontfile='${FONT}':text='${esc(line)}':fontcolor=0x12332d:fontsize=${i === 0 ? 52 : 44}:x=${cx + 50}:y=${cy + 110 + i * 74}:enable='${on}'`));
-  if (pt.small) {
-    const so = `between(t,${((at.start ?? at.type) - 0.1).toFixed(2)},${(end + 1).toFixed(2)})`;
-    // 左の余白に、デモの患者さん（架空）をずっと出しておく
-    const x = 22, y = 160, w = 352, h = 86 + pt.small.length * 56;
-    f.push(`drawbox=x=${x}:y=${y}:w=${w}:h=${h}:color=0xfff7e6@0.97:t=fill:enable='${so}'`);
-    f.push(`drawbox=x=${x}:y=${y}:w=10:h=${h}:color=0xf0a020:t=fill:enable='${so}'`);
-    f.push(`drawtext=fontfile='${FONT}':text='${esc("デモの患者さん（架空）")}':fontcolor=0x9a6400:fontsize=24:x=${x + 30}:y=${y + 24}:enable='${so}'`);
-    pt.small.forEach((line, i) => f.push(`drawtext=fontfile='${FONT}':text='${esc(line)}':fontcolor=0x3b2a00:fontsize=32:x=${x + 30}:y=${y + 76 + i * 56}:enable='${so}'`));
-  }
-  return f;
+// デモの患者さんのカード：紹介のあいだは画面を少し暗くする（カード自体は render-overlay.mjs の連番を重ねる）
+function dimFilters(at) {
+  const on = `between(t,${(at.intro + 0.2).toFixed(2)},${((at.start ?? at.type) - 0.7).toFixed(2)})`;
+  return [`drawbox=x=0:y=0:w=iw:h=ih:color=0x0f2a25@0.35:t=fill:enable='${on}'`];
+}
+function cardFrames(c, at) {
+  const dir = out(`demo/card-${c.name}`);
+  const t0 = (at.start ?? at.type) - 0.7; // ここから 0.6 秒で左へ動く
+  const r = spawnSync(process.execPath, [resolve(here, "render-overlay.mjs"), resolve(here, "scenes", `card-${c.name}.html`), dir, t0.toFixed(3)], { encoding: "utf8" });
+  if (r.status !== 0) throw new Error(`カードの連番を作れませんでした：${r.stderr}`);
+  return { dir, from: at.intro + 0.2 };
 }
 
 // node compose.mjs --plan：動画は作らず、速さの計画（長さと目印の時刻）だけ出す
@@ -191,19 +183,25 @@ for (const c of CLIPS) {
     const pad = Math.max(0, d - (b - a) * k);
     return `[s${i}]trim=start=${a.toFixed(3)}:end=${b.toFixed(3)},setpts=(PTS-STARTPTS)*${k.toFixed(4)},fps=30${pad > 0.02 ? `,tpad=stop_mode=clone:stop_duration=${pad.toFixed(3)}` : ""}[g${i}]`;
   });
+  const titleUntil = ((p.at.start ?? p.at.type) - 0.7).toFixed(2);
   const over = [
-    `drawbox=x=40:y=36:w=iw*0.36:h=74:color=0x11a07f@0.92:t=fill:enable='lt(t,${((p.at.start ?? p.at.type) - 0.25).toFixed(2)})'`,
-    `drawtext=fontfile='${FONT}':text='${esc(c.title)}':fontcolor=white:fontsize=38:x=66:y=54:enable='lt(t,${((p.at.start ?? p.at.type) - 0.25).toFixed(2)})'`,
+    `drawbox=x=40:y=36:w=iw*0.36:h=74:color=0x11a07f@0.92:t=fill:enable='lt(t,${titleUntil})'`,
+    `drawtext=fontfile='${FONT}':text='${esc(c.title)}':fontcolor=white:fontsize=38:x=66:y=54:enable='lt(t,${titleUntil})'`,
     ...(c.progress ? progressFilters(p.at, p.total) : []),
-    ...(c.patient ? patientFilters(c.patient, p.at, p.total) : []),
   ];
+  const card = c.patient ? cardFrames(c, p.at) : null;
+  const inputs = ["-i", file];
+  if (card) inputs.push("-framerate", "30", "-i", join(card.dir, "f%04d.png"));
   const graph = [
     `[0:v]split=${p.segs.length}${p.segs.map((_, i) => `[s${i}]`).join("")}`,
     ...chains,
-    `${p.segs.map((_, i) => `[g${i}]`).join("")}concat=n=${p.segs.length}:v=1:a=0,${over.join(",")},format=yuv420p[v]`,
+    `${p.segs.map((_, i) => `[g${i}]`).join("")}concat=n=${p.segs.length}:v=1:a=0${card ? "," + dimFilters(p.at).join(",") : ""}[vc]`,
+    // カードは最後のコマを繰り返して、実演の終わりまで左に出し続ける
+    card ? `[vc][1:v]overlay=0:0:eof_action=repeat:enable='gte(t,${card.from.toFixed(2)})'[vd]` : "[vc]null[vd]",
+    `[vd]${over.join(",")},format=yuv420p[v]`,
   ].join(";");
   const f = out(`demo/_timed-${c.name}.mp4`);
-  run(["-i", file, "-filter_complex", graph, "-map", "[v]", "-an", "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-r", "30", f]);
+  run([...inputs, "-filter_complex", graph, "-map", "[v]", "-an", "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-r", "30", f]);
   for (const l of p.lines) lines.push({ ...l, t: l.t + offset });
   const len = dur(f);
   parts.push(f);
@@ -227,7 +225,7 @@ run(["-i", demoVideo, "-i", demoAudio, "-c:v", "copy", "-c:a", "aac", "-b:a", "1
 // 3) 冒頭 → 実演 → 締め（つなぎ目は重ねて切り替える：冒頭→実演 0.4秒、実演→締めは白を通して 1.6秒。音楽もゆっくり入れ替える）
 const final = out("final.mp4");
 const openLen = dur(out("opening.mp4"));
-const X1 = 0.4, X2 = 1.6; // 冒頭の最後の「MODA があると」が読めるよう、冒頭→実演は短く重ねる
+const X1 = 0.4, X2 = 1.0; // 冒頭の最後の「MODA があると」が読めるよう、冒頭→実演は短く重ねる
 run([
   "-i", out("opening.mp4"), "-i", demoFull, "-i", out("ending.mp4"),
   "-filter_complex",

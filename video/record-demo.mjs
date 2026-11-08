@@ -274,8 +274,8 @@ function makeActions(page, rec) {
           await wait(rule[2] ?? 0);
           if (rule[4]) rec.cue(rule[4]);
           if (rule[5]) await op(btn(rule[1], true), rule[5], { sub: rule[6] ?? null, after: 900 });
-          else await tapLocator(btn(rule[1], true), rule[3] ? 900 : gap);
-          await off();
+          else { await tapLocator(btn(rule[1], true), 250); await off(); await wait((rule[3] ? 900 : gap) - 250); } // 押したらすぐ吹き出しを消す（次の質問に残らないように）
+          if (rule[5]) await off();
           if (rule[3]) await (rule[5] ? op(btn(rule[3], true), null, { after: gap }) : tapLocator(btn(rule[3], true), gap));
           if (speedForRest) rec.speed(speedForRest);
           rules = rules.filter((r) => r !== rule);
@@ -367,7 +367,7 @@ const CLIPS = {
     const contraCard = page.locator("li").filter({ hasText: "モダペインS錠" }).filter({ hasText: "禁忌：胃潰瘍" }).first();
     await contraCard.evaluate((el) => el.scrollIntoView({ behavior: "smooth", block: "center" })); await a.wait(900);
     rec.cue("contra");
-    await a.closeup(contraCard, "禁忌：胃潰瘍で治療中", { sub: "問診の答えから、自動で示す", hold: 4200 });
+    await a.closeup(contraCard, "禁忌：胃潰瘍で治療中", { sub: "問診の答えから、自動で示す", hold: 6000 }); // ナレーションが長いので、止めずに見せられるだけ長く
     rec.cue("pick");
     await a.op(page.locator("label", { hasText: "モダねつさまし錠" }).locator("input[type=checkbox]").first(), "薬剤師が、この患者さんに合う薬を選ぶ", { sub: "モダねつさまし錠（第2類）", pre: 1300, after: 1300 });
     await a.op(a.btn("選んだ薬の項目を聞く問診に戻る（患者さんの画面へ）"), "患者さんの画面に戻す", { after: 1200 });
@@ -441,7 +441,7 @@ const CLIPS = {
     await a.op(a.btn("119番の案内を出す"), "119番の案内を出す", { after: 400 });
     await a.wait(600);
     await stillNote(page, page.getByText("工作人员会马上为您提供帮助").first(), "119番の案内が、母国語で出る", null, true); // 赤い帯（119の文）に重ならないよう、下に出す
-    await a.wait(5000);
+    await a.wait(4200);
   },
 };
 

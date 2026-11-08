@@ -13,18 +13,19 @@
 <script src="lib/common.js"></script>
 <script>
 /*
- * デモ動画の締め（9.6秒。11/8：「薬局薬剤師が企画し…」は依頼主の判断で外した）。
+ * デモ動画の締め（10.0秒。11/8：「薬局薬剤師が企画し…」は依頼主の判断で外した）。
  * 実演の最後からクロスフェードで入る（compose.mjs）ので、始めは白からにせず、2人はもう並んでいる絵コンテの場面8。
  * 勤務先・店舗数・地域は出さない（決まったこと #20）。
  */
-const DURATION = 9.6;
+const DURATION = 10.0;
 window.DURATION = DURATION;
-window.SOUND_EVENTS = [{ t: 4.7, kind: "pop" }, { t: 7.9, kind: "stamp" }];
+window.SOUND_EVENTS = [{ t: 5.5, kind: "pop" }, { t: 8.7, kind: "stamp" }];
 window.MUSIC = [{ t: 0, len: DURATION, part: "outro" }];
 window.NARRATION = [
   // 1文目は、実演からの切り替え（白を通す 1.6秒）の途中から読み始める。どちらの文も速さは変えない（長さは測ってある：4.1秒・3.9秒）
-  { t: 0.2, max: 4.6, text: "~どの国の患者さんにも、安心して相談してもらえるように。~" },
-  { t: 4.8, max: 4.4, text: "{言葉がちがっても}、同じ安全を。^モダ。^" },
+  // 切り替え（白を通す 1.0秒）が終わってから読み始める（音が小さく聞こえないように）
+  { t: 1.0, max: 4.6, text: "~どの国の患者さんにも、安心して相談してもらえるように。~" },
+  { t: 5.6, max: 4.4, text: "{言葉がちがっても}、同じ安全を。^モダ。^" },
 ];
 
 window.draw = function (t) {
@@ -39,9 +40,9 @@ window.draw = function (t) {
     person(1200, 520 + (1 - inK) * 60, { ...PHARMACIST, scale: 0.6, armL: wave(1.5), armR: [0.2, 0.15], mood: "happy" });
     counter();
   });
-  const k1 = easeOut(prog(t, 4.7, 0.6));
+  const k1 = easeOut(prog(t, 5.5, 0.6));
   alpha(k1, () => text("言葉がちがっても、同じ安全を。", W / 2, 170 + (1 - k1) * 24, 76, C.ink, 800));
-  const k2 = pop(t, 7.9, 0.5);
+  const k2 = pop(t, 8.7, 0.5);
   if (k2 > 0) { ctx.save(); ctx.translate(W / 2, 330); ctx.scale(k2, k2); text("MODA", 0, 0, 110, C.teal, 800); ctx.restore(); }
   const dark = prog(t, DURATION - 0.8, 0.8);
   if (dark > 0) { ctx.fillStyle = `rgba(${C.fade},${dark})`; ctx.fillRect(0, 0, W, H); }
