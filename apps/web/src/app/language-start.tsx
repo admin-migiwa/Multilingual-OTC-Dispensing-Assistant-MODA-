@@ -47,8 +47,9 @@ type Mode = "questions" | "choose" | "symptom" | "reselect" | "not_for_sale";
  * 「戻る」（11/7 依頼主の依頼）：患者さんが通ってきた画面を端末の中だけで覚え、1つずつ戻る。
  * - 戻った質問に答え直すと、サーバーの「訂正」として記録に残る（answer の corrected・answers_cleared）。
  *   次に聞く項目はこれまでどおりサーバーが決める（ルール3）。前の答えは画面に出さない（もう一度答えてもらう）。
- * - 問診を進めてよい状態（attributes・interview・drug_selection）の間だけ戻れる。薬剤師が確認を始めたあと・承認のあと・
- *   緊急の確認のあとは、ここでは戻らない（承認と販売記録を守るため。ルール1・6）。
+ * - 問診を進めてよい状態（attributes・interview・drug_selection）の間と、薬剤師の確認中（承認の前）に戻れる。
+ *   薬剤師の確認中に戻ると、その確認を閉じて（記録は残る）薬の選択に戻してから戻る（11/8 依頼主の指摘）。
+ *   承認のあと・緊急の確認のあとは、ここでは戻らない（承認と販売記録を守るため。ルール1・6）。
  */
 type Step = { kind: "question"; id: QuestionId } | { kind: "choose" } | { kind: "symptom" } | { kind: "drug" };
 
@@ -75,7 +76,9 @@ function loadTrail(id: string): Step[] {
       (s): s is Step =>
         typeof s === "object" &&
         s !== null &&
-        (((s as { kind?: unknown }).kind === "question" && typeof (s as { id?: unknown }).id === "string") ||
+        (((s as { kind?: unknown }).kind === "question" &&
+          typeof (s as { id?: unknown }).id === "string" &&
+          /^(Q\d{2}a?|R\d{2})$/.test((s as { id: string }).id)) ||
           ["choose", "symptom", "drug"].includes((s as { kind?: unknown }).kind as string)),
     );
   } catch {
@@ -206,6 +209,8 @@ export function LanguageStart() {
           // 途中で「最初の画面に戻る」を押していたら、前の接客を画面に戻さない（緊急の確認の記録はサーバーに残る）
           if (startedAt !== startOverCount.current) return null;
           restoreBasics(latest);
+          // 覚えておいた通ってきた画面も戻す（空のまま記録を上書きしないように、画面に接客を出す前に）
+          setTrail(loadTrail(id));
           setView(opened);
           // restoringId はここでは消さない（画面が描き直される前に「緊急ではない」が押されても、新しい接客を始めないため）
           return opened;
@@ -251,6 +256,14 @@ export function LanguageStart() {
 
   /** 最初の質問から「戻る」：言語の選択に戻る（始めた接客はそのまま置いておき、言語を選ぶと新しい接客を始める） */
   function backToLanguage() {
+    // やめた接客の通ってきた画面は、もう使わないので消す
+    if (view !== null) {
+      try {
+        window.sessionStorage.removeItem(TRAIL_KEY(view.id));
+      } catch {
+        /* 消せなくても、画面はそのまま使える */
+      }
+    }
     clearSteps();
     setView(null);
     setMode("questions");
