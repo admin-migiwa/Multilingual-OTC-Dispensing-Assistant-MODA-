@@ -58,7 +58,7 @@ const segLen = (seg, next) => (next ? SEG[next] : DURATION) - SEG[seg];
 
 // 「ないとき」：やりとり → 答えがもれる（W2 の読み始め）→ 日本語だけの説明書（W3 の読み始め）→ 円が閉じる
 const LEN_WITHOUT = segLen("without", "flow");
-const WARP_WITHOUT = makeWarp([[0, 0], [relm("W", "miss", "without") - 0.2, 6.5], [relm("W", "leaf", "without") - 0.2, 8.35], [LEN_WITHOUT - 1.7, 11.0], [LEN_WITHOUT - 1.2, 11.7], [LEN_WITHOUT, 11.7]]);
+const WARP_WITHOUT = makeWarp([[0, 0], [relm("W", "miss", "without") - 0.2, 6.5], [relm("W", "leaf", "without") - 0.2, 8.35], [relm("W", "rec", "without") - 0.2, 10.3], [LEN_WITHOUT - 1.7, 11.0], [LEN_WITHOUT - 1.2, 11.7], [LEN_WITHOUT, 11.7]]);
 // 「あるとき」：ナレーション1文のあいだに、答える → 候補 → 承認 → 説明書が患者さんへ
 
 // 字幕はナレーションの文と同じ時に出す
@@ -67,7 +67,8 @@ const CAPS_WITHOUT = [
   [rel("W", "without") - 0.2, relm("W", "slow", "without") - 0.3, "いまの現場では、翻訳アプリで対応することが多い。"],
   [relm("W", "slow", "without") - 0.2, relm("W", "miss", "without") - 0.25, "翻訳アプリでのやりとりは、時間がかかる。"],
   [relm("W", "miss", "without") - 0.2, relm("W", "leaf", "without") - 0.25, "まとめて聞くと、答えがもれるおそれ。"],
-  [relm("W", "leaf", "without") - 0.2, LEN_WITHOUT - 0.9, "説明書も、日本語のまま。"],
+  [relm("W", "leaf", "without") - 0.2, relm("W", "rec", "without") - 0.25, "説明書も、日本語のまま。"],
+  [relm("W", "rec", "without") - 0.2, LEN_WITHOUT - 1.8, "話した内容も、記録に残らない。"],
 ];
 const CAPS_ARRIVAL = [[0.3, segLen("arrival", "proc") - 0.1, "日本語が話せない患者さんも、市販薬を買いに来ます。"]];
 

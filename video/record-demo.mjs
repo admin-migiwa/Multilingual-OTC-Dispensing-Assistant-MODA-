@@ -126,8 +126,8 @@ async function setupPage(page) {
       if (sub) { const sm = document.createElement("small"); sm.textContent = sub; d.appendChild(sm); }
       layer().appendChild(d);
       const W = window.innerWidth, H = window.innerHeight, w = d.offsetWidth, h = d.offsetHeight;
-      // 左の 0〜約280px は、あとから重ねる「いまの場面」に隠れるので、吹き出しはそれより右に出す
-      let x = Math.min(Math.max(300, r.x + r.width / 2 - w / 2), W - w - 16);
+      // 左右の端（0〜約280px と 約1150px〜）は、あとから重ねる患者さんの情報と手順の段階に隠れるので、そのあいだに出す
+      let x = Math.min(Math.max(300, r.x + r.width / 2 - w / 2), Math.max(300, 1150 - w));
       let y = below ? r.y + r.height + 22 : r.y - h - 22;
       if (y < 12) y = Math.min(r.y + r.height + 22, H - h - 12);
       d.style.left = x + "px"; d.style.top = y + "px";
@@ -154,13 +154,32 @@ async function setupPage(page) {
 }
 function makeActions(page, rec) {
   const wait = (ms) => page.waitForTimeout(ms);
+  // 押す：要素の動き（スクロールなど）が止まってから、丸い印を出したその点をそのまま押す（印と押す場所がずれないように）
+  async function press(loc) {
+    let prev = null;
+    for (let i = 0; i < 15; i++) {
+      const b = await loc.boundingBox();
+      if (b && prev && Math.abs(b.x - prev.x) < 0.5 && Math.abs(b.y - prev.y) < 0.5) break;
+      prev = b;
+      await wait(80);
+    }
+    const center = (b) => [b.x + b.width / 2, b.y + b.height / 2];
+    const b1 = await loc.boundingBox();
+    if (!b1) { await loc.click(); return; }
+    let [x, y] = center(b1);
+    await page.evaluate(([px, py]) => window.__tap?.(px, py), [x, y]);
+    await wait(280);
+    const b2 = await loc.boundingBox();
+    if (b2) {
+      const [x2, y2] = center(b2);
+      if (Math.hypot(x2 - x, y2 - y) > 3) { [x, y] = [x2, y2]; await page.evaluate(([px, py]) => window.__tap?.(px, py), [x, y]); await wait(150); }
+    }
+    await page.mouse.click(x, y);
+  }
   async function tapLocator(loc, after = 900) {
     await loc.scrollIntoViewIfNeeded();
     await wait(250);
-    const box = await loc.boundingBox();
-    if (box) await page.evaluate(([x, y]) => window.__tap?.(x, y), [box.x + box.width / 2, box.y + box.height / 2]);
-    await wait(280);
-    await loc.click();
+    await press(loc);
     await wait(after);
   }
   const btn = (name, exact = false) => page.getByRole("button", { name, exact }).first();
@@ -179,10 +198,7 @@ function makeActions(page, rec) {
     await focus(loc);
     if (note) await page.evaluate(([t, sb, rr]) => window.__note(t, sb, rr), [note, sub, await rectOf(loc)]);
     await wait(pre);
-    const box = await loc.boundingBox();
-    if (box) await page.evaluate(([x, y]) => window.__tap?.(x, y), [box.x + box.width / 2, box.y + box.height / 2]);
-    await wait(280);
-    await loc.click();
+    await press(loc);
     await wait(after);
     await page.evaluate(() => window.__noteOff());
   }

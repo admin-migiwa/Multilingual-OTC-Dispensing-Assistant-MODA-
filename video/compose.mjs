@@ -28,7 +28,7 @@ const CLIPS = [
   {
     name: "main", title: "実演：症状から相談（英語）", progress: true,
     // デモの患者さん（架空）：最初にまん中のカードで紹介し、そのあとは左の「いまの場面」の上に小さく残す
-    patient: { big: ["30歳・女性・英語", "昨日から熱と頭痛", "胃潰瘍で治療中"], small: ["30歳・女性・英語", "熱と頭痛／胃潰瘍で治療中"] },
+    patient: { big: ["30歳・女性・英語", "昨日から熱と頭痛", "胃潰瘍で治療中"], small: ["30歳・女性", "英語を話す", "昨日から熱と頭痛", "胃潰瘍で治療中"] },
     lines: [
       { cue: "intro", text: "ここからは実演です。患者さんは、熱と頭痛があり、{胃潰瘍で治療中}の、英語を話す30歳の女性です。" },
       { cue: "start", text: "^モダがあると、^患者さんが言語を選び、{母国語の案内}にそって答えるだけで、薬剤師は必要なことをもれなく聞き取れます。" },
@@ -42,7 +42,7 @@ const CLIPS = [
   },
   {
     name: "emergency", title: "実演：緊急の場面（中国語）",
-    patient: { big: ["40歳・男性・中国語", "胸が痛い"] },
+    patient: { big: ["40歳・男性・中国語", "胸が痛い"], small: ["40歳・男性", "中国語を話す", "胸が痛い"] },
     lines: [
       { cue: "intro", text: "次は、{胸の痛み}を訴える、中国語を話す40歳の男性です。" },
       { cue: "type", text: "胸の痛みなど{緊急の言葉}が入ると、[stop]問診はすぐに止まり、患者さんには母国語で「スタッフがすぐにお手伝いします」と出ます。|[guide]{119番の案内}は、薬剤師が根拠を確かめてから出します。" },
@@ -58,9 +58,9 @@ const PROGRESS = [
   ["⑤ 販売記録", "承認と同時に残る", "approved", "explain"],
 ];
 
-const IDLE_FAST = 1.6; // 声のない待ち時間だけ、この速さまで縮める（声の間は早送りしない。目が追えるように）
+const IDLE_FAST = 1.9; // 声のない待ち時間だけ、この速さまで縮める（声の間は早送りしない。目が追えるように）
 const MAX_SLOW = 1.5; // これよりゆっくりにはせず、残りは止めて待つ
-const GAP = 0.45; // 文と文の間（一呼吸）
+const GAP = 0.4; // 文と文の間（一呼吸）
 const LEAD = 0.15; // 画面の動きを、その言葉より少し先に見せる
 
 function run(args) {
@@ -125,7 +125,7 @@ async function plan(clip, cues, len) {
 
 const esc = (s) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/:/g, "\\:");
 function progressFilters(at, end) {
-  const x = 22, y0 = 160, w = 352, rowH = 112;
+  const x = 1920 - 22 - 352, y0 = 160, w = 352, rowH = 112; // 右の余白に出す（左はデモの患者さん）
   const T = (k) => (k === null ? null : k === "approved" ? at.pin + 3.0 : at[k]);
   const f = [
     `drawbox=x=${x}:y=${y0}:w=${w}:h=${74 + rowH * 5}:color=white@0.96:t=fill`,
@@ -157,12 +157,13 @@ function patientFilters(pt, at, end) {
   f.push(`drawtext=fontfile='${FONT}':text='${esc("デモの患者さん（架空）")}':fontcolor=0x11a07f:fontsize=32:x=${cx + 50}:y=${cy + 46}:enable='${on}'`);
   pt.big.forEach((line, i) => f.push(`drawtext=fontfile='${FONT}':text='${esc(line)}':fontcolor=0x12332d:fontsize=${i === 0 ? 52 : 44}:x=${cx + 50}:y=${cy + 110 + i * 74}:enable='${on}'`));
   if (pt.small) {
-    const so = `between(t,${((at.start ?? 0) - 0.1).toFixed(2)},${(end + 1).toFixed(2)})`;
-    const x = 22, y = 40, w = 352;
-    f.push(`drawbox=x=${x}:y=${y}:w=${w}:h=104:color=0xfff7e6@0.97:t=fill:enable='${so}'`);
-    f.push(`drawbox=x=${x}:y=${y}:w=8:h=104:color=0xf0a020:t=fill:enable='${so}'`);
-    f.push(`drawtext=fontfile='${FONT}':text='${esc("デモの患者さん（架空）")}':fontcolor=0x9a6400:fontsize=18:x=${x + 24}:y=${y + 12}:enable='${so}'`);
-    pt.small.forEach((line, i) => f.push(`drawtext=fontfile='${FONT}':text='${esc(line)}':fontcolor=0x3b2a00:fontsize=22:x=${x + 24}:y=${y + 40 + i * 30}:enable='${so}'`));
+    const so = `between(t,${((at.start ?? at.type) - 0.1).toFixed(2)},${(end + 1).toFixed(2)})`;
+    // 左の余白に、デモの患者さん（架空）をずっと出しておく
+    const x = 22, y = 160, w = 352, h = 86 + pt.small.length * 56;
+    f.push(`drawbox=x=${x}:y=${y}:w=${w}:h=${h}:color=0xfff7e6@0.97:t=fill:enable='${so}'`);
+    f.push(`drawbox=x=${x}:y=${y}:w=10:h=${h}:color=0xf0a020:t=fill:enable='${so}'`);
+    f.push(`drawtext=fontfile='${FONT}':text='${esc("デモの患者さん（架空）")}':fontcolor=0x9a6400:fontsize=24:x=${x + 30}:y=${y + 24}:enable='${so}'`);
+    pt.small.forEach((line, i) => f.push(`drawtext=fontfile='${FONT}':text='${esc(line)}':fontcolor=0x3b2a00:fontsize=32:x=${x + 30}:y=${y + 76 + i * 56}:enable='${so}'`));
   }
   return f;
 }
