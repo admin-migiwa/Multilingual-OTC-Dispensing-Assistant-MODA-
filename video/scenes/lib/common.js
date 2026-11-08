@@ -220,17 +220,19 @@ function sceneLabel(s, bg, fg, a) {
   });
 }
 
-// ①②③の札（業務の手順）。state: "" | "q"（？）| "ok"（✓）
+// ①〜⑤の札（販売の前に薬剤師が確かめること）。state: "" | "q"（？）| "ok"（✓）
 const STEP_CHIPS = [
   { n: "①", label: "問診" },
-  { n: "②", label: "禁忌の確認" },
-  { n: "③", label: "書面・記録", note: "第1類以上" },
+  { n: "②", label: "禁忌" },
+  { n: "③", label: "区分の手順" },
+  { n: "④", label: "説明・理解" },
+  { n: "⑤", label: "記録" },
 ];
 function stepChips(states, a, y = 88) {
   alpha(a, () => {
-    const widths = [230, 290, 320];
-    const gap = 16;
-    let x = 480;
+    const widths = [170, 170, 230, 230, 170];
+    const gap = 12;
+    let x = 400;
     STEP_CHIPS.forEach((c, i) => {
       const w = widths[i];
       const st = states[i] || {};
@@ -240,15 +242,15 @@ function stepChips(states, a, y = 88) {
       const ok = st.mark === "ok", q = st.mark === "q";
       shadowed(() => { ctx.fillStyle = ok ? C.teal : "#fff"; rr(-w / 2, -32, w, 64, 32); ctx.fill(); });
       const fg = ok ? "#fff" : C.ink;
-      text(`${c.n} ${c.label}`, -w / 2 + 24, c.note ? -6 : 0, 26, fg, 800, "left");
+      text(`${c.n} ${c.label}`, -w / 2 + 20, c.note ? -6 : 0, 24, fg, 800, "left");
       if (c.note) text(c.note, -w / 2 + 62, 20, 16, ok ? C.tealSoft : C.muted, 700, "left");
       if (q) {
-        ctx.fillStyle = C.warnSoft; ctx.beginPath(); ctx.arc(w / 2 - 34, 0, 22, 0, Math.PI * 2); ctx.fill();
-        ctx.save(); ctx.translate(w / 2 - 34, 1); ctx.rotate(Math.sin(GT * 6 + i) * 0.12);
+        ctx.fillStyle = C.warnSoft; ctx.beginPath(); ctx.arc(w / 2 - 28, 0, 20, 0, Math.PI * 2); ctx.fill();
+        ctx.save(); ctx.translate(w / 2 - 28, 1); ctx.rotate(Math.sin(GT * 6 + i) * 0.12);
         text("？", 0, 0, 30, C.warn, 900); ctx.restore();
       } else if (ok) {
         ctx.strokeStyle = "#fff"; ctx.lineWidth = 6; ctx.lineCap = "round"; ctx.lineJoin = "round";
-        ctx.beginPath(); ctx.moveTo(w / 2 - 46, 0); ctx.lineTo(w / 2 - 37, 10); ctx.lineTo(w / 2 - 20, -10); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(w / 2 - 40, 0); ctx.lineTo(w / 2 - 31, 10); ctx.lineTo(w / 2 - 16, -10); ctx.stroke();
       }
       ctx.restore();
       x += w + gap;

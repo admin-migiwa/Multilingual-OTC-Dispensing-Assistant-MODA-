@@ -13,7 +13,8 @@ const WITHOUT_EVENTS = [
   { t: 8.4, kind: "swoosh" }, { t: 9.4, kind: "huh" },
   { t: 11.0, kind: "swoosh" }, { t: 11.75, kind: "stamp" },
 ];
-const WITHOUT_CHIPS = [[7.0, "q"], [7.6, "q"], [9.4, "q"]];
+// ①問診・②禁忌：答えがもれる／③区分の手順・④説明・理解：日本語だけの説明書／⑤記録：やりとりが残らない
+const WITHOUT_CHIPS = [[7.0, "q"], [7.6, "q"], [9.4, "q"], [9.8, "q"], [10.4, "q"]];
 
 const PHONE_KEYS = [
   [0.0, 490, 430, 0.15], [2.2, 490, 430, 0.15],
