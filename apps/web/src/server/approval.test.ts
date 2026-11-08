@@ -12,6 +12,7 @@ import {
   returnToDrugSelection,
 } from "./pharmacist-service.ts";
 import { PIN_MAX_FAILURES, PinError, createPinVerifier } from "./pin.ts";
+import { confirmOk } from "./confirm.test-helper.ts";
 import {
   SessionServiceError,
   answer,
@@ -69,6 +70,7 @@ function reviewing(deps: ServiceDeps, drugs: StockedDrugId[], extra: InterviewAn
   answer(deps, id, { age: 30, sex: "female" });
   chooseRoute(deps, id, "product");
   chooseDrugs(deps, id, drugs);
+  confirmOk(deps, id, { ...fine, ...extra });
   answer(deps, id, { ...fine, ...extra });
   openPharmacistReview(deps, id);
   return id;

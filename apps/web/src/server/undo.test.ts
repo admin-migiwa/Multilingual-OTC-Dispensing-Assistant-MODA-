@@ -25,6 +25,7 @@ import {
   pharmacistView,
 } from "./pharmacist-service.ts";
 import { createPinVerifier } from "./pin.ts";
+import { confirmOk } from "./confirm.test-helper.ts";
 import { answer, chooseDrugs, chooseRoute, createSession, getSession, patientView, type ServiceDeps, type SessionRecord } from "./session-service.ts";
 
 // 工程を戻す（11/7 依頼主の判断）の仕組みのテスト。CLAUDE.md の絶対に守るルール1（承認の前に販売の手続きに進めない）・
@@ -69,6 +70,7 @@ function reviewed(deps: ServiceDeps, drug: StockedDrugId): string {
   answer(deps, id, { age: 30, sex: "female" });
   chooseRoute(deps, id, "product");
   chooseDrugs(deps, id, [drug]);
+  confirmOk(deps, id, fine);
   answer(deps, id, fine);
   openPharmacistReview(deps, id);
   chooseSaleDrugs(deps, id, [drug]);

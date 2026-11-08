@@ -57,16 +57,19 @@ function procedureInput(drugId: StockedDrugId, packageAmount?: number): Procedur
  * 販売手順の判定（buildRequiredProcedure）に渡す、薬と個数の一覧を作る。
  * - 大箱がある薬（E）は、問診の R02 の答えで包装と個数を決める。小箱1個／大箱1個／複数個（小箱を個数分）。
  *   R02 の答えがなければ推測せずに止める（ルール7）。
- * - 包装が1つだけの薬は1個（B は1包装のみ。interview-items.md の R02）。
+ * - 包装が1つだけの薬は、患者さんが確認の画面で選んだ個数（quantities。sales-procedures.md Q-6）。
+ *   渡さない薬は1個（承認の前の手順の判定用。ふつうの薬の手順は個数で変わらない）。
+ *   販売記録を作るとき（承認）は、患者さんの有効な OK の個数を必ず渡す（patient-confirmation.ts）。
  */
 export function saleSelectionsFor(
   drugIds: readonly StockedDrugId[],
   abuse: AbusePreventionAnswers,
+  quantities: Readonly<Partial<Record<StockedDrugId, number>>> = {},
 ): DrugSelection[] {
   return drugIds.map((drugId) => {
     const packages = DRUG_SALE_DATA[drugId].packages;
     if (packages?.large === undefined) {
-      return { drug: procedureInput(drugId, packages?.small.amount), quantity: 1 };
+      return { drug: procedureInput(drugId, packages?.small.amount), quantity: quantities[drugId] ?? 1 };
     }
     switch (abuse.packageChoice) {
       case "small_one":

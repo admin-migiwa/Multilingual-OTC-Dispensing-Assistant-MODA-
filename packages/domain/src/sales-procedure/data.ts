@@ -66,6 +66,13 @@ export interface QuantityRules {
   readonly minorAgeBelow: number;
   /** 18歳未満で選べる最大の個数。Q-3 */
   readonly minorMaxQuantity: number;
+  /**
+   * 指定濫用防止医薬品でない薬を、1回の販売で1つの薬につき選べる最大の個数（患者さんの薬の確認の画面の個数）。
+   * Q-6（11/8 依頼主＝薬剤師の判断。法令の基準ではなく、ハッカソン版の店の決まり）
+   */
+  readonly maxQuantityPerDrug: number;
+  /** 指定濫用防止医薬品でなくても1個に決まっている薬（A：薬剤師の前で1錠を服用。Q-6、11/8 依頼主の判断） */
+  readonly singleQuantityDrugIds: readonly string[];
   /** 注意文の日本語の原文（各言語の訳は画面の側で用意する） */
   readonly noticeTextJa: Readonly<Record<QuantityNoticeKind, string>>;
 }
@@ -166,6 +173,8 @@ export const SALES_PROCEDURE_VERSIONS: readonly SalesProcedureVersion[] = [
       extendedSmallPackageClasses: ["かぜ薬（総合）", "解熱鎮痛薬", "鼻炎用内服薬"],
       minorAgeBelow: 18,
       minorMaxQuantity: 1,
+      maxQuantityPerDrug: 3,
+      singleQuantityDrugIds: ["A"],
       noticeTextJa: {
         minor_large_package: "18歳未満の方には大容量の包装を販売できません",
         minor_multiple_packages: "18歳未満の方には1個まで販売できます",

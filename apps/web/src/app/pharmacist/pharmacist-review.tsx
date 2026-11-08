@@ -114,6 +114,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   UNKNOWN_PHARMACIST: "薬剤師を選んでください。",
   OVERRIDE_REASON_INVALID: "解除の理由を選んでください（「その他」は理由を書いてください）。",
   NOT_CONTRAINDICATED: "禁忌ではない薬は解除しません。",
+  PATIENT_NOT_CONFIRMED:
+    "販売する薬と個数を、患者さんがまだ確かめていません。患者さんの画面で「この薬でOK」と個数を選んでもらってください（一部の薬だけ売るときは、候補から選び直してください）。",
+  INVALID_QUANTITY: "個数の形が違います。",
 };
 
 /**
@@ -445,8 +448,8 @@ export function PharmacistReview({ sessionId }: { sessionId: string }) {
           onChooseCandidates={async (drugIds) => {
             // 候補の薬を選ぶと、その薬の項目を聞く問診に戻る（聞く項目がなければ、そのまま薬剤師の確認をやり直す）
             const next = await run(() => pharmacistApi.chooseCandidates(sessionId, drugIds));
-            if (next?.status === "interview") window.location.assign(patientUrl);
-            else if (next?.status === "drug_selection") void run(() => pharmacistApi.open(sessionId));
+            // 選んだ薬は、まず患者さんが自分の言語で確かめて個数を選ぶ（11/8 依頼主の判断）。患者さんの画面へ移る
+            if (next?.status === "interview" || next?.status === "drug_selection") window.location.assign(patientUrl);
           }}
         />
       )}
@@ -636,6 +639,9 @@ function ReviewBody({
 
       {/* 段階ごとに出す（11/8 依頼主の判断）：薬を選ぶまでは手順と承認を出さない。承認の欄は、承認の前の手順がそろってから出す
           （承認できるかは、いままでどおりサーバーが確かめる。ルール1・5） */}
+      {/* 患者さんが確かめた薬と個数（販売する薬を選ぶ前から出す。一部だけ売ると承認が止まる理由が先にわかるように） */}
+      {view.status === "pharmacist_review" && view.drugs.length > 0 ? <PatientOkSection view={view} /> : null}
+
       {view.saleDrugIds.length === 0 ? (
         <Section title="次にすること">
           <p className="text-slate-700">
@@ -963,6 +969,8 @@ function approveBlockedReason(view: PharmacistView): string | null {
   const missing = (view.procedure?.steps ?? []).filter((s) => s.gate === "before_approval" && !s.checked);
   return view.saleDrugIds.length === 0
     ? "販売する薬を選んでください。"
+    : !patientOkMatches(view)
+      ? "患者さんが「この薬でOK」と個数を確かめた薬の組み合わせと、販売する薬が違います（一部だけ売るときは、候補から選び直して患者さんに確かめてもらってください）。"
     : view.procedureError
       ? "販売手順を作れないため承認できません。"
       : view.procedure === null
@@ -970,6 +978,43 @@ function approveBlockedReason(view: PharmacistView): string | null {
         : missing.length > 0
           ? `承認の前に必要な手順が残っています：${missing.map((s) => s.label).join("、")}`
           : null;
+}
+
+/** 患者さんの OK の薬の組み合わせが、販売する薬と同じか（表示用。最後に止めるのはサーバー） */
+function patientOkMatches(view: PharmacistView): boolean {
+  const ok = view.patientOk;
+  return ok !== null && ok.drugIds.length === view.saleDrugIds.length && ok.drugIds.every((d) => view.saleDrugIds.includes(d));
+}
+
+/** 患者さんの薬の確認（「この薬でOK」と個数。11/8 依頼主の判断） */
+function PatientOkSection({ view }: { view: PharmacistView }) {
+  const ok = view.patientOk;
+  const name = (id: string): string => view.drugs.find((d) => d.drugId === id)?.name ?? id;
+  const r02 = view.answers.packageChoice;
+  const packageText =
+    r02 === "small_one" ? "小箱1個" : r02 === "large_one" ? "大箱1個" : r02 === "multiple" ? `小箱${view.answers.multipleCount ?? "?"}個` : "（包装の答えなし）";
+  return (
+    <Section title="患者さんの確認（薬と個数）">
+      {ok === null ? (
+        <p role="alert" className="text-red-900">まだ確かめていません。患者さんの画面で「この薬でOK」と個数を選んでもらってください。</p>
+      ) : (
+        <ul className="space-y-1">
+          {ok.drugIds.map((d) => (
+            <li key={d}>
+              ✓ {name(d)}：{ok.quantities[d] !== undefined ? `${ok.quantities[d]}個` : packageText}
+            </li>
+          ))}
+          <li className="text-sm text-slate-500">確かめた時刻 {time(ok.at)}</li>
+        </ul>
+      )}
+      {ok !== null && view.saleDrugIds.length > 0 && !patientOkMatches(view) ? (
+        <p role="alert" className="mt-2 text-red-900">販売する薬が、患者さんが確かめた薬の組み合わせと違います。</p>
+      ) : null}
+      {view.patientConsultedAt !== null ? (
+        <p className="mt-2 text-sm text-slate-600">患者さんが「相談したい」を押しました（{time(view.patientConsultedAt)}）。</p>
+      ) : null}
+    </Section>
+  );
 }
 
 function readyToApprove(view: PharmacistView): boolean {

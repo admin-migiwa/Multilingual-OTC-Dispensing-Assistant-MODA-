@@ -215,6 +215,7 @@ export function procedureAtApproval(record: SessionRecord): RequiredProcedure {
     selections: saleSelectionsFor(
       v1.items.map((i) => i.drugId),
       abusePreventionAnswers(record.interview),
+      Object.fromEntries(v1.items.map((i) => [i.drugId, i.quantity])),
     ),
     patientAge: age,
     date: v1.procedureEffectiveFrom,
