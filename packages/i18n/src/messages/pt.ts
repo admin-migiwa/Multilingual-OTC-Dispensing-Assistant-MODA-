@@ -37,7 +37,7 @@ export const pt: Messages = {
     title: "Sobre a foto",
     body: "A foto é enviada à IA apenas para ler o texto. A foto não é guardada. Cuide para que seu nome e as notificações do celular não apareçam.",
     agree: "Concordar e tirar a foto",
-    decline: "Não tirar foto (digitar o nome)",
+    decline: "Não tirar foto (digitar o nome do produto)",
   },
   interview: {
     intro: "Vamos fazer perguntas sobre a sua saúde, uma por vez.",
@@ -92,13 +92,13 @@ export const pt: Messages = {
       },
       R01: { text: "Você comprou recentemente um remédio parecido em outra loja?" },
       R02: {
-        text: "Quantos você quer comprar?",
+        text: "Quantas caixas você quer comprar?",
         options: { smallOne: "Uma caixa pequena", largeOne: "Uma caixa grande", multiple: "Duas ou mais" },
         // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
         minorLargePackage: "Não podemos vender embalagens grandes a menores de {age} anos.",
         minorMultiplePackages: "Menores de {age} anos podem comprar no máximo {max}.",
       },
-      R03: { text: "Diga por que você precisa de uma caixa grande ou de duas ou mais." },
+      R03: { text: "Diga por que você precisa de uma caixa grande ou de mais de uma caixa." },
       R04: { text: "Para quais sintomas você vai usar?" },
     },
     notUnderstood: "Desculpe, não conseguimos entender a sua resposta. Responda novamente, por favor.",
@@ -164,9 +164,9 @@ export const pt: Messages = {
   },
   guide: {
     language: "Toque no seu idioma.",
-    steps: { questions: "Responder perguntas", review: "Verificação do farmacêutico", explain: "Sobre o seu medicamento", checkout: "Pagamento" },
+    steps: { questions: "Responder perguntas", review: "Verificação do farmacêutico", explain: "Sobre o seu remédio", checkout: "Pagamento" },
     start: "Toque na opção que se aplica a você.",
-    search: "Procure o medicamento que deseja e selecione-o.",
+    search: "Procure o remédio que deseja e selecione-o.",
     question: "Responda uma pergunta de cada vez e avance. Se tiver dúvidas, pergunte à equipe.",
     symptom: "Descreva seus sintomas com suas próprias palavras.",
     waiting: "Mostre este iPad à equipe, por favor.",

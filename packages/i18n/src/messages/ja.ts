@@ -28,7 +28,7 @@ export const ja = {
   start: {
     title: "どうしましたか？",
     haveProduct: "ほしい薬がある",
-    haveProductHint: "商品名を入れる、またはスマホの画面や商品を撮影します",
+    haveProductHint: "商品名を入力するか、スマホの画面や商品を撮影します",
     findBySymptom: "症状から探す",
     findBySymptomHint: "体の具合を、1つずつ質問します",
     searchPlaceholder: "商品名を入れてください（スマホの画面の名前でも大丈夫です）",
@@ -41,7 +41,7 @@ export const ja = {
     title: "写真について",
     body: "写真は、文字を読むためだけに AI に送ります。写真は保存しません。名前やスマホの通知などが写らないように撮ってください。",
     agree: "同意して撮影する",
-    decline: "撮影しない（名前を入力する）",
+    decline: "撮影しない（商品名を入力する）",
   },
   interview: {
     intro: "体の状態について、1つずつ質問します。",
@@ -105,7 +105,7 @@ export const ja = {
       R03: { text: "大きい箱や2つ以上が必要な理由を教えてください。" },
       R04: { text: "どんな症状に使いますか？" },
     },
-    notUnderstood: "すみません、うまく受け取れませんでした。もう一度お答えください。",
+    notUnderstood: "すみません、答えをうまく読み取れませんでした。もう一度お答えください。",
     done: "質問は以上です。薬剤師が確認しますので、少しお待ちください。",
   },
   emergency: {
@@ -170,7 +170,7 @@ export const ja = {
   },
   // 画面ごとの「何をするか」の短い説明と、いまどの段階かのしるし（見た目の補足。流れには関係しない）
   guide: {
-    language: "自分の言葉を押してください。",
+    language: "お使いの言語を押してください。",
     steps: { questions: "質問に答える", review: "薬剤師が確認", explain: "お薬の説明", checkout: "お会計" },
     start: "あてはまるほうを押してください。",
     search: "ほしい薬を探して、選んでください。",

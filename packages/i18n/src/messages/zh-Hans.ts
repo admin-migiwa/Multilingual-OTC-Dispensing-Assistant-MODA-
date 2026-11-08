@@ -27,8 +27,8 @@ export const zhHans: Messages = {
     haveProductHint: "输入商品名称，或拍摄手机屏幕或商品",
     findBySymptom: "根据症状找药",
     findBySymptomHint: "我们会逐一询问您的身体状况",
-    searchPlaceholder: "请输入商品名称（手机画面上的名称也可以）",
-    noMatch: "没有找到。请把手机画面给工作人员看。",
+    searchPlaceholder: "请输入商品名称（手机屏幕上的名称也可以）",
+    noMatch: "没有找到。请把手机屏幕给工作人员看。",
     symptomPrompt: "您有什么症状？",
     chooseDrug: "选择这个药",
     changeDrug: "重新选择其他药",
@@ -37,7 +37,7 @@ export const zhHans: Messages = {
     title: "关于照片",
     body: "照片仅用于让 AI 读取上面的文字，不会保存。拍摄时请注意不要拍到姓名或手机通知等信息。",
     agree: "同意并拍摄",
-    decline: "不拍摄（输入名称）",
+    decline: "不拍摄（输入商品名称）",
   },
   interview: {
     intro: "我们将逐一询问您的身体状况。",
@@ -164,7 +164,7 @@ export const zhHans: Messages = {
   },
   guide: {
     language: "请点选您的语言。",
-    steps: { questions: "回答问题", review: "药剂师确认", explain: "药品说明", checkout: "结账" },
+    steps: { questions: "回答问题", review: "药剂师确认", explain: "用药说明", checkout: "结账" },
     start: "请点选符合您情况的一项。",
     search: "请找到您想要的药，然后选择。",
     question: "请逐一回答，然后进入下一步。如有不明白的地方，请询问工作人员。",

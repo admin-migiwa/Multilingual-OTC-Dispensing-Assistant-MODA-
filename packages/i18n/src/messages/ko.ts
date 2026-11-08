@@ -37,7 +37,7 @@ export const ko: Messages = {
     title: "사진에 대해",
     body: "사진은 글자를 읽기 위해서만 AI에 보냅니다. 사진은 저장하지 않습니다. 이름이나 휴대폰 알림 등이 찍히지 않도록 촬영해 주세요.",
     agree: "동의하고 촬영하기",
-    decline: "촬영하지 않기(이름 입력)",
+    decline: "촬영하지 않기(상품명 입력)",
   },
   interview: {
     intro: "몸 상태에 대해 하나씩 질문합니다.",
@@ -102,7 +102,7 @@ export const ko: Messages = {
       R04: { text: "어떤 증상에 사용하실 건가요?" },
     },
     notUnderstood: "죄송합니다. 답변을 잘 이해하지 못했습니다. 다시 답해 주세요.",
-    done: "질문은 여기까지입니다. 약사가 확인하니 잠시 기다려 주세요.",
+    done: "질문은 여기까지입니다. 약사가 확인하겠습니다. 잠시 기다려 주세요.",
   },
   emergency: {
     title: "지금 바로 구급차를 부르세요",
@@ -163,7 +163,7 @@ export const ko: Messages = {
     body: "계산대에서 계산해 주세요. 몸조리 잘하세요.",
   },
   guide: {
-    language: "언어를 눌러 주세요.",
+    language: "사용하실 언어를 눌러 주세요.",
     steps: { questions: "질문에 답하기", review: "약사 확인", explain: "약 설명", checkout: "계산" },
     start: "해당하는 것을 눌러 주세요.",
     search: "원하는 약을 찾아서 선택해 주세요.",

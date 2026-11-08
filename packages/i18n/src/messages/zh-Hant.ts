@@ -37,7 +37,7 @@ export const zhHant: Messages = {
     title: "關於照片",
     body: "照片僅用於讓 AI 讀取上面的文字，不會保存。拍攝時請注意不要拍到姓名或手機通知等資訊。",
     agree: "同意並拍攝",
-    decline: "不拍攝（輸入名稱）",
+    decline: "不拍攝（輸入商品名稱）",
   },
   interview: {
     intro: "我們將逐一詢問您的身體狀況。",
@@ -164,7 +164,7 @@ export const zhHant: Messages = {
   },
   guide: {
     language: "請點選您的語言。",
-    steps: { questions: "回答問題", review: "藥劑師確認", explain: "藥品說明", checkout: "結帳" },
+    steps: { questions: "回答問題", review: "藥劑師確認", explain: "用藥說明", checkout: "結帳" },
     start: "請點選符合您情況的一項。",
     search: "請找到您想要的藥，然後選擇。",
     question: "請逐一回答，然後進入下一步。如有不明白的地方，請詢問工作人員。",

@@ -37,7 +37,7 @@ export const fr: Messages = {
     title: "À propos de la photo",
     body: "La photo est envoyée à l'IA uniquement pour lire le texte. Elle n'est pas conservée. Veillez à ce que votre nom et les notifications du téléphone ne soient pas visibles.",
     agree: "Accepter et prendre la photo",
-    decline: "Ne pas prendre de photo (saisir le nom)",
+    decline: "Ne pas prendre de photo (saisir le nom du produit)",
   },
   interview: {
     intro: "Nous allons vous poser des questions sur votre santé, une à la fois.",
@@ -98,7 +98,7 @@ export const fr: Messages = {
         minorLargePackage: "Nous ne pouvons pas vendre de grands conditionnements aux moins de {age} ans.",
         minorMultiplePackages: "Si vous avez moins de {age} ans, vous pouvez en acheter {max} au maximum.",
       },
-      R03: { text: "Dites-nous pourquoi vous avez besoin d'une grande boîte ou de deux ou plus." },
+      R03: { text: "Dites-nous pourquoi vous avez besoin d'une grande boîte ou de plusieurs boîtes." },
       R04: { text: "Pour quels symptômes allez-vous l'utiliser ?" },
     },
     notUnderstood: "Désolé, nous n'avons pas compris votre réponse. Veuillez répondre à nouveau.",

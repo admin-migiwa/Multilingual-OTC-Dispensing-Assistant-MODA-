@@ -11,7 +11,7 @@ export const es: Messages = {
     notApplicable: "No corresponde",
     none: "Ninguno",
     other: "Otro",
-    redo: "Volver a responder la pregunta anterior",
+    redo: "Cambiar la respuesta anterior",
     emergencyButton: "De repente me siento muy mal",
     aiTranslationNotice: "Este texto fue traducido por IA (todavía no lo ha revisado una persona).",
     networkError: "Se ha perdido la conexión. Nuestro personal le ayudará de inmediato.",
@@ -37,7 +37,7 @@ export const es: Messages = {
     title: "Sobre la foto",
     body: "La foto se envía a la IA solo para leer el texto. La foto no se guarda. Asegúrese de que no se vean su nombre ni las notificaciones del teléfono.",
     agree: "Aceptar y tomar la foto",
-    decline: "No tomar la foto (escribir el nombre)",
+    decline: "No tomar la foto (escribir el nombre del producto)",
   },
   interview: {
     intro: "Le haremos preguntas sobre su salud, una a la vez.",
@@ -92,13 +92,13 @@ export const es: Messages = {
       },
       R01: { text: "¿Ha comprado hace poco un medicamento parecido en otra tienda?" },
       R02: {
-        text: "¿Cuántos quiere comprar?",
+        text: "¿Cuántas cajas quiere comprar?",
         options: { smallOne: "Una caja pequeña", largeOne: "Una caja grande", multiple: "Dos o más" },
         // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
         minorLargePackage: "No podemos vender envases grandes a menores de {age} años.",
         minorMultiplePackages: "Si es menor de {age} años, puede comprar como máximo {max}.",
       },
-      R03: { text: "Díganos por qué necesita una caja grande o dos o más." },
+      R03: { text: "Díganos por qué necesita una caja grande o más de una caja." },
       R04: { text: "¿Para qué síntomas lo va a usar?" },
     },
     notUnderstood: "Lo sentimos, no pudimos entender su respuesta. Responda de nuevo, por favor.",

@@ -37,7 +37,7 @@ export const vi: Messages = {
     title: "Về việc chụp ảnh",
     body: "Ảnh chỉ được gửi cho AI để đọc chữ trên đó. Ảnh sẽ không được lưu lại. Khi chụp, vui lòng không để lộ tên hoặc thông báo trên điện thoại.",
     agree: "Đồng ý và chụp ảnh",
-    decline: "Không chụp (nhập tên)",
+    decline: "Không chụp (nhập tên sản phẩm)",
   },
   interview: {
     intro: "Chúng tôi sẽ hỏi về tình trạng sức khỏe của bạn, từng câu một.",
@@ -164,7 +164,7 @@ export const vi: Messages = {
   },
   guide: {
     language: "Hãy chạm vào ngôn ngữ của bạn.",
-    steps: { questions: "Trả lời câu hỏi", review: "Dược sĩ kiểm tra", explain: "Giải thích về thuốc", checkout: "Thanh toán" },
+    steps: { questions: "Trả lời câu hỏi", review: "Dược sĩ kiểm tra", explain: "Hướng dẫn về thuốc", checkout: "Thanh toán" },
     start: "Hãy chạm vào lựa chọn phù hợp với bạn.",
     search: "Hãy tìm loại thuốc bạn muốn và chọn.",
     question: "Hãy trả lời từng câu một rồi chuyển sang câu tiếp theo. Nếu không rõ, hãy hỏi nhân viên.",
