@@ -26,6 +26,7 @@ import { ReferralGuide } from "./referral-guide";
 import { RuleError, sessionApi, type PatientView } from "./session-api";
 import { StaffAfterApprovalPanel } from "./staff-after-approval";
 import { TranslationChat, type ChatEmergency } from "./translation-chat";
+import { pharmacistApi } from "./pharmacist/pharmacist-api";
 
 /**
  * 患者さんの画面（T7c）：言語選択 → 年齢・性別 → 1問ずつの問診 → ほしい薬／症状から探す → その薬の問診 → 薬剤師の確認待ち。
@@ -46,10 +47,44 @@ type Mode = "questions" | "choose" | "symptom" | "reselect" | "not_for_sale";
  * 「戻る」（11/7 依頼主の依頼）：患者さんが通ってきた画面を端末の中だけで覚え、1つずつ戻る。
  * - 戻った質問に答え直すと、サーバーの「訂正」として記録に残る（answer の corrected・answers_cleared）。
  *   次に聞く項目はこれまでどおりサーバーが決める（ルール3）。前の答えは画面に出さない（もう一度答えてもらう）。
- * - 問診を進めてよい状態（attributes・interview・drug_selection）の間だけ戻れる。薬剤師が確認を始めたあと・承認のあと・
- *   緊急の確認のあとは、ここでは戻らない（承認と販売記録を守るため。ルール1・6）。
+ * - 問診を進めてよい状態（attributes・interview・drug_selection）の間と、薬剤師の確認中（承認の前）に戻れる。
+ *   薬剤師の確認中に戻ると、その確認を閉じて（記録は残る）薬の選択に戻してから戻る（11/8 依頼主の指摘）。
+ *   承認のあと・緊急の確認のあとは、ここでは戻らない（承認と販売記録を守るため。ルール1・6）。
  */
 type Step = { kind: "question"; id: QuestionId } | { kind: "choose" } | { kind: "symptom" } | { kind: "drug" };
+
+/**
+ * 通ってきた画面を、接客ごとに端末のタブの中（sessionStorage）に覚えておく。
+ * 薬剤師の確認画面を開いて戻ってきたとき（?session= で読み直したとき）も「戻る」で答え直せるようにするため（11/8 依頼主の指摘）。
+ * 覚えるのは画面の種類と問診の項目の番号だけ（答えの中身は入れない。ルール9）。読めなければ空にする
+ */
+const TRAIL_KEY = (id: string) => `moda.trail.${id}`;
+function saveTrail(id: string, trail: readonly Step[]): void {
+  try {
+    window.sessionStorage.setItem(TRAIL_KEY(id), JSON.stringify(trail));
+  } catch {
+    /* 保存できなくても、画面はそのまま使える（読み直したときに戻れる範囲が狭くなるだけ） */
+  }
+}
+function loadTrail(id: string): Step[] {
+  try {
+    const raw = window.sessionStorage.getItem(TRAIL_KEY(id));
+    if (raw === null) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (s): s is Step =>
+        typeof s === "object" &&
+        s !== null &&
+        (((s as { kind?: unknown }).kind === "question" &&
+          typeof (s as { id?: unknown }).id === "string" &&
+          /^(Q\d{2}a?|R\d{2})$/.test((s as { id: string }).id)) ||
+          ["choose", "symptom", "drug"].includes((s as { kind?: unknown }).kind as string)),
+    );
+  } catch {
+    return [];
+  }
+}
 const EDITABLE_STATUSES: readonly string[] = ["attributes", "interview", "drug_selection"];
 
 export function LanguageStart() {
@@ -142,7 +177,9 @@ export function LanguageStart() {
   function applyRestored(latest: PatientView): PatientView {
     restoreBasics(latest);
     restoringId.current = null;
-    clearSteps(); // 読み直した接客では、通ってきた画面がわからないので、ここから先だけを覚える
+    // 読み直した接客では、この端末で覚えておいた通ってきた画面を戻す（なければ、ここから先だけを覚える）
+    setTrail(loadTrail(latest.id));
+    setRevisit(null);
     if (latest.status === "emergency_review") setEmergency({ kind: "staff" });
     if (latest.status === "emergency_ended") setSessionLost(true);
     return latest;
@@ -172,6 +209,8 @@ export function LanguageStart() {
           // 途中で「最初の画面に戻る」を押していたら、前の接客を画面に戻さない（緊急の確認の記録はサーバーに残る）
           if (startedAt !== startOverCount.current) return null;
           restoreBasics(latest);
+          // 覚えておいた通ってきた画面も戻す（空のまま記録を上書きしないように、画面に接客を出す前に）
+          setTrail(loadTrail(id));
           setView(opened);
           // restoringId はここでは消さない（画面が描き直される前に「緊急ではない」が押されても、新しい接客を始めないため）
           return opened;
@@ -200,6 +239,11 @@ export function LanguageStart() {
   }
 
   /** 次の画面に進んだときに、いまの画面を覚える */
+  // 通ってきた画面が変わったら、接客ごとに覚えておく
+  useEffect(() => {
+    if (view !== null) saveTrail(view.id, trail);
+  }, [view?.id, trail]);
+
   function stepForward(step: Step) {
     setTrail((prev) => [...prev, step]);
     setRevisit(null);
@@ -212,6 +256,14 @@ export function LanguageStart() {
 
   /** 最初の質問から「戻る」：言語の選択に戻る（始めた接客はそのまま置いておき、言語を選ぶと新しい接客を始める） */
   function backToLanguage() {
+    // やめた接客の通ってきた画面は、もう使わないので消す
+    if (view !== null) {
+      try {
+        window.sessionStorage.removeItem(TRAIL_KEY(view.id));
+      } catch {
+        /* 消せなくても、画面はそのまま使える */
+      }
+    }
     clearSteps();
     setView(null);
     setMode("questions");
@@ -238,30 +290,51 @@ export function LanguageStart() {
     backToLanguage();
   }
 
-  // 「戻る」：問診を進めてよい状態の間だけ。通ってきた画面がなければ、年齢・性別の質問からは言語の選択に戻る
+  // 「戻る」：問診を進めてよい状態の間と、薬剤師の確認が始まったあと（承認の前）。通ってきた画面がなければ、年齢・性別の質問からは言語の選択に戻る
   const editable = view !== null && EDITABLE_STATUSES.includes(view.status);
-  const goBack: (() => void) | null = !editable
-    ? null
-    : trail.length > 0
-      ? () => {
-          if (busy) return; // 通信の途中に戻ると、覚えている画面の順番がずれるため
-          // 薬を選んだあとは、流れ（ほしい薬がある／症状から探す）を選び直せない（サーバーの chooseRoute が受け付けない）。
-          // その画面は飛ばして、さらに前に戻る
-          const drugChosen = view.selectedDrugs.length > 0;
-          let rest = trail;
-          let target: Step | undefined;
-          do {
-            target = rest[rest.length - 1];
-            rest = rest.slice(0, -1);
-          } while (drugChosen && target !== undefined && (target.kind === "choose" || target.kind === "symptom"));
-          setRevisit(target ?? null);
-          setTrail(rest);
-          setMode("questions");
-          setNotUnderstood(false);
-        }
-      : view.status === "attributes"
-        ? backToLanguage
-        : null;
+  /** 通ってきた画面を1つ戻す（覚えている画面の一覧から取り出す） */
+  function popTrail(drugChosen: boolean) {
+    // 薬を選んだあとは、流れ（ほしい薬がある／症状から探す）を選び直せない（サーバーの chooseRoute が受け付けない）。
+    // その画面は飛ばして、さらに前に戻る
+    let rest = trail;
+    let target: Step | undefined;
+    do {
+      target = rest[rest.length - 1];
+      rest = rest.slice(0, -1);
+    } while (drugChosen && target !== undefined && (target.kind === "choose" || target.kind === "symptom"));
+    setRevisit(target ?? null);
+    setTrail(rest);
+    setMode("questions");
+    setNotUnderstood(false);
+  }
+  const goBack: (() => void) | null =
+    view === null
+      ? null
+      : view.status === "pharmacist_review" && trail.length > 0
+        ? () => {
+            // 薬剤師の確認画面を開いたあとでも、承認の前なら答え直せる（11/8 依頼主の指摘）。
+            // 薬剤師の画面の「戻る：薬の選択に戻す」と同じ処理で確認を閉じて（記録は残る）、薬の選択に戻してから1つ前の画面へ
+            if (busy) return;
+            const id = view.id;
+            const drugChosen = view.selectedDrugs.length > 0;
+            void run(
+              async () => {
+                await pharmacistApi.back(id);
+                return sessionApi.get(id);
+              },
+              () => popTrail(drugChosen),
+            );
+          }
+        : !editable
+          ? null
+          : trail.length > 0
+            ? () => {
+                if (busy) return; // 通信の途中に戻ると、覚えている画面の順番がずれるため
+                popTrail(view.selectedDrugs.length > 0);
+              }
+            : view.status === "attributes"
+              ? backToLanguage
+              : null;
 
   /** 緊急の確認を開く。表示はすぐに切り替え、記録は通信できれば残す */
   function openEmergency(trigger: EmergencyTrigger) {
