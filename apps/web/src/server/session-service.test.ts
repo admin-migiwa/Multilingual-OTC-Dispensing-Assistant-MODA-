@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 
-import { DomainRuleError } from "@moda/domain";
+import { DomainRuleError, type PackageChoice } from "@moda/domain";
 
 import {
   SessionServiceError,
@@ -18,6 +18,8 @@ import {
   type ServiceDeps,
   type SessionRecord,
 } from "./session-service.ts";
+import { confirmDrugChoice } from "./patient-confirmation.ts";
+import { confirmOk } from "./test-confirm.ts";
 
 function testDeps(): ServiceDeps {
   const map = new Map<string, SessionRecord>();
@@ -90,7 +92,10 @@ describe("1問ずつ答えて、最後の質問まで進める", () => {
     answerBasicBySymptom(deps, id);
     const chosen = patientView(chooseDrugs(deps, id, ["C"]));
     assert.equal(chosen.status, "interview");
-    assert.equal(chosen.nextQuestion, "Q11");
+    // まず患者さんが薬を確かめる（その間は質問を出さない。11/8 依頼主の判断）
+    assert.equal(chosen.nextQuestion, null);
+    assert.deepEqual(chosen.drugConfirmation?.drugs.map((d) => d.drugId), ["C"]);
+    assert.equal(patientView(confirmOk(deps, id)).nextQuestion, "Q11");
     const done = patientView(answer(deps, id, { alcohol: false }));
     assert.equal(done.status, "drug_selection");
     assert.equal(done.interviewComplete, true);
@@ -292,7 +297,8 @@ describe("問診の流れを選ぶ（11/6 の判断）", () => {
     assert.equal(route.status, "drug_selection");
     const chosen = patientView(chooseDrugs(deps, id, ["G"]));
     assert.equal(chosen.status, "interview");
-    assert.equal(chosen.nextQuestion, "Q07");
+    assert.equal(chosen.nextQuestion, null);
+    assert.equal(patientView(confirmOk(deps, id)).nextQuestion, "Q07");
     answer(deps, id, { conditions: [] });
     // いま飲んでいる薬（Q09）は、判定に使わなくてもどの薬でも聞く（11/6 依頼主の判断。K39）
     assert.equal(patientView(getSession(deps, id)).nextQuestion, "Q09");
@@ -335,10 +341,14 @@ describe("レビュー後の直し（No.14）", () => {
     answer(deps, id, { age: 30, sex: "female" });
     chooseRoute(deps, id, "product");
     chooseDrugs(deps, id, ["C"]);
+    confirmOk(deps, id);
     const view = patientView(chooseDrugs(deps, id, ["H"]));
     assert.deepEqual(view.selectedDrugs, ["H"]);
+    // 薬が変わったら、もう一度患者さんが確かめる（前の OK は効かない）
+    assert.equal(view.nextQuestion, null);
+    assert.notEqual(view.drugConfirmation, null);
     // 貼り薬 H でも、いま飲んでいる薬（Q09）を先に聞く（11/6 依頼主の判断。K39）
-    assert.equal(view.nextQuestion, "Q09");
+    assert.equal(patientView(confirmOk(deps, id)).nextQuestion, "Q09");
   });
 });
 
@@ -438,16 +448,19 @@ describe("119番の案内の取り消しと、確認済みの接客（11/6 依�
 
 // sales-procedures.md S09・S10・S11（☑）。18歳未満の大容量・複数個を R02 の時点で止める（backlog M-12）
 describe("R02 の時点の個数・包装の制限（M-12）", () => {
-  /** 「ほしい薬がある」で E を選び、R02 の手前まで答える */
+  /** 「ほしい薬がある」で E を選ぶ（患者さんの薬の確認の画面で、R02 の包装を選ぶところ。11/8 依頼主の判断） */
   function toR02(deps: ServiceDeps, age: number): string {
     const { id } = createSession(deps, "en");
     answer(deps, id, { age, sex: "female" });
     chooseRoute(deps, id, "product");
     chooseDrugs(deps, id, ["E"]);
-    answer(deps, id, { ...basic, age, alcohol: false, otherStorePurchase: "no" });
-    assert.equal(patientView(getSession(deps, id)).nextQuestion, "R02");
+    const view = patientView(getSession(deps, id));
+    assert.equal(view.nextQuestion, null);
+    assert.equal(view.drugConfirmation?.drugs[0]?.mode, "package");
     return id;
   }
+  const pick = (deps: ServiceDeps, id: string, packageChoice: PackageChoice, multipleCount?: number) =>
+    confirmDrugChoice(deps, id, { choice: "ok", quantities: {}, packageChoice, ...(multipleCount !== undefined ? { multipleCount } : {}) });
 
   it("S09・S10・S11：17歳の R02 では小箱1個だけが選べ、選べない選択肢ごとの注意文を返す（年齢・個数は版のデータの値）", () => {
     const deps = testDeps();
@@ -460,37 +473,43 @@ describe("R02 の時点の個数・包装の制限（M-12）", () => {
     });
   });
 
-  it("S09・S10：17歳が大箱1個・小箱2個を答えても受け取らず、記録は変わらない", () => {
+  it("S09・S10：17歳が大箱1個・小箱2個を選んでも受け取らず、記録は変わらない", () => {
     const deps = testDeps();
     const id = toR02(deps, 17);
     const before = getSession(deps, id);
-    assertError(() => answer(deps, id, { packageChoice: "large_one" }), "QUANTITY_NOT_ALLOWED");
-    assertError(() => answer(deps, id, { packageChoice: "multiple", multipleCount: 2 }), "QUANTITY_NOT_ALLOWED");
+    assertError(() => pick(deps, id, "large_one"), "QUANTITY_NOT_ALLOWED");
+    assertError(() => pick(deps, id, "multiple", 2), "QUANTITY_NOT_ALLOWED");
     assert.equal(getSession(deps, id), before);
   });
 
-  it("S11：17歳が小箱1個を答えると受け取る", () => {
+  it("S11：17歳が小箱1個を選ぶと受け取り、R02 はもう聞かない", () => {
     const deps = testDeps();
     const id = toR02(deps, 17);
-    assert.equal(answer(deps, id, { packageChoice: "small_one" }).interview.answers.packageChoice, "small_one");
+    const record = pick(deps, id, "small_one");
+    assert.equal(record.interview.answers.packageChoice, "small_one");
+    answer(deps, id, { ...basic, age: 17, alcohol: false, otherStorePurchase: "no" });
+    assert.notEqual(patientView(getSession(deps, id)).nextQuestion, "R02");
   });
 
-  it("S07・S09：30歳で大箱1個と答えたあと年齢を17歳に直すと、R02 と R03 の答えを消して R02 を聞き直す", () => {
+  it("S07・S09：30歳で大箱1個を選んだあと年齢を17歳に直すと、R02 と R03 の答えを消して、薬の確認からやり直す", () => {
     const deps = testDeps();
     const id = toR02(deps, 30);
-    answer(deps, id, { packageChoice: "large_one" });
+    pick(deps, id, "large_one");
+    answer(deps, id, { ...basic, alcohol: false, otherStorePurchase: "no" });
     answer(deps, id, { reasonText: "family" });
     const record = answer(deps, id, { age: 17 });
     assert.equal(record.interview.answers.packageChoice, undefined);
     assert.equal(record.interview.answers.reasonText, undefined);
-    assert.equal(patientView(record).nextQuestion, "R02");
+    const view = patientView(record);
+    assert.equal(view.nextQuestion, null);
+    assert.notEqual(view.drugConfirmation, null);
     assert.equal(record.events.some((e) => e.type === "answers_cleared" && e.detail.includes("R02")), true);
   });
 
-  it("S11：17歳で小箱1個と答えたあと年齢を30歳に直しても、R02 の答えは消えない", () => {
+  it("S11：17歳で小箱1個を選んだあと年齢を30歳に直しても、R02 の答えは消えない", () => {
     const deps = testDeps();
     const id = toR02(deps, 17);
-    answer(deps, id, { packageChoice: "small_one" });
+    pick(deps, id, "small_one");
     assert.equal(answer(deps, id, { age: 30 }).interview.answers.packageChoice, "small_one");
   });
 

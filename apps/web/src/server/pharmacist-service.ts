@@ -58,7 +58,9 @@ import { japanDate } from "./japan-date.ts";
 import {
   SessionServiceError,
   assertSomePackageChoice,
+  currentDrugOk,
   enforcePackageLimit,
+  isDrugConfirmationPending,
   event,
   load,
   patientView,
@@ -171,6 +173,10 @@ export function openPharmacistReview(deps: ServiceDeps, id: string): SessionReco
     throw new DomainRuleError("INVALID_TRANSITION", `${record.snapshot.status} の状態では薬剤師の確認を始められません`);
   }
   if (record.interview.selectedDrugs.length > 0) {
+    // 選んだ薬を患者さんが確かめる前は開かない（確認の画面で OK してから。11/8 依頼主の判断）
+    if (isDrugConfirmationPending(record, deps.now())) {
+      throw new DomainRuleError("PATIENT_NOT_CONFIRMED", "選んだ薬を患者さんがまだ確かめていません");
+    }
     assertInterviewComplete(record.interview);
   } else if (record.interview.route !== "symptom" || !isBasicInterviewComplete(record.interview)) {
     throw new DomainRuleError("INTERVIEW_INCOMPLETE", "問診が終わっていません");
@@ -446,6 +452,13 @@ export interface PharmacistView {
   /** 患者さんが選んだ薬と、その判定（薬剤師の確認中だけ。問診が終わっていないと判定しない） */
   readonly drugs: readonly PharmacistDrugView[];
   readonly saleDrugIds: readonly StockedDrugId[];
+  /**
+   * 患者さんの薬の確認（11/8 依頼主の判断）。今の選択について有効な OK があれば、その薬と個数（E は R02 の答えで決まるので入れない）。
+   * なければ null。承認は、販売する薬がこの薬の組み合わせと同じときだけできる（サーバーで止める）
+   */
+  readonly patientOk: { readonly at: string; readonly drugIds: readonly StockedDrugId[]; readonly quantities: Readonly<Partial<Record<StockedDrugId, number>>> } | null;
+  /** 最後の「相談したい」（今の選択について。なければ null） */
+  readonly patientConsultedAt: string | null;
   /** 販売する薬の販売手順（薬を選んでいなければ null） */
   readonly procedure: { readonly effectiveFrom: string; readonly steps: readonly PharmacistStepView[] } | null;
   /** 販売手順を作れなかったとき（例：18歳未満に大箱）のエラーの種類 */
@@ -547,6 +560,9 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
     symptomText: record.symptomText,
     drugs,
     saleDrugIds,
+    patientOk: patientOkOf(record, now),
+    patientConsultedAt:
+      (record.drugConfirmations ?? []).filter((c) => c.choice === "consult").at(-1)?.at ?? null,
     procedure,
     procedureError,
     checkHistory,
@@ -557,6 +573,11 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
     afterApproval: afterApprovalOf(record),
     candidates: reviewing ? candidatesOf(record) : [],
   };
+}
+
+function patientOkOf(record: SessionRecord, now: Date): PharmacistView["patientOk"] {
+  const ok = currentDrugOk(record, now);
+  return ok === null ? null : { at: ok.at, drugIds: ok.drugIds, quantities: ok.quantities };
 }
 
 /** 今の説明書。確認中は今の「販売する薬」と同じもの、承認のあとは承認した品目と同じもの（T10） */

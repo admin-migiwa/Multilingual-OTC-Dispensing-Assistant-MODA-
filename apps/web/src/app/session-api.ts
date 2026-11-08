@@ -47,6 +47,17 @@ export interface PatientView {
     readonly minorAgeBelow: number;
     readonly minorMaxQuantity: number;
   } | null;
+  /** 患者さんの薬の確認を待っているときだけ（11/8 依頼主の判断）。この間は nextQuestion が null。E があれば packageOptions に R02 の選択肢 */
+  readonly drugConfirmation: {
+    readonly drugs: readonly {
+      readonly drugId: StockedDrugId;
+      readonly name: string;
+      /** count：1〜maxQuantity を選ぶ／package：R02 の包装で選ぶ（E）／fixed：1個（A・B） */
+      readonly mode: "count" | "package" | "fixed";
+      readonly contraindicated: boolean;
+    }[];
+    readonly maxQuantity: number;
+  } | null;
 }
 
 export class NetworkError extends Error {
@@ -96,6 +107,13 @@ export const sessionApi = {
     call(`/api/sessions/${encodeURIComponent(id)}/route-choice`, { route, symptomText }),
   chooseDrugs: (id: string, drugIds: readonly StockedDrugId[]) =>
     call(`/api/sessions/${encodeURIComponent(id)}/drugs`, { drugIds }),
+  /** 患者さんの薬の確認：この薬でOK（個数）／相談したい／薬を選びなおす */
+  confirmDrugs: (
+    id: string,
+    input:
+      | { choice: "ok"; quantities: Partial<Record<StockedDrugId, number>>; packageChoice?: PackageChoice; multipleCount?: number }
+      | { choice: "consult" | "reselect" },
+  ) => call(`/api/sessions/${encodeURIComponent(id)}/drug-confirmation`, input),
   openEmergency: (
     id: string,
     input: { trigger: "keyword" | "staff"; matchedRuleIds?: readonly string[]; inputText?: string | null },

@@ -13,6 +13,7 @@ import {
   pharmacistView,
   returnToDrugSelection,
 } from "./pharmacist-service.ts";
+import { confirmOk } from "./test-confirm.ts";
 import {
   SessionServiceError,
   answer,
@@ -64,6 +65,7 @@ function answeredProduct(deps: ServiceDeps, drugs: StockedDrugId[], extra: Inter
   answer(deps, id, { age: 30, sex: "female" });
   chooseRoute(deps, id, "product");
   chooseDrugs(deps, id, drugs);
+  confirmOk(deps, id, { ...fine, ...extra });
   answer(deps, id, { ...fine, ...extra });
   assert.equal(getSession(deps, id).snapshot.status, "drug_selection");
   return id;
@@ -283,6 +285,7 @@ describe("候補・代わりの薬を選んで、その薬の項目を聞く問�
     assert.notEqual(record.pharmacistReviews?.at(-1)?.closedAt, null);
     assert.deepEqual(record.pharmacistReviews?.at(-1)?.candidateDrugIds, ["G"]);
 
+    confirmOk(deps, id);
     answer(deps, id, { softContactLens: false });
     openPharmacistReview(deps, id);
     const reopened = pharmacistView(getSession(deps, id), NOW);
@@ -295,6 +298,7 @@ describe("候補・代わりの薬を選んで、その薬の項目を聞く問�
     const deps = testDeps();
     const id = symptomReview(deps, basic30);
     assert.equal(chooseCandidateDrugs(deps, id, ["C"]).snapshot.status, "interview");
+    confirmOk(deps, id);
     answer(deps, id, { alcohol: false });
     openPharmacistReview(deps, id);
     assert.equal(pharmacistView(getSession(deps, id), NOW).drugs[0]?.judgment.verdict, "contraindicated");
@@ -322,6 +326,7 @@ describe("候補・代わりの薬を選んで、その薬の項目を聞く問�
     });
     const record = chooseCandidateDrugs(deps, id, ["A"]);
     assert.equal(record.snapshot.status, "interview");
+    confirmOk(deps, id);
     answer(deps, id, { pregnancy: "maybe", breastfeeding: "no" });
     openPharmacistReview(deps, id);
     assert.equal(pharmacistView(getSession(deps, id), NOW).drugs[0]?.judgment.verdict, "contraindicated");
@@ -360,6 +365,7 @@ describe("選び直しても、前に選んでいた薬のために聞いた答�
     chooseRoute(deps, id, "product");
     answer(deps, id, { weightKg: 30 }); // 15歳未満には、薬を選ぶ前に体重（Q05）を聞く
     chooseDrugs(deps, id, ["A", "J"]);
+    confirmOk(deps, id);
     answer(deps, id, {
       pregnancy: "pregnant",
       dueWithin12Weeks: "no",
@@ -373,6 +379,7 @@ describe("選び直しても、前に選んでいた薬のために聞いた答�
     openPharmacistReview(deps, id);
     const record = chooseCandidateDrugs(deps, id, ["J"]);
     assert.equal(record.snapshot.status, "drug_selection");
+    confirmOk(deps, id);
     openPharmacistReview(deps, id);
     const view = pharmacistView(getSession(deps, id), NOW);
     assert.equal(view.drugs[0]?.drugId, "J");
@@ -391,9 +398,11 @@ describe("残した「妊娠している」の続き（Q03a）が足りないま
     chooseRoute(deps, id, "product");
     answer(deps, id, { weightKg: 30 });
     chooseDrugs(deps, id, ["A", "C"]);
+    confirmOk(deps, id);
     answer(deps, id, { pregnancy: "pregnant" });
     const reselected = chooseDrugs(deps, id, ["C"]);
     assert.equal(reselected.snapshot.status, "interview");
+    confirmOk(deps, id);
     answer(deps, id, { dueWithin12Weeks: "no", breastfeeding: "no", asthmaHistory: "no", conditions: [], drugAllergy: "no", currentMedications: [], drivingAfter: false, alcohol: false });
     openPharmacistReview(deps, id);
     const view = pharmacistView(getSession(deps, id), NOW);

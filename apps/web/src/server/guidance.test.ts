@@ -26,6 +26,7 @@ import {
   returnToDrugSelection,
 } from "./pharmacist-service.ts";
 import { PinError, createPinVerifier } from "./pin.ts";
+import { confirmOk } from "./test-confirm.ts";
 import {
   SessionServiceError,
   answer,
@@ -89,6 +90,7 @@ function reviewed(deps: ServiceDeps, drug: StockedDrugId, beforeSteps: string[],
   answer(deps, id, { age: 30, sex: "female" });
   chooseRoute(deps, id, "product");
   chooseDrugs(deps, id, [drug]);
+  confirmOk(deps, id, { ...fine, ...extra });
   answer(deps, id, { ...fine, ...extra });
   openPharmacistReview(deps, id);
   chooseSaleDrugs(deps, id, [drug]);
@@ -141,6 +143,7 @@ describe("説明書（T10）", () => {
     answer(deps, id, { age: 30, sex: "female" });
     chooseRoute(deps, id, "product");
     chooseDrugs(deps, id, ["G"]);
+    confirmOk(deps, id);
     answer(deps, id, fine);
     openPharmacistReview(deps, id);
     await assertRejects(createGuidance(deps, ai, id), "NO_DRUG_SELECTED");
@@ -154,6 +157,7 @@ describe("禁忌を解除して販売した薬の説明書（leaflet.md LF21・L
     answer(deps, id, { age: 30, sex: "female" });
     chooseRoute(deps, id, "product");
     chooseDrugs(deps, id, ["C"]);
+    confirmOk(deps, id);
     answer(deps, id, { ...fine, currentMedications: ["analgesic"] });
     openPharmacistReview(deps, id);
     overrideContraindication(deps, PINS, id, { drugId: "C", pharmacistId: "P1", pin: "1234", reasonCode: "switching_not_combined", reasonText: null });

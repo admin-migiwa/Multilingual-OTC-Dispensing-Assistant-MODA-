@@ -22,3 +22,13 @@ export {
   type SymptomCategory,
   type SymptomCategoryId,
 } from "./drug-finder.ts";
+export {
+  quantityModeOf,
+  checkConfirmQuantities,
+  latestDecisiveConfirmation,
+  currentPatientOk,
+  assertPatientConfirmed,
+  type PatientDrugChoice,
+  type PatientDrugConfirmation,
+  type QuantityMode,
+} from "./patient-confirmation.ts";

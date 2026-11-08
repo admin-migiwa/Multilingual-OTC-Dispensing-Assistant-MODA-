@@ -501,7 +501,7 @@ function AllergyQuestion({
   );
 }
 
-function PackageQuestion({
+export function PackageQuestion({
   language,
   onSubmit,
   busy,
