@@ -21,6 +21,7 @@ const DURATION = 10.0;
 window.DURATION = DURATION;
 window.SOUND_EVENTS = [{ t: 5.5, kind: "pop" }, { t: 8.7, kind: "stamp" }];
 window.MUSIC = [{ t: 0, len: DURATION, part: "outro" }];
+window.MUSIC_FADE = { fadeIn: 0.05, fadeOut: 1.5 }; // 実演の音楽から重ねて切り替えるので、最初から鳴らす
 window.NARRATION = [
   // 1文目は、実演からの切り替え（白を通す 1.6秒）の途中から読み始める。どちらの文も速さは変えない（長さは測ってある：4.1秒・3.9秒）
   // 切り替え（白を通す 1.0秒）が終わってから読み始める（音が小さく聞こえないように）

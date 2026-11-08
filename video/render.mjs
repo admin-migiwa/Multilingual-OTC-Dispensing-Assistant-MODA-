@@ -37,9 +37,9 @@ if (flag === "--stills") {
   process.exit(0);
 }
 
-const { duration, events, lines, voice, music } = await page.evaluate(() => ({
+const { duration, events, lines, voice, music, fade } = await page.evaluate(() => ({
   duration: window.DURATION, events: window.SOUND_EVENTS ?? [],
-  lines: window.NARRATION ?? [], voice: window.NARRATION_VOICE, music: window.MUSIC ?? [],
+  lines: window.NARRATION ?? [], voice: window.NARRATION_VOICE, music: window.MUSIC ?? [], fade: window.MUSIC_FADE,
 }));
 mkdirSync(dirname(resolve(outArg)), { recursive: true });
 const sfxPath = resolve(outArg).replace(/\.mp4$/, ".sfx.wav");
@@ -48,7 +48,7 @@ writeFileSync(sfxPath, makeWav(events, duration));
 let bgmPath = null;
 if (music.length) {
   bgmPath = resolve(outArg).replace(/\.mp4$/, ".bgm.wav");
-  writeFileSync(bgmPath, makeMusic(music, duration));
+  writeFileSync(bgmPath, makeMusic(music, duration, fade ?? {}));
 }
 const withVoice = flag !== "--no-voice";
 const wavPath = await mixAudio({

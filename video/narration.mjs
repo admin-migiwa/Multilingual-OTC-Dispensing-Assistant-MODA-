@@ -91,7 +91,9 @@ export async function mixAudio({ ffmpeg, sfxWav, bgmWav, lines, voice, outWav })
       voiceLabels.push(`[n${i}]`);
       next++;
     }
-    filters.push(`${voiceLabels.join("")}amix=inputs=${voiceLabels.length}:normalize=0:duration=longest,asplit=2[voice][vsc]`);
+    // 声の列は最後まで伸ばす（声が終わったところで BGM を下げる仕組みごと止まり、BGM が途切れないように）
+    const total = duration(ffmpeg, sfxWav);
+    filters.push(`${voiceLabels.join("")}amix=inputs=${voiceLabels.length}:normalize=0:duration=longest,apad=whole_dur=${total.toFixed(3)},asplit=2[voice][vsc]`);
   }
   if (bgmIndex >= 0) {
     if (voiceLines.length) {

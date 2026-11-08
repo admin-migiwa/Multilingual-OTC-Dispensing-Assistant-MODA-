@@ -73,7 +73,8 @@ const CAPS_WITHOUT = [
 const CAPS_ARRIVAL = [[0.3, segLen("arrival", "proc") - 0.1, "日本語が話せない患者さんも、市販薬を買いに来ます。"]];
 
 // ---- 場面1：タイトル ----
-const GREETINGS = ["Xin chào", "Hello", "你好", "안녕하세요", "Hola", "Olá", "Bonjour", "您好", "こんにちは"];
+const GREETINGS = ["Xin chào", "Hello", "你好", "안녕하세요", "Hola", "Olá", "Bonjour", "您好", "こんにちは",
+  "Cảm ơn", "Thank you", "谢谢", "감사합니다", "Gracias", "Obrigado", "Merci", "謝謝", "ありがとう"];
 const TITLE_LINES = [
   [rel("T", "title") + L.T.d * 0.3, "言語の壁をなくす接客支援。", C.ink, 660],
   [rel("T", "title") + L.T.d * 0.55, "AI は助言せず、訳して聞き取るだけ。", C.teal, 745],
@@ -83,10 +84,11 @@ function drawTitle(t) {
   room(false);
   // ゆっくり漂う、9言語のあいさつ
   GREETINGS.forEach((g, i) => {
-    const x = ((i * 233 + GT * (18 + i * 3)) % (W + 400)) - 200;
-    const y = 120 + ((i * 137) % 840);
-    alpha(0.22, () => {
-      ctx.font = `700 34px ${FONT}`;
+    const back = i >= 9; // 後ろの層は小さく・薄く・ゆっくり
+    const x = ((i * 233 + 90 * back + GT * (back ? 10 + i * 2 : 18 + i * 3)) % (W + 400)) - 200;
+    const y = 90 + ((i * 137 + (back ? 60 : 0)) % 900);
+    alpha(back ? 0.14 : 0.22, () => {
+      ctx.font = `700 ${back ? 28 : 34}px ${FONT}`;
       const w = ctx.measureText(g).width + 48;
       ctx.strokeStyle = C.tealLight; ctx.lineWidth = 2; rr(x - w / 2, y - 30, w, 60, 30); ctx.stroke();
       text(g, x, y, 34, C.tealLight, 700);
@@ -244,6 +246,7 @@ function drawProcedure(t) {
 }
 
 // BGM（music.mjs）：場面ごとに曲調を変える
+window.MUSIC_FADE = { fadeIn: 0.6, fadeOut: 0.4 }; // 実演の音楽と重ねて切り替えるので、最後まで鳴らす
 window.MUSIC = [
   { t: 0, len: SEG.arrival, part: "intro" },
   { t: SEG.arrival, len: SEG.proc - SEG.arrival, part: "arrival" },

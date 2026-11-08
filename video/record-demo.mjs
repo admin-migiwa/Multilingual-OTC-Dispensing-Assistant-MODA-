@@ -355,11 +355,16 @@ const CLIPS = {
     rec.speed(1);
     await a.wide(1000);
     await a.op(page.getByText("薬剤師用：確認の画面を開く").first(), "薬剤師の画面を開く", { after: 1300 });
-    // 薬剤師：答えのまとめ（日本語）→ 症状を日本語に訳す（訳し戻し）
+    // 薬剤師：症状を日本語に訳す（操作は早送り。訳は最初から開いた状態で見せる）→ 答えのまとめ（日本語）をクローズアップ
+    rec.speed(4);
+    await a.tap("日本語に訳す", false, 300);
+    await a.tap("訳す", true, 200);
+    await a.aiWait(() => page.getByText("日本語の参考訳").first().waitFor({ timeout: 90000 }));
+    rec.speed(1);
     await a.scrollTo("患者さんの答えのまとめ");
     rec.cue("review");
     const summary = page.locator("section").filter({ has: page.getByRole("heading", { name: "患者さんの答えのまとめ" }) }).first();
-    await a.closeup(summary.getByRole("heading").first(), "答えが日本語でまとまる", { sub: "治療中の病気：胃潰瘍", hold: 2600 });
+    await a.closeup(summary.getByRole("heading").first(), "答えが日本語でまとまる", { sub: "症状の文も日本語に訳してある／治療中の病気：胃潰瘍", hold: 3400 });
     // 症状の訳し戻しは見せない（11/8 夜 依頼主の判断：そこまで説明しなくてよい）
     await a.wide(500);
     rec.cue("candidates");
