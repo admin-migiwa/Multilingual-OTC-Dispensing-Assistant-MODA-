@@ -2,7 +2,7 @@
 
 ## 準備（1回だけ）
 
-1. Claude デスクトップアプリの Code タブを開き、フォルダに `C:\dev\MODA` を選ぶ
+1. Claude デスクトップアプリの Code タブを開き、フォルダに、このリポジトリを置いたフォルダを選ぶ
 2. 作業するモデルを選ぶ：`/model opus`（または `/model sonnet`）
 3. advisor を選ぶ：`/advisor fable`（使えなければ `/advisor opus`）。advisor は作業するモデルと同じか、それより上のモデルにする
 4. 完了の判定役は、設定しなければ Haiku になる（設定不要）
