@@ -186,7 +186,7 @@ export function FollowUpPharmacistPanel({
           })}
         </ul>
         <p className="text-sm text-slate-500">
-          ほかに聞きたいことは、自由記述のチャットで聞きます（チャットは T13 で作ります）。
+          ほかに聞きたいことは、自由記述のチャットで聞きます。
         </p>
       </div>
 
