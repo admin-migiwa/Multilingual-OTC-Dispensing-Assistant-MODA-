@@ -169,6 +169,19 @@ describe("患者さんの薬の確認（11/8 依頼主の判断）", () => {
     assert.equal(record.snapshot.status, "pharmacist_review");
     assert.deepEqual(record.interview.selectedDrugs, []);
     assert.equal(record.pharmacistReviews?.at(-1)?.closedAt, null);
+    assert.ok(record.events.some((e) => e.type === "pharmacist_review_opened"));
+  });
+
+  it("E で2つ以上と理由を答えたあと、小箱1個で OK し直すと、理由（R03）と個数の答えが消えたことを種類だけ履歴に残す", () => {
+    const deps = testDeps();
+    const id = chosen(deps, ["E"]);
+    confirmDrugChoice(deps, id, { choice: "ok", quantities: {}, packageChoice: "multiple", multipleCount: 2 });
+    answer(deps, id, { ...fine, otherStorePurchase: "no" });
+    answer(deps, id, { reasonText: "family" });
+    const record = confirmDrugChoice(deps, id, { choice: "ok", quantities: {}, packageChoice: "small_one" });
+    assert.equal(record.interview.answers.reasonText, undefined);
+    assert.deepEqual([...(record.events.at(-1)?.detail ?? [])].sort(), ["multipleCount", "reasonText"]);
+    assert.ok(!JSON.stringify(record.events).includes("family"));
   });
 
   it("承認を取り消したあとも、同じ薬なら OK のままで、もう一度承認できる", () => {

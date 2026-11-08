@@ -150,6 +150,11 @@ export function currentSaleDrugIds(round: PharmacistReviewRound): readonly Stock
   return round.saleChoices.at(-1)?.drugIds ?? [];
 }
 
+/**
+ * 販売手順を作る。quantities は患者さんが確認の画面で選んだ個数（承認のときに渡す）。
+ * 今の版では、個数で手順が変わるのは指定濫用防止医薬品の合計だけで、患者さんが個数を選ぶ薬（count）はその対象外なので、
+ * 確認中の画面（個数を渡さない）と承認のときの手順は同じになる。個数で変わる手順を版に足すときは、ここに個数を渡すこと
+ */
 export function procedureOf(
   record: SessionRecord,
   drugIds: readonly StockedDrugId[],
@@ -579,11 +584,18 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
   };
 }
 
-/** 今の選択の薬の組み合わせについての、最後の「相談したい」 */
+/** 今の選択の薬の組み合わせについての、最後の「相談したい」（最後の OK・選びなおすより前のものは出さない） */
 function lastConsultAt(record: SessionRecord): string | null {
+  const list = record.drugConfirmations ?? [];
+  const last = list.at(-1);
   const now = [...record.interview.selectedDrugs].sort().join(",");
-  const consults = (record.drugConfirmations ?? []).filter((c) => c.choice === "consult" && [...c.drugIds].sort().join(",") === now);
-  return consults.at(-1)?.at ?? null;
+  if (!last || last.choice !== "consult" || [...last.drugIds].sort().join(",") !== now) {
+    // 最後が OK のときは、その直前の「相談したい」（同じ薬）を出す
+    const okIndex = list.length - 1;
+    const prev = last?.choice === "ok" ? list[okIndex - 1] : undefined;
+    return prev?.choice === "consult" && [...prev.drugIds].sort().join(",") === now ? prev.at : null;
+  }
+  return last.at;
 }
 
 function patientOkOf(record: SessionRecord, now: Date): PharmacistView["patientOk"] {

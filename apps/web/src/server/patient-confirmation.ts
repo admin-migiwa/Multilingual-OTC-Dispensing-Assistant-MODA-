@@ -133,9 +133,9 @@ export function confirmDrugChoice(deps: ServiceDeps, id: string, input: DrugConf
         : { packageChoice: interview.answers.packageChoice, multipleCount: interview.answers.multipleCount };
     newEvents.push(event(deps, "answered", ["packageChoice", ...(packageAnswer.multipleCount !== undefined ? ["multipleCount"] : [])]));
     // 大箱・複数個から小箱1個に変えて R03（理由）を聞かなくなったときは、消えたことを種類だけ残す（answer と同じ）
-    if (record.interview.answers.reasonText !== undefined && interview.answers.reasonText === undefined) {
-      newEvents.push(event(deps, "answers_cleared", ["reasonText"]));
-    }
+    const before = record.interview.answers;
+    const droppedKeys = (Object.keys(before) as (keyof typeof before)[]).filter((k) => before[k] !== undefined && interview.answers[k] === undefined);
+    if (droppedKeys.length > 0) newEvents.push(event(deps, "answers_cleared", droppedKeys));
   } else if (input.packageChoice !== undefined || input.multipleCount !== undefined) {
     throw new SessionServiceError("INVALID_REQUEST", "この薬には包装の選択がありません");
   }
