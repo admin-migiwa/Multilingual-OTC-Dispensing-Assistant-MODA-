@@ -30,11 +30,11 @@ const CLIPS = [
     // デモの患者さん（架空）：最初にまん中のカードで紹介し、そのあとは左の「いまの場面」の上に小さく残す
     patient: { big: ["30歳・女性・英語", "昨日から熱と頭痛", "胃潰瘍で治療中"], small: ["30歳・女性・英語", "熱と頭痛／胃潰瘍で治療中"] },
     lines: [
-      { cue: "intro", text: "ここからは、デモの患者さんです。熱と頭痛があり、{胃潰瘍で治療中}の、英語を話す30歳の女性です。" },
-      { cue: "start", text: "^モダがあると、^患者さんは言語を選び、{母国語の案内}にそって答えるだけで、必要なことをもれなく聞き取れます。" },
-      { cue: "ulcer", text: "治療中の病気には、設定どおり{胃潰瘍}を選びます。" },
+      { cue: "intro", text: "ここからは実演です。患者さんは、熱と頭痛があり、{胃潰瘍で治療中}の、英語を話す30歳の女性です。" },
+      { cue: "start", text: "^モダがあると、^患者さんが言語を選び、{母国語の案内}にそって答えるだけで、薬剤師は必要なことをもれなく聞き取れます。" },
+      { cue: "ulcer", text: "治療中の病気には、デモの設定にそって{胃潰瘍}を選びます。" },
       { cue: "review", text: "答えは、薬剤師の画面に{日本語で}まとまります。" },
-      { cue: "candidates", text: "薬剤師は、このまとめをもとに、お店の薬の中から{この患者さんに合う薬}を考えます。[contra]候補には、問診の答えから{禁忌}が自動で示されるので、~この患者さんに使えない薬も、ひと目でわかります。~|[pick]症状や持病をふまえて、薬剤師が選んだのは、{モダねつさまし錠}です。" },
+      { cue: "candidates", text: "薬剤師は、このまとめをもとに、お店の薬の中から{この患者さんに合う薬}を考えます。[contra]候補には、問診の答えから{禁忌}が自動で示されるので、~この患者さんに合わないおそれのある薬も、薬剤師がすぐに確かめられます。~|[pick]症状や持病をふまえて、薬剤師が選んだのは、{モダねつさまし錠}です。" },
       { cue: "confirm", text: "選んだ薬は、患者さんも{母国語で確かめ}て、個数を選べます。" },
       { cue: "leaflet", text: "説明書はAIが{母国語に訳し}、原文と並べて確かめられます。[approve]区分ごとの手順がそろったら、[pin]{薬剤師がPINで承認}し、同時に{販売記録}も残ります。" },
       { cue: "explain", text: "最後に、患者さんは母国語の説明書を見ながら説明を聞き、[understood]{わかったかどうか}を答えます。" },
@@ -58,7 +58,7 @@ const PROGRESS = [
   ["⑤ 販売記録", "承認と同時に残る", "approved", "explain"],
 ];
 
-const IDLE_FAST = 1.35; // 声のない待ち時間だけ、この速さまで縮める（声の間は早送りしない。目が追えるように）
+const IDLE_FAST = 1.6; // 声のない待ち時間だけ、この速さまで縮める（声の間は早送りしない。目が追えるように）
 const MAX_SLOW = 1.5; // これよりゆっくりにはせず、残りは止めて待つ
 const GAP = 0.45; // 文と文の間（一呼吸）
 const LEAD = 0.15; // 画面の動きを、その言葉より少し先に見せる
@@ -223,10 +223,10 @@ const demoAudio = await mixAudio({ ffmpeg: ff, sfxWav: silence, bgmWav: bgm, lin
 const demoFull = out("demo/_demo.mp4");
 run(["-i", demoVideo, "-i", demoAudio, "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", demoFull]);
 
-// 3) 冒頭 → 実演 → 締め（つなぎ目は重ねて切り替える：冒頭→実演 0.8秒、実演→締めは白を通して 1.6秒。音楽もゆっくり入れ替える）
+// 3) 冒頭 → 実演 → 締め（つなぎ目は重ねて切り替える：冒頭→実演 0.4秒、実演→締めは白を通して 1.6秒。音楽もゆっくり入れ替える）
 const final = out("final.mp4");
 const openLen = dur(out("opening.mp4"));
-const X1 = 0.8, X2 = 1.6;
+const X1 = 0.4, X2 = 1.6; // 冒頭の最後の「MODA があると」が読めるよう、冒頭→実演は短く重ねる
 run([
   "-i", out("opening.mp4"), "-i", demoFull, "-i", out("ending.mp4"),
   "-filter_complex",
@@ -237,6 +237,6 @@ run([
   `[a0][a1]acrossfade=d=${X1}[a01];[a01][a2]acrossfade=d=${X2}[a]`,
   "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-c:a", "aac", "-b:a", "160k", final,
 ]);
-const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 process.stdout.write(`完成版を作りました：${final}（${dur(final).toFixed(1)} 秒。冒頭 ${openLen.toFixed(1)}・実演 ${demoLen.toFixed(1)} 秒）\n`);
 for (const l of lines) process.stdout.write(`  ${mmss(openLen - X1 + l.t)} ${l.text.replace(/[{}|^~]|\[[a-z0-9_]+\]/g, "").slice(0, 30)}…\n`);

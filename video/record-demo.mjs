@@ -119,15 +119,16 @@ async function setupPage(page) {
       if (!document.getElementById("__ovcss")) { const st = document.createElement("style"); st.id = "__ovcss"; st.textContent = css; document.head.appendChild(st); }
       return document.documentElement;
     };
-    window.__note = (text, sub, r, still = false) => {
+    window.__note = (text, sub, r, still = false, below = false) => {
       window.__noteOff();
       const d = document.createElement("div"); d.className = "__note" + (still ? " still" : ""); d.id = "__note";
       d.textContent = text;
       if (sub) { const sm = document.createElement("small"); sm.textContent = sub; d.appendChild(sm); }
       layer().appendChild(d);
       const W = window.innerWidth, H = window.innerHeight, w = d.offsetWidth, h = d.offsetHeight;
-      let x = Math.min(Math.max(16, r.x + r.width / 2 - w / 2), W - w - 16);
-      let y = r.y - h - 22;
+      // 左の 0〜約280px は、あとから重ねる「いまの場面」に隠れるので、吹き出しはそれより右に出す
+      let x = Math.min(Math.max(300, r.x + r.width / 2 - w / 2), W - w - 16);
+      let y = below ? r.y + r.height + 22 : r.y - h - 22;
       if (y < 12) y = Math.min(r.y + r.height + 22, H - h - 12);
       d.style.left = x + "px"; d.style.top = y + "px";
       window.requestAnimationFrame(() => d.classList.add("on"));
@@ -243,11 +244,12 @@ function makeActions(page, rec) {
         const qh = page.locator("h1,h2,h3,legend").filter({ hasText: /[?？]/ }).last();
         const qt = (await qh.count()) ? await qh.innerText().catch(() => "") : "";
         const lab = LABELS.find(([re]) => re.test(qt));
-        if (lab) await page.evaluate(([t, rr]) => window.__note("質問：" + t, null, rr, true), [lab[1], await rectOf(qh)]).catch(() => {});
+        if (lab) { await page.evaluate(([t, rr]) => window.__note("質問：" + t, null, rr, true), [lab[1], await rectOf(qh)]).catch(() => {}); await wait(500); }
         else await page.evaluate(() => window.__noteOff()).catch(() => {});
         const names = await page.evaluate(() => [...document.querySelectorAll("button")].map((b) => b.innerText.trim()));
         const ok = names.find((n) => n.startsWith("✓"));
-        if (ok) { if (names.includes("1")) await tapLocator(btn("1", true), 500); await tapLocator(btn(ok, true), gap); continue; }
+        const off = () => page.evaluate(() => window.__noteOff()).catch(() => {});
+        if (ok) { if (names.includes("1")) await tapLocator(btn("1", true), 500); await tapLocator(btn(ok, true), 250); await off(); await wait(Math.max(0, gap - 250)); continue; }
         const q = await page.evaluate(() => [...document.querySelectorAll("h1,h2,h3,legend,p")].map((e) => e.innerText.trim()).filter((t) => /[?？](\s*[(（][^)）]*[)）])?$/.test(t)).pop() || "");
         const rule = rules.find(([re, ans]) => re.test(q) && names.includes(ans));
         if (rule) {
@@ -257,14 +259,18 @@ function makeActions(page, rec) {
           if (rule[4]) rec.cue(rule[4]);
           if (rule[5]) await op(btn(rule[1], true), rule[5], { sub: rule[6] ?? null, after: 900 });
           else await tapLocator(btn(rule[1], true), rule[3] ? 900 : gap);
-          if (rule[3]) await (rule[5] ? op(btn(rule[3], true), null, { after: gap, reset: true }) : tapLocator(btn(rule[3], true), gap));
+          await off();
+          if (rule[3]) await (rule[5] ? op(btn(rule[3], true), null, { after: gap }) : tapLocator(btn(rule[3], true), gap));
           if (speedForRest) rec.speed(speedForRest);
           rules = rules.filter((r) => r !== rule);
           continue;
         }
         const pick = prefer.find((x) => names.includes(x));
         if (!pick) return;
-        await tapLocator(btn(pick, true), gap);
+        // 押した直後に吹き出しを消す（次の質問が出てから付け直すので、1問ずつ遅れない）
+        await tapLocator(btn(pick, true), 250);
+        await off();
+        await wait(Math.max(0, gap - 250));
       }
     },
     // 問診：用意した答えの中から、画面にあるものを押す（なくなったら終わり）
@@ -292,9 +298,9 @@ async function checkAll(a, scope, note = null, sub = null) {
   }
 }
 // その要素の位置に、吹き出しをすぐ出す（動きなし）
-async function stillNote(page, loc, text, sub = null) {
+async function stillNote(page, loc, text, sub = null, below = false) {
   const r = await loc.evaluate((el) => el.getBoundingClientRect().toJSON());
-  await page.evaluate(([t, sb, rr]) => window.__note(t, sb, rr, true), [text, sub, r]);
+  await page.evaluate(([t, sb, rr, bl]) => window.__note(t, sb, rr, true, bl), [text, sub, r, below]);
 }
 
 const CLIPS = {
@@ -314,6 +320,7 @@ const CLIPS = {
     await stillNote(page, page.locator("h1,h2").filter({ hasText: /old/i }).first(), "質問：年齢・性別");
     await a.type("input", "30"); await a.tap("Next", true, 500);
     await a.tap("Female", true, 600);
+    await page.evaluate(() => window.__noteOff());
     rec.speed(1);
     rec.cue("symptom");
     await a.op(a.btn("Find a medicine by symptoms"), "症状から相談する", { after: 900 });
@@ -415,7 +422,10 @@ const CLIPS = {
     await a.scrollTo("薬剤師の確認：119番の案内を出しますか");
     rec.cue("guide");
     await a.closeup(page.getByText("当てはまった緊急症状").first(), "薬剤師が根拠を確かめる", { hold: 2400 });
-    await a.op(a.btn("119番の案内を出す"), "119番の案内を出す", { after: 3000 });
+    await a.op(a.btn("119番の案内を出す"), "119番の案内を出す", { after: 400 });
+    await a.wait(600);
+    await stillNote(page, page.getByText("工作人员会马上为您提供帮助").first(), "119番の案内が、母国語で出る", null, true); // 赤い帯（119の文）に重ならないよう、下に出す
+    await a.wait(5000);
   },
 };
 

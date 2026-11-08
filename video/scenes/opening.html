@@ -49,7 +49,7 @@ e = say("P", SEG.proc + 0.3);
 SEG.without = e + 1.2;
 e = say("W", SEG.without + 1.0);
 // 「ないとき」の最後は円が閉じて「MODA があると」→ 実際の画面（実演）へ。説明は実演の中でする（11/8 夜 依頼主の判断）
-SEG.flow = e + 1.1;
+SEG.flow = e + 1.6; // 円が閉じて「MODA があると」を読めるだけ見せる
 const DURATION = Number(SEG.flow.toFixed(2));
 window.DURATION = DURATION;
 const rel = (k, seg) => L[k].t - SEG[seg];
@@ -58,7 +58,7 @@ const segLen = (seg, next) => (next ? SEG[next] : DURATION) - SEG[seg];
 
 // 「ないとき」：やりとり → 答えがもれる（W2 の読み始め）→ 日本語だけの説明書（W3 の読み始め）→ 円が閉じる
 const LEN_WITHOUT = segLen("without", "flow");
-const WARP_WITHOUT = makeWarp([[0, 0], [relm("W", "miss", "without") - 0.2, 6.5], [relm("W", "leaf", "without") - 0.2, 8.35], [LEN_WITHOUT - 1.5, 11.0], [LEN_WITHOUT, 11.7]]);
+const WARP_WITHOUT = makeWarp([[0, 0], [relm("W", "miss", "without") - 0.2, 6.5], [relm("W", "leaf", "without") - 0.2, 8.35], [LEN_WITHOUT - 1.7, 11.0], [LEN_WITHOUT - 1.2, 11.7], [LEN_WITHOUT, 11.7]]);
 // 「あるとき」：ナレーション1文のあいだに、答える → 候補 → 承認 → 説明書が患者さんへ
 
 // 字幕はナレーションの文と同じ時に出す
