@@ -233,7 +233,7 @@ run([
   `[v0][v1]xfade=transition=fade:duration=${X1}:offset=${(openLen - X1).toFixed(3)}[v01];` +
   `[v01][v2]xfade=transition=fadewhite:duration=${X2}:offset=${(openLen - X1 + demoLen - X2).toFixed(3)}[vx];` +
   // 色の形式は標準の yuv420p（4:4:4 のままだと、ふつうの再生ソフトで開けない）
-  "[vx]scale=in_range=full:out_range=limited,format=yuv420p[v];" + +
+  "[vx]scale=in_range=full:out_range=limited,format=yuv420p[v];" +
   "[0:a]aresample=44100[a0];[1:a]aresample=44100[a1];[2:a]aresample=44100[a2];" +
   `[a0][a1]acrossfade=d=${X1}[a01];[a01][a2]acrossfade=d=${X2}[a]`,
   // 色の形式は yuv420p に（4:4:4 のままだと、ふつうの再生ソフトで開けない）。moov を先頭に置いてすぐ再生できるように
