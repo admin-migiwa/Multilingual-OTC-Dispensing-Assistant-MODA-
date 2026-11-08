@@ -79,12 +79,15 @@ jobs:
             if (open.length === 0) {
               lines.push('なし');
             } else {
-              lines.push('| PR | タスク | 内容 | 状態 | 最後の動き |');
-              lines.push('| --- | --- | --- | --- | --- |');
+              lines.push('| PR | タスク | 内容 | 状態 | 進み具合 | 最後の動き |');
+              lines.push('| --- | --- | --- | --- | --- | --- |');
               for (const pr of open) {
-                const flags = [pr.draft ? '下書き' : 'レビュー待ち・取り込み待ち'];
-                if ((pr.body || '').includes('要レビュー')) flags.push('要レビュー');
-                lines.push(`| #${pr.number} | ${taskOf(pr)} | ${cell(pr.title)} | ${flags.join('・')} | ${fmt(pr.updated_at)} |`);
+                const body = pr.body || '';
+                const flags = [pr.draft ? '作業中（下書き）' : '取り込み待ち'];
+                // 「要レビュー」とかぎかっこでくくった説明の文は数えない
+                if (/(^|[^「])要レビュー(?!」)/m.test(body)) flags.push('要レビュー');
+                const progress = (body.match(/^\s*進み具合[：:]\s*(.+)$/m) || [])[1] || '—';
+                lines.push(`| #${pr.number} | ${taskOf(pr)} | ${cell(pr.title)} | ${flags.join('・')} | ${cell(progress.trim().slice(0, 60))} | ${fmt(pr.updated_at)} |`);
               }
             }
             lines.push('');
@@ -109,7 +112,7 @@ jobs:
               lines.push('| --- | --- | --- |');
               for (const t of tasks) lines.push(`| ${t.id} | ${cell(t.name)} | ${cell(t.status)} |`);
             }
-            const body = lines.join('\n');
+            const issueBody = lines.join('\n');
 
             // ラベルと Issue がなければ作る
             try {
@@ -119,9 +122,9 @@ jobs:
             }
             const found = await github.rest.issues.listForRepo({ owner, repo, labels: LABEL, state: 'open', per_page: 1 });
             if (found.data.length > 0) {
-              await github.rest.issues.update({ owner, repo, issue_number: found.data[0].number, title: TITLE, body });
+              await github.rest.issues.update({ owner, repo, issue_number: found.data[0].number, title: TITLE, body: issueBody });
               core.info(`Issue #${found.data[0].number} を書き換えた`);
             } else {
-              const created = await github.rest.issues.create({ owner, repo, title: TITLE, body, labels: [LABEL] });
+              const created = await github.rest.issues.create({ owner, repo, title: TITLE, body: issueBody, labels: [LABEL] });
               core.info(`Issue #${created.data.number} を作った`);
             }
