@@ -26,32 +26,41 @@ const voice = JSON.parse(readFileSync(resolve(here, "scenes", "voice.json"), "ut
 // { } は少しゆっくり・少し大きく、| は一呼吸。台本 docs/demo-video-script.md と同じ文
 const CLIPS = [
   {
-    name: "main", title: "実演：症状から相談（英語）", checklist: true,
+    name: "main", title: "実演：症状から相談（英語）", progress: true,
+    // デモの患者さん（架空）：最初にまん中のカードで紹介し、そのあとは左の「いまの場面」の上に小さく残す
+    patient: { big: ["30歳・女性・英語", "昨日から熱と頭痛", "胃潰瘍で治療中"], small: ["30歳・女性・英語", "熱と頭痛／胃潰瘍で治療中"] },
     lines: [
-      { cue: "start", text: "^まずは、患者さんの画面です。^言語を選び、[symptom]症状を{母国語で}書くと、[questions]質問が{1問ずつ}出てきます。" },
-      { cue: "ulcer", text: "治療中の病気には、{胃潰瘍}と答えました。" },
-      { cue: "review", text: "薬剤師の画面には、答えが日本語でまとまっています。症状は日本語に訳し、[translate]{訳し戻し}で、意味がずれていないかも確かめられます。" },
-      { cue: "candidates", text: "候補の薬は、問診の答えから{禁忌を自動でチェック}します。[contra]~胃潰瘍で治療中のこの患者さんには、この薬は{禁忌}です。~|[pick]そこで薬剤師は、禁忌でない薬を選びます。" },
+      { cue: "intro", text: "ここからは、デモの患者さんです。熱と頭痛があり、{胃潰瘍で治療中}の、英語を話す30歳の女性です。" },
+      { cue: "start", text: "^モダがあると、^患者さんは言語を選び、{母国語の案内}にそって答えるだけで、必要なことをもれなく聞き取れます。" },
+      { cue: "ulcer", text: "治療中の病気には、設定どおり{胃潰瘍}を選びます。" },
+      { cue: "review", text: "答えは、薬剤師の画面に{日本語で}まとまります。" },
+      { cue: "candidates", text: "薬剤師は、このまとめをもとに、お店の薬の中から{この患者さんに合う薬}を考えます。[contra]候補には、問診の答えから{禁忌}が自動で示されるので、~この患者さんに使えない薬も、ひと目でわかります。~|[pick]症状や持病をふまえて、薬剤師が選んだのは、{モダねつさまし錠}です。" },
       { cue: "confirm", text: "選んだ薬は、患者さんも{母国語で確かめ}て、個数を選べます。" },
-      { cue: "leaflet", text: "続いて、原文と{母国語の訳}を並べた説明書を作り、[approve]区分ごとの手順がそろったら、[pin]{薬剤師がPINで承認}します。" },
-      { cue: "explain", text: "^承認のあとは、^患者さんが母国語の説明書を読んで、{わかったかどうか}を答え、[checkout]会計の案内と評価まで、母国語で進みます。" },
-      { cue: "records", text: "販売記録は{上書きせず}、版を重ねて残るので、~あとから見直すときも安心です。~" },
+      { cue: "leaflet", text: "説明書はAIが{母国語に訳し}、原文と並べて確かめられます。[approve]区分ごとの手順がそろったら、[pin]{薬剤師がPINで承認}し、同時に{販売記録}も残ります。" },
+      { cue: "explain", text: "最後に、患者さんは母国語の説明書を見ながら説明を聞き、[understood]{わかったかどうか}を答えます。" },
     ],
-    // 5つに ✓ を付ける時刻（目印からの秒。並べ替えたあとの時刻で数える）。✓ のときだけ右に出す
-    checks: [["review", 0.2], ["pick", 1.2], ["explain", -0.6], ["checkout", 0.4], ["records", 1.0]],
   },
   {
     name: "emergency", title: "実演：緊急の場面（中国語）",
+    patient: { big: ["40歳・男性・中国語", "胸が痛い"] },
     lines: [
-      { cue: "type", text: "^次は、中国語の患者さんです。^胸の痛みなど{緊急の言葉}が入ると、[stop]問診はすぐに止まります。|[guide]{119番の案内}は、薬剤師が根拠を確かめてから、母国語で出します。" },
+      { cue: "intro", text: "次は、{胸の痛み}を訴える、中国語を話す40歳の男性です。" },
+      { cue: "type", text: "胸の痛みなど{緊急の言葉}が入ると、[stop]問診はすぐに止まり、患者さんには母国語で「スタッフがすぐにお手伝いします」と出ます。|[guide]{119番の案内}は、薬剤師が根拠を確かめてから出します。" },
     ],
   },
 ];
-const CHECK_ITEMS = ["① 問診", "② 禁忌の確認", "③ 区分の手順", "④ 説明・理解", "⑤ 販売の記録"];
+// 横の「いまの場面」：販売の前の5つ。いまの場面は緑、すんだ場面は ✓。[ラベル, だれが, 始まりの目印, 終わりの目印（このあと ✓）, ずらす秒]
+const PROGRESS = [
+  ["① 問診", "患者さん（母国語）", null, "candidates"],
+  ["② 禁忌の確認", "MODA が示す → 薬剤師が判断", "candidates", "leaflet"],
+  ["③ 区分の手順・承認", "薬剤師（PIN）", "leaflet", "approved"],
+  ["④ 説明・理解の確認", "患者さん（母国語）", "explain", null],
+  ["⑤ 販売記録", "承認と同時に残る", "approved", "explain"],
+];
 
-const IDLE_FAST = 1.25; // 声のない待ち時間だけ、この速さまで縮める（声の間は早送りしない。目が追えるように）
+const IDLE_FAST = 1.35; // 声のない待ち時間だけ、この速さまで縮める（声の間は早送りしない。目が追えるように）
 const MAX_SLOW = 1.5; // これよりゆっくりにはせず、残りは止めて待つ
-const GAP = 0.6; // 文と文の間（一呼吸）
+const GAP = 0.45; // 文と文の間（一呼吸）
 const LEAD = 0.15; // 画面の動きを、その言葉より少し先に見せる
 
 function run(args) {
@@ -115,23 +124,47 @@ async function plan(clip, cues, len) {
 }
 
 const esc = (s) => s.replace(/\\/g, "\\\\").replace(/'/g, "\\'").replace(/:/g, "\\:");
-function checklistFilters(times) {
-  const x = 1580, y0 = 170, w = 310, rowH = 62;
-  const show = times.map((t) => `between(t,${(t - 0.4).toFixed(2)},${(t + 2.8).toFixed(2)})`).join("+");
+function progressFilters(at, end) {
+  const x = 22, y0 = 160, w = 352, rowH = 112;
+  const T = (k) => (k === null ? null : k === "approved" ? at.pin + 3.0 : at[k]);
   const f = [
-    `drawbox=x=${x}:y=${y0}:w=${w}:h=${70 + rowH * 5}:color=white@0.95:t=fill`,
-    `drawtext=fontfile='${FONT}':text='${esc("販売の前の5つ")}':fontcolor=0x334155:fontsize=26:x=${x + 22}:y=${y0 + 20}`,
+    `drawbox=x=${x}:y=${y0}:w=${w}:h=${74 + rowH * 5}:color=white@0.96:t=fill`,
+    `drawtext=fontfile='${FONT}':text='${esc("販売の前の5つ ・ いまの場面")}':fontcolor=0x334155:fontsize=24:x=${x + 20}:y=${y0 + 22}`,
   ];
-  CHECK_ITEMS.forEach((label, i) => {
-    const y = y0 + 64 + i * rowH, on = `gte(t,${times[i].toFixed(2)})`;
-    f.push(`drawbox=x=${x + 14}:y=${y}:w=${w - 28}:h=${rowH - 10}:color=0xe2f3ee:t=fill:enable='lt(t,${times[i].toFixed(2)})'`);
-    f.push(`drawbox=x=${x + 14}:y=${y}:w=${w - 28}:h=${rowH - 10}:color=0x11a07f:t=fill:enable='${on}'`);
-    f.push(`drawtext=fontfile='${FONT}':text='${esc(label)}':fontcolor=0x0f5f52:fontsize=26:x=${x + 30}:y=${y + 12}:enable='lt(t,${times[i].toFixed(2)})'`);
-    f.push(`drawtext=fontfile='${FONT}':text='${esc(label)}':fontcolor=white:fontsize=26:x=${x + 30}:y=${y + 12}:enable='${on}'`);
-    f.push(`drawtext=fontfile='${SYMBOL}':text='✓':fontcolor=white:fontsize=34:x=${x + w - 62}:y=${y + 6}:enable='${on}'`);
+  PROGRESS.forEach(([label, who, from, to], i) => {
+    const y = y0 + 66 + i * rowH, a = T(from) ?? 0, b = T(to) ?? end + 1;
+    const cur = `between(t,${a.toFixed(2)},${b.toFixed(2)})`, done = `gt(t,${b.toFixed(2)})`, before = `lt(t,${a.toFixed(2)})`;
+    const box = (color, en) => f.push(`drawbox=x=${x + 14}:y=${y}:w=${w - 28}:h=${rowH - 14}:color=${color}:t=fill:enable='${en}'`);
+    const txt = (t, size, color, dy, en, font = FONT) => f.push(`drawtext=fontfile='${font}':text='${esc(t)}':fontcolor=${color}:fontsize=${size}:x=${x + 32}:y=${y + dy}:enable='${en}'`);
+    box("0xf1f5f4", before); box("0x11a07f", cur); box("0xdff2ec", done);
+    for (const [en, c1, c2] of [[before, "0x94a3b8", "0xa8b5bf"], [cur, "white", "0xd9f5ec"], [done, "0x0f5f52", "0x3d7a6e"]]) {
+      txt(label, 28, c1, 16, en);
+      txt(who, 19, c2, 58, en);
+    }
+    f.push(`drawtext=fontfile='${SYMBOL}':text='✓':fontcolor=0x11a07f:fontsize=40:x=${x + w - 64}:y=${y + 22}:enable='${done}'`);
   });
-  // 全部を「✓ のときだけ」出す
-  return f.map((x0) => (x0.includes("enable='") ? x0.replace(/enable='([^']*)'/, (_m, e) => `enable='(${e})*(${show})'`) : `${x0}:enable='${show}'`));
+  return f;
+}
+
+// デモの患者さん（架空）のカード：紹介のナレーションのあいだはまん中に大きく、そのあとは左上に小さく
+function patientFilters(pt, at, end) {
+  const f = [];
+  const on = `between(t,${(at.intro + 0.2).toFixed(2)},${(at.start ?? at.type) - 0.25})`;
+  const cx = 560, cy = 300, cw = 800, ch = 130 + pt.big.length * 74;
+  f.push(`drawbox=x=0:y=0:w=iw:h=ih:color=0x0f2a25@0.35:t=fill:enable='${on}'`);
+  f.push(`drawbox=x=${cx}:y=${cy}:w=${cw}:h=${ch}:color=white@0.98:t=fill:enable='${on}'`);
+  f.push(`drawbox=x=${cx}:y=${cy}:w=${cw}:h=12:color=0x11a07f:t=fill:enable='${on}'`);
+  f.push(`drawtext=fontfile='${FONT}':text='${esc("デモの患者さん（架空）")}':fontcolor=0x11a07f:fontsize=32:x=${cx + 50}:y=${cy + 46}:enable='${on}'`);
+  pt.big.forEach((line, i) => f.push(`drawtext=fontfile='${FONT}':text='${esc(line)}':fontcolor=0x12332d:fontsize=${i === 0 ? 52 : 44}:x=${cx + 50}:y=${cy + 110 + i * 74}:enable='${on}'`));
+  if (pt.small) {
+    const so = `between(t,${((at.start ?? 0) - 0.1).toFixed(2)},${(end + 1).toFixed(2)})`;
+    const x = 22, y = 40, w = 352;
+    f.push(`drawbox=x=${x}:y=${y}:w=${w}:h=104:color=0xfff7e6@0.97:t=fill:enable='${so}'`);
+    f.push(`drawbox=x=${x}:y=${y}:w=8:h=104:color=0xf0a020:t=fill:enable='${so}'`);
+    f.push(`drawtext=fontfile='${FONT}':text='${esc("デモの患者さん（架空）")}':fontcolor=0x9a6400:fontsize=18:x=${x + 24}:y=${y + 12}:enable='${so}'`);
+    pt.small.forEach((line, i) => f.push(`drawtext=fontfile='${FONT}':text='${esc(line)}':fontcolor=0x3b2a00:fontsize=22:x=${x + 24}:y=${y + 40 + i * 30}:enable='${so}'`));
+  }
+  return f;
 }
 
 // node compose.mjs --plan：動画は作らず、速さの計画（長さと目印の時刻）だけ出す
@@ -158,9 +191,10 @@ for (const c of CLIPS) {
     return `[s${i}]trim=start=${a.toFixed(3)}:end=${b.toFixed(3)},setpts=(PTS-STARTPTS)*${k.toFixed(4)},fps=30${pad > 0.02 ? `,tpad=stop_mode=clone:stop_duration=${pad.toFixed(3)}` : ""}[g${i}]`;
   });
   const over = [
-    `drawbox=x=40:y=36:w=iw*0.36:h=74:color=0x11a07f@0.92:t=fill:enable='lt(t,3.5)'`,
-    `drawtext=fontfile='${FONT}':text='${esc(c.title)}':fontcolor=white:fontsize=38:x=66:y=54:enable='lt(t,3.5)'`,
-    ...(c.checklist ? checklistFilters(c.checks.map(([cue, dt]) => p.at[cue] + dt)) : []),
+    `drawbox=x=40:y=36:w=iw*0.36:h=74:color=0x11a07f@0.92:t=fill:enable='lt(t,${((p.at.start ?? p.at.type) - 0.25).toFixed(2)})'`,
+    `drawtext=fontfile='${FONT}':text='${esc(c.title)}':fontcolor=white:fontsize=38:x=66:y=54:enable='lt(t,${((p.at.start ?? p.at.type) - 0.25).toFixed(2)})'`,
+    ...(c.progress ? progressFilters(p.at, p.total) : []),
+    ...(c.patient ? patientFilters(c.patient, p.at, p.total) : []),
   ];
   const graph = [
     `[0:v]split=${p.segs.length}${p.segs.map((_, i) => `[s${i}]`).join("")}`,
@@ -184,21 +218,21 @@ run(["-f", "concat", "-safe", "0", "-i", out("demo/_list.txt"), "-c", "copy", de
 const silence = out("demo/_silence.wav");
 run(["-f", "lavfi", "-i", "anullsrc=r=44100:cl=mono", "-t", String(demoLen), silence]);
 const bgm = out("demo/_bgm.wav");
-writeFileSync(bgm, makeMusic([{ t: 0, len: demoLen, part: "demo" }], demoLen));
+writeFileSync(bgm, makeMusic([{ t: 0, len: demoLen, part: "demo" }], demoLen, { fadeIn: 1.0, fadeOut: 3.0 }));
 const demoAudio = await mixAudio({ ffmpeg: ff, sfxWav: silence, bgmWav: bgm, lines, voice, outWav: out("demo/_demo-audio.wav") });
 const demoFull = out("demo/_demo.mp4");
 run(["-i", demoVideo, "-i", demoAudio, "-c:v", "copy", "-c:a", "aac", "-b:a", "160k", "-shortest", demoFull]);
 
-// 3) 冒頭 → 実演 → 締め（つなぎ目は重ねて切り替える：冒頭→実演 0.6秒、実演→締め 1.2秒）
+// 3) 冒頭 → 実演 → 締め（つなぎ目は重ねて切り替える：冒頭→実演 0.8秒、実演→締めは白を通して 1.6秒。音楽もゆっくり入れ替える）
 const final = out("final.mp4");
 const openLen = dur(out("opening.mp4"));
-const X1 = 0.6, X2 = 1.2;
+const X1 = 0.8, X2 = 1.6;
 run([
   "-i", out("opening.mp4"), "-i", demoFull, "-i", out("ending.mp4"),
   "-filter_complex",
   "[0:v]fps=30,format=yuv420p,setsar=1[v0];[1:v]fps=30,format=yuv420p,setsar=1[v1];[2:v]fps=30,format=yuv420p,setsar=1[v2];" +
   `[v0][v1]xfade=transition=fade:duration=${X1}:offset=${(openLen - X1).toFixed(3)}[v01];` +
-  `[v01][v2]xfade=transition=fade:duration=${X2}:offset=${(openLen - X1 + demoLen - X2).toFixed(3)}[v];` +
+  `[v01][v2]xfade=transition=fadewhite:duration=${X2}:offset=${(openLen - X1 + demoLen - X2).toFixed(3)}[v];` +
   "[0:a]aresample=44100[a0];[1:a]aresample=44100[a1];[2:a]aresample=44100[a2];" +
   `[a0][a1]acrossfade=d=${X1}[a01];[a01][a2]acrossfade=d=${X2}[a]`,
   "-map", "[v]", "-map", "[a]", "-c:v", "libx264", "-crf", "18", "-preset", "medium", "-c:a", "aac", "-b:a", "160k", final,

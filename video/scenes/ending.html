@@ -13,16 +13,16 @@
 <script src="lib/common.js"></script>
 <script>
 /*
- * デモ動画の締め（9秒。11/8：「薬局薬剤師が企画し…」は依頼主の判断で外した）。
+ * デモ動画の締め（8秒。11/8：「薬局薬剤師が企画し…」は依頼主の判断で外した）。
  * 実演の最後からクロスフェードで入る（compose.mjs）ので、始めは白からにせず、2人はもう並んでいる絵コンテの場面8。
  * 勤務先・店舗数・地域は出さない（決まったこと #20）。
  */
-const DURATION = 9;
+const DURATION = 8;
 window.DURATION = DURATION;
 window.SOUND_EVENTS = [{ t: 3.2, kind: "pop" }, { t: 4.6, kind: "stamp" }];
 window.MUSIC = [{ t: 0, len: DURATION, part: "outro" }];
 window.NARRATION = [
-  { t: 0.6, max: 3.0, text: "~どの国の患者さんにも、安心して薬を選んでもらうために。~" },
+  { t: 0.6, max: 3.0, text: "~どの国の患者さんにも、安心して薬を選んでもらえるように。~" },
   { t: 3.3, max: 4.2, text: "{言葉がちがっても}、同じ安全を。^モダ。^" },
 ];
 

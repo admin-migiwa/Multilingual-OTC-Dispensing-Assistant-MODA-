@@ -22,7 +22,7 @@
  *   場面2 来店（短く）
  *   場面3 販売の前に、薬剤師が確かめること（5項目 → 区分の図を右から差し込む → 日本語が話せない患者さんでも同じ。sales-procedures.md P01〜P07）
  *   場面4 MODA がないとき（翻訳アプリ。①〜⑤のうち、もれた手順に「？」）
- *   場面5 構成図（患者さん → MODA → 薬剤師 → 患者さん。①〜⑤に ✓）。細かいところは、このあとの実際の画面で見せる
+ *   最後は円が閉じて「MODA があると」。MODA の説明は、このあとの実際の画面（実演）の中でする（11/8 夜 依頼主の判断）
  * ナレーションは場面ごとにひと続き。場面の長さはその長さから、動きのタイミングは文の途中の言葉の位置（[名前] の印）から決める（opening.voice.js）。文は opening.lines.js。
  * ナレーションは window.NARRATION の文を render.mjs が読み上げ音声にして重ねる。
  * 読み上げ用の文なので、MODA は「モダ」、濫用は「乱用」と書いている（読み間違いを防ぐため）。
@@ -48,9 +48,9 @@ SEG.proc = Math.max(e + 0.2, SEG.arrival + 4.2);
 e = say("P", SEG.proc + 0.3);
 SEG.without = e + 1.2;
 e = say("W", SEG.without + 1.0);
-SEG.flow = e + 1.4;
-e = say("F", SEG.flow + 0.8);
-const DURATION = Number((e + 1.0).toFixed(2));
+// 「ないとき」の最後は円が閉じて「MODA があると」→ 実際の画面（実演）へ。説明は実演の中でする（11/8 夜 依頼主の判断）
+SEG.flow = e + 1.1;
+const DURATION = Number(SEG.flow.toFixed(2));
 window.DURATION = DURATION;
 const rel = (k, seg) => L[k].t - SEG[seg];
 const relm = (k, name, seg) => mark(k, name) - SEG[seg];
@@ -58,7 +58,7 @@ const segLen = (seg, next) => (next ? SEG[next] : DURATION) - SEG[seg];
 
 // 「ないとき」：やりとり → 答えがもれる（W2 の読み始め）→ 日本語だけの説明書（W3 の読み始め）→ 円が閉じる
 const LEN_WITHOUT = segLen("without", "flow");
-const WARP_WITHOUT = makeWarp([[0, 0], [relm("W", "miss", "without") - 0.2, 6.5], [relm("W", "leaf", "without") - 0.2, 8.35], [LEN_WITHOUT - 0.95, 11.0], [LEN_WITHOUT, 11.9]]);
+const WARP_WITHOUT = makeWarp([[0, 0], [relm("W", "miss", "without") - 0.2, 6.5], [relm("W", "leaf", "without") - 0.2, 8.35], [LEN_WITHOUT - 1.5, 11.0], [LEN_WITHOUT, 11.7]]);
 // 「あるとき」：ナレーション1文のあいだに、答える → 候補 → 承認 → 説明書が患者さんへ
 
 // 字幕はナレーションの文と同じ時に出す
@@ -242,67 +242,12 @@ function drawProcedure(t) {
   }
 }
 
-// ---- 場面5：構成図（患者さん → MODA → 薬剤師 → 患者さん）。箱は、ナレーションでその役が出る言葉のところで出る ----
-const FLOW_NODES = [
-  { t: () => relm("F", "n1", "flow") - 0.1, who: "患者さん", title: "母国語で答える", sub: ["1問ずつ・iPad で"] },
-  { t: () => relm("F", "n2", "flow") - 0.1, who: "MODA", title: "AI が訳す・まとめる", sub: ["禁忌を自動でチェック", "説明書を母国語に"], moda: true },
-  { t: () => relm("F", "n3", "flow") - 0.1, who: "薬剤師", title: "日本語で確かめて判断", sub: ["PIN で承認", "販売記録を残す"] },
-  { t: () => relm("F", "n3", "flow") + (relm("F", "n4", "flow") - relm("F", "n3", "flow")) * 0.6, who: "患者さん", title: "母国語の説明書", sub: ["わかったかを確かめる"] },
-];
-const FLOW_X = [255, 725, 1195, 1665], FLOW_Y = 560, FLOW_W = 380, FLOW_H = 300;
-// ①〜⑤：問診（患者さん）・禁忌（MODA）・区分の手順と記録（薬剤師）・説明と理解（説明書）
-const FLOW_CHIPS = () => [[FLOW_NODES[0].t() + 0.3, "ok"], [FLOW_NODES[1].t() + 0.3, "ok"], [FLOW_NODES[2].t() + 0.3, "ok"], [FLOW_NODES[3].t() + 0.3, "ok"], [FLOW_NODES[2].t() + 0.7, "ok"]];
-const CAPS_FLOW = [
-  [relm("F", "n1", "flow") - 0.2, relm("F", "n3", "flow") - 0.25, "AI は、訳して材料と説明書を用意するだけ。"],
-  [relm("F", "n3", "flow") - 0.2, relm("F", "n4", "flow") - 0.25, "判断は、薬剤師。"],
-  [relm("F", "n4", "flow") - 0.2, segLen("flow") - 0.3, "実際の画面で見ていきます。"],
-];
-function drawFlow(t) {
-  room(false);
-  stepChips(chipStates(t, FLOW_CHIPS()), easeOut(prog(t, 0.3, 0.6)));
-  alpha(easeOut(prog(t, 0.2, 0.6)), () => text("MODA の流れ", W / 2, 240, 46, C.ink, 800));
-  // 矢印（前の箱から次の箱へ線がのび、点が流れる）
-  for (let i = 1; i < FLOW_NODES.length; i++) {
-    const st = FLOW_NODES[i].t() - 0.6;
-    const k = easeInOut(prog(t, st, 0.55));
-    if (k <= 0) continue;
-    const x0 = FLOW_X[i - 1] + FLOW_W / 2 + 8, x1 = FLOW_X[i] - FLOW_W / 2 - 8;
-    ctx.strokeStyle = C.teal; ctx.lineWidth = 6; ctx.lineCap = "round";
-    ctx.beginPath(); ctx.moveTo(x0, FLOW_Y); ctx.lineTo(lerp(x0, x1, k), FLOW_Y); ctx.stroke();
-    if (k >= 1) {
-      ctx.fillStyle = C.teal; ctx.beginPath(); ctx.moveTo(x1, FLOW_Y); ctx.lineTo(x1 - 18, FLOW_Y - 13); ctx.lineTo(x1 - 18, FLOW_Y + 13); ctx.fill();
-      const ph = ((t - st) * 0.8) % 1;
-      alpha(0.9, () => { ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(lerp(x0, x1 - 20, ph), FLOW_Y, 6, 0, Math.PI * 2); ctx.fill(); });
-    }
-  }
-  FLOW_NODES.forEach((n, i) => {
-    const s = pop(t, n.t(), 0.5);
-    if (s <= 0) return;
-    const x = FLOW_X[i];
-    ctx.save(); ctx.translate(x, FLOW_Y); ctx.scale(s, s);
-    shadowed(() => { ctx.fillStyle = n.moda ? C.teal : "#fff"; rr(-FLOW_W / 2, -FLOW_H / 2, FLOW_W, FLOW_H, 26); ctx.fill(); });
-    const ink = n.moda ? "#fff" : C.ink, sub = n.moda ? "rgba(255,255,255,.88)" : C.muted;
-    // 役の札
-    ctx.font = `800 26px ${FONT}`;
-    const bw = ctx.measureText(n.who).width + 40;
-    ctx.fillStyle = n.moda ? "rgba(255,255,255,.2)" : C.tealSoft; rr(-bw / 2, -FLOW_H / 2 + 26, bw, 46, 23); ctx.fill();
-    text(n.who, 0, -FLOW_H / 2 + 50, 26, n.moda ? "#fff" : C.teal, 800);
-    text(n.title, 0, -20, 32, ink, 800);
-    n.sub.forEach((line, j) => text(line, 0, 40 + j * 40, 24, sub, 700));
-    ctx.restore();
-  });
-  // 判断は薬剤師：薬剤師の箱を少し強調する
-  const kj = easeOut(prog(t, relm("F", "n3", "flow"), 0.5)) * (1 - prog(t, relm("F", "n4", "flow"), 0.5));
-  if (kj > 0) alpha(kj, () => { ctx.strokeStyle = C.teal; ctx.lineWidth = 6; rr(FLOW_X[2] - FLOW_W / 2 - 10, FLOW_Y - FLOW_H / 2 - 10, FLOW_W + 20, FLOW_H + 20, 32); ctx.stroke(); });
-}
-
 // BGM（music.mjs）：場面ごとに曲調を変える
 window.MUSIC = [
   { t: 0, len: SEG.arrival, part: "intro" },
   { t: SEG.arrival, len: SEG.proc - SEG.arrival, part: "arrival" },
   { t: SEG.proc, len: SEG.without - SEG.proc, part: "steps" },
   { t: SEG.without, len: SEG.flow - SEG.without, part: "problem" },
-  { t: SEG.flow, len: DURATION - SEG.flow, part: "solution" },
 ];
 
 window.SOUND_EVENTS = [
@@ -314,8 +259,6 @@ window.SOUND_EVENTS = [
   { t: SEG.proc + PROC_SAME, kind: "pop" },
   ...PROC_TIERS.map((_, i) => ({ t: SEG.proc + PROC_SPLIT + 1.0 + i * 0.55, kind: "check" })),
   ...WITHOUT_EVENTS.map((e) => ({ ...e, t: SEG.without + WARP_WITHOUT.toReal(e.t) })),
-  ...FLOW_NODES.map((n) => ({ t: SEG.flow + n.t(), kind: "pop" })),
-  ...FLOW_NODES.slice(1).map((n) => ({ t: SEG.flow + n.t() - 0.6, kind: "swoosh" })),
 ];
 
 // ナレーション（t＝読み始める時刻、max＝読み終えるまでの上限秒。長いときは render.mjs が速さを上げて収める）
@@ -338,23 +281,17 @@ window.draw = function (tg) {
   } else if (tg < SEG.without) {
     drawProcedure(tg - SEG.proc);
     captions(CAPS_PROC, tg - SEG.proc, C.ink);
-  } else if (tg < SEG.flow) {
+  } else {
     const lt = tg - SEG.without;
     drawWithout(WARP_WITHOUT.toScene(lt));
     captions(CAPS_WITHOUT, lt, C.ink);
     irisClose(WARP_WITHOUT.toScene(lt));
-  } else {
-    const lt = tg - SEG.flow;
-    drawFlow(lt);
-    captions(CAPS_FLOW, lt, C.teal);
-    irisOpen(lt);
   }
   // 場面の切れ目は白くしてつなぐ（ないとき→あるときは円の切り替え）。最初と最後も白から・白へ
   const dark = Math.max(
     1 - prog(tg, 0, 0.4),
     clamp(1 - Math.abs(tg - SEG.arrival) / 0.4),
     clamp(1 - Math.abs(tg - SEG.without) / 0.4),
-    prog(tg, DURATION - 0.4, 0.4),
   );
   if (dark > 0) { ctx.fillStyle = `rgba(${C.fade},${dark})`; ctx.fillRect(0, 0, W, H); }
 };
