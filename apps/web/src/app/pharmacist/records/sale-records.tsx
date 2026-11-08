@@ -65,7 +65,7 @@ export function SaleRecords() {
         </div>
         <h1 className="text-3xl font-bold">販売記録の一覧</h1>
         <p className="text-sm text-slate-500">
-          承認と同時に作った記録です。書き換えず、直すときや理解の確認の結果は新しい版として足します。サーバーを止めると消えます（ハッカソン版）。
+          承認と同時に作った記録です。書き換えず、直すときや理解の確認の結果は新しい版として足します。
         </p>
       </header>
       {failed ? <p className="text-red-900">販売記録を読み込めませんでした（通信を確かめてください）。</p> : null}
