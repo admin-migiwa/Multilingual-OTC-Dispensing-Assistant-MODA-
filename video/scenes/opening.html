@@ -18,11 +18,11 @@
 <script>
 /*
  * デモ動画の冒頭（11/8 夕方4）。このあとに実際の画面の録画（実演）が続く。
- *   場面1 つかみ（アプリの特徴。判断は薬剤師と補足）
+ *   場面1 つかみ（何のアプリかを1文で。細かい説明は場面5で）
  *   場面2 来店（短く）
  *   場面3 販売の前に、薬剤師が確かめること（5項目 → 区分の図を右から差し込む。sales-procedures.md P01〜P07）
  *   場面4 MODA がないとき（翻訳アプリ。①〜⑤のうち、もれた手順に「？」）
- *   場面5 MODA があるとき（①〜⑤に ✓）
+ *   場面5 MODA があるとき（答える → まとめ・候補・説明書 → 判断は薬剤師・承認 → 説明書が患者さんへ。①〜⑤に ✓）
  * 場面の長さと動きのタイミングは、ナレーションの文の長さ（opening.voice.js）から決める。文は opening.lines.js。
  * ナレーションは window.NARRATION の文を render.mjs が読み上げ音声にして重ねる。
  * 読み上げ用の文なので、MODA は「モダ」、濫用は「乱用」と書いている（読み間違いを防ぐため）。
@@ -33,15 +33,15 @@ const DUR = (k) => window.VOICE_DUR?.[k] ?? [...LINES[k].replace(/[{}]/g, "")].l
 const L = {}; // 文ごとの読み始め（動画全体の時刻）と長さ
 const say = (k, at) => { L[k] = { t: at, d: DUR(k) }; return at + DUR(k); };
 const SEG = { title: 0 };
-let e = say("T1", 0.6); e = say("T2", e + 0.25); e = say("T3", e + 0.25);
-SEG.arrival = e + 0.35;
+let e = say("T1", 0.6);
+SEG.arrival = e + 0.6;
 e = say("A1", SEG.arrival + 0.3);
 SEG.proc = Math.max(e + 0.2, SEG.arrival + 4.2);
 e = say("P1", SEG.proc + 0.3); e = say("P2", e + 0.25);
 SEG.without = e + 1.6;
-e = say("W1", SEG.without + 0.9); e = say("W2", e + 0.15); e = say("W3", e + 0.2);
-SEG.with = e + 1.1;
-e = say("M1", SEG.with + 0.5);
+e = say("W1", SEG.without + 1.0); e = say("W2", e + 0.6); e = say("W3", e + 0.6);
+SEG.with = e + 1.4;
+e = say("M1", SEG.with + 0.6); e = say("M2", e + 0.5); e = say("M3", e + 0.6); e = say("M4", e + 0.5);
 const DURATION = Number((e + 0.9).toFixed(2));
 window.DURATION = DURATION;
 const rel = (k, seg) => L[k].t - SEG[seg];
@@ -52,7 +52,7 @@ const LEN_WITHOUT = segLen("without", "with");
 const WARP_WITHOUT = makeWarp([[0, 0], [rel("W2", "without") - 0.2, 6.5], [rel("W3", "without") - 0.2, 8.35], [LEN_WITHOUT - 0.95, 11.0], [LEN_WITHOUT, 11.9]]);
 // 「あるとき」：ナレーション1文のあいだに、答える → 候補 → 承認 → 説明書が患者さんへ
 const LEN_WITH = segLen("with");
-const WARP_WITH = makeWarp([[0, 0], [LEN_WITH * 0.3, 5], [LEN_WITH * 0.55, 11.6], [LEN_WITH * 0.75, 15.9], [LEN_WITH, 20.6]]);
+const WARP_WITH = makeWarp([[0, 0], [rel("M2", "with") - 0.3, 5], [rel("M3", "with") - 0.2, 12.0], [rel("M4", "with") - 0.2, 15.9], [LEN_WITH, 20.6]]);
 
 // 字幕はナレーションの文と同じ時に出す
 const capFor = (k, seg, msg) => [rel(k, seg) - 0.2, rel(k, seg) + L[k].d + 0.3, msg];
@@ -61,7 +61,12 @@ const CAPS_WITHOUT = [
   capFor("W2", "without", "まとめて聞くと、答えがもれるおそれ。"),
   [rel("W3", "without") - 0.2, LEN_WITHOUT - 0.9, "説明書も、日本語のまま。"],
 ];
-const CAPS_WITH = [[0.3, LEN_WITH - 0.3, "この流れにそって、母国語で。決めるのは薬剤師。"]];
+const CAPS_WITH = [
+  capFor("M1", "with", "患者さんは、母国語で答えるだけ。"),
+  capFor("M2", "with", "まとめ・薬の候補・説明書は、モダが用意。"),
+  capFor("M3", "with", "AI は訳して聞き取るだけ。判断は薬剤師。"),
+  [rel("M4", "with") - 0.2, LEN_WITH - 0.3, "承認のあとに、説明書が患者さんへ。"],
+];
 const CAPS_ARRIVAL = [[0.3, segLen("arrival", "proc") - 0.1, "日本語が話せない患者さんも、市販薬を買いに来ます。"]];
 
 // ---- 場面1：タイトル ----
@@ -94,16 +99,7 @@ function drawTitle(t) {
     ctx.fillStyle = C.tealSoft; rr(W / 2 - w / 2, 478 + (1 - kw) * 16, w, 76, 38); ctx.fill();
     text("外国人の患者さんと薬剤師をつなぐ、薬局の接客支援", W / 2, 516 + (1 - kw) * 16, 44, C.teal, 800);
   });
-  const lines = [
-    [rel("T2", "title"), "言語の壁をなくす接客支援。", C.ink, 660],
-    [rel("T3", "title"), "AI は助言せず、訳して聞き取るだけ。", C.teal, 745],
-    [rel("T3", "title") + L.T3.d * 0.55, "薬の判断は薬剤師。", C.ink, 830],
-  ];
-  for (const [st, s2, col, y] of lines) {
-    const k = easeOut(prog(t, st, 0.6));
-    alpha(k, () => text(s2, W / 2, y + (1 - k) * 24, 52, col, 800));
-  }
-  alpha(prog(t, rel("T3", "title") + L.T3.d - 0.3, 0.6), () => text("登場する人・薬はすべて架空です", W / 2, 935, 26, C.muted, 700));
+  alpha(prog(t, 2.4, 0.6), () => text("登場する人・薬はすべて架空です", W / 2, 935, 26, C.muted, 700));
 }
 
 // ---- 場面2：背景（外国人の患者さんが来店） ----
@@ -233,7 +229,6 @@ window.MUSIC = [
 
 window.SOUND_EVENTS = [
   { t: 0.3, kind: "stamp" }, { t: 1.4, kind: "pop" },
-  { t: L.T2.t, kind: "pop" }, { t: L.T3.t, kind: "pop" }, { t: L.T3.t + L.T3.d * 0.55, kind: "pop" },
   { t: SEG.arrival + 0.5, kind: "pop" }, { t: SEG.arrival + 1.4, kind: "pop" }, { t: SEG.arrival + 3.1, kind: "huh" },
   ...PROC_ITEMS.map((_, i) => ({ t: SEG.proc + procItemT(i), kind: "pop" })),
   { t: SEG.proc + PROC_SPLIT + 0.3, kind: "swoosh" },
