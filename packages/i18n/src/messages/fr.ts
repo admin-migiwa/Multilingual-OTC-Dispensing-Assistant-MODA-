@@ -37,7 +37,7 @@ export const fr: Messages = {
     title: "À propos de la photo",
     body: "La photo est envoyée à l'IA uniquement pour lire le texte. Elle n'est pas conservée. Veillez à ce que votre nom et les notifications du téléphone ne soient pas visibles.",
     agree: "Accepter et prendre la photo",
-    decline: "Ne pas prendre de photo (saisir le nom)",
+    decline: "Ne pas prendre de photo (saisir le nom du produit)",
   },
   interview: {
     intro: "Nous allons vous poser des questions sur votre santé, une à la fois.",
@@ -68,7 +68,7 @@ export const fr: Messages = {
         },
       },
       Q08: {
-        text: "Avez-vous déjà eu une allergie (éruption cutanée, difficulté à respirer, etc.) à un médicament ?",
+        text: "Avez-vous déjà fait une réaction allergique (éruption cutanée, difficulté à respirer, etc.) à un médicament ?",
         drugNameLabel: "Nom du médicament",
       },
       Q09: {
@@ -78,7 +78,7 @@ export const fr: Messages = {
           painReliever: "Médicament contre la fièvre ou la douleur",
           antihistamine: "Médicament contre l'allergie ou pour le nez",
           kampo: "Kampo (médecine japonaise à base de plantes)",
-          prescription: "Médicament prescrit par un médecin (montrez votre carnet de médicaments si vous en avez un)",
+          prescription: "Médicament prescrit par un médecin (montrez votre carnet de médicaments « Okusuri Techo » si vous en avez un)",
         },
         drugNameLabel: "Nom du médicament",
       },
@@ -96,9 +96,9 @@ export const fr: Messages = {
         options: { smallOne: "Une petite boîte", largeOne: "Une grande boîte", multiple: "Deux ou plus" },
         // 18歳未満の大容量・複数個の注意文（sales-procedures.md S09・S10）。{age}・{max} は販売手順の版のデータの値を差し込む
         minorLargePackage: "Nous ne pouvons pas vendre de grands conditionnements aux moins de {age} ans.",
-        minorMultiplePackages: "Les moins de {age} ans peuvent acheter {max} boîte au maximum.",
+        minorMultiplePackages: "Si vous avez moins de {age} ans, vous pouvez en acheter {max} au maximum.",
       },
-      R03: { text: "Dites-nous pourquoi vous avez besoin d'une grande boîte ou de deux ou plus." },
+      R03: { text: "Dites-nous pourquoi vous avez besoin d'une grande boîte ou de plusieurs boîtes." },
       R04: { text: "Pour quels symptômes allez-vous l'utiliser ?" },
     },
     notUnderstood: "Désolé, nous n'avons pas compris votre réponse. Veuillez répondre à nouveau.",
@@ -140,17 +140,18 @@ export const fr: Messages = {
   },
   referral: {
     title: "Veuillez consulter un médecin à l'hôpital ou dans une clinique",
-    body: "Nous sommes désolés. Dans votre état actuel, nous ne pouvons pas vous proposer de médicament sans ordonnance. Nous vous conseillons de consulter un médecin à l'hôpital ou dans une clinique.",
-    tellDoctor: "À l'hôpital, indiquez au médecin vos symptômes d'aujourd'hui et les médicaments que vous prenez actuellement. Si vous avez un carnet de suivi des médicaments, apportez-le.",
+    body: "Nous sommes désolés. Les médicaments sans ordonnance ne conviennent pas à votre état actuel. Nous vous conseillons de consulter un médecin à l'hôpital ou dans une clinique.",
+    tellDoctor: "À l'hôpital, indiquez au médecin vos symptômes d'aujourd'hui et les médicaments que vous prenez actuellement. Si vous avez un carnet de médicaments (Okusuri Techo), apportez-le.",
     consultTitle: "Où obtenir de l'aide dans d'autres langues que le japonais",
     askStaff: "Si quelque chose n'est pas clair, demandez au personnel.",
   },
   guidance: {
     title: "À propos de votre médicament",
-    printed: "Nous avons imprimé les instructions. Nous vous remettons aussi la notice originale en japonais.",
+    printed: "Nous avons imprimé les instructions. Nous vous remettons aussi la version japonaise des instructions.",
     understandQuestion: "Avez-vous compris l'explication ?",
     understandOptions: { understood: "Oui, j'ai compris", partly: "Certaines parties ne sont pas claires", notUnderstood: "Non, je n'ai pas compris" },
     askAgain: "Le pharmacien va réexpliquer les parties qui ne sont pas claires.",
+    japaneseOriginal: "Original en japonais (instructions)",
   },
   feedback: {
     title: "Merci de votre coopération",

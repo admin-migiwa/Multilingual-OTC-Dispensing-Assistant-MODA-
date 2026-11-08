@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import { detectEmergency, type EmergencyHit } from "@moda/domain";
 import { getLanguage, type LanguageCode } from "@moda/i18n";
@@ -82,7 +82,17 @@ export function TranslationChat({
   emergencyCleared = false,
   emergencyReviewOpen = false,
   onEmergency,
+  prefill,
+  onTranslations,
 }: {
+  /**
+   * 入力欄に入れておく患者さんの文（薬剤師の確認画面の「日本語に訳す」から）。key が変わったら
+   * 「患者さんが書く → 日本語」にして欄に入れるだけで、送らない（送るのは薬剤師が「訳す」を押したとき。
+   * 緊急の照合などは、ふだんの送信と同じ道を通る）
+   */
+  prefill?: { readonly key: number; readonly text: string } | undefined;
+  /** 患者さんの文 → 日本語の訳（前の会話も含む）が変わるたびに、原文 → 日本語の参考訳 を知らせる */
+  onTranslations?: ((translations: ReadonlyMap<string, string>) => void) | undefined;
   sessionId: string;
   language: LanguageCode;
   /** わかっていれば年齢（端末の中のキーワード照合で、こどもの項目を使うかに使う） */
@@ -141,6 +151,29 @@ export function TranslationChat({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const patientLanguage = getLanguage(language);
+
+  // 入力欄に文を入れる（送らない）
+  const prefillKey = prefill?.key;
+  const prefillText = prefill?.text;
+  useEffect(() => {
+    if (prefillKey === undefined || prefillText === undefined) return;
+    setDirection("to_ja");
+    setText(prefillText);
+    setError(null);
+  }, [prefillKey, prefillText]);
+
+  // 患者さんの文 → 日本語の訳を、呼び出し元に知らせる（関数が変わっても知らせ直さないよう、ref に置く）
+  const onTranslationsRef = useRef(onTranslations);
+  useEffect(() => {
+    onTranslationsRef.current = onTranslations;
+  });
+  useEffect(() => {
+    const map = new Map<string, string>();
+    for (const entry of entries) {
+      if (entry.direction === "to_ja") map.set(entry.original.trim(), entry.translation);
+    }
+    onTranslationsRef.current?.(map);
+  }, [entries]);
 
   /** 翻訳がエラーで終わったとき、サーバー側で緊急の確認に入っていないかを読み直す */
   async function checkStoppedByServer() {

@@ -58,9 +58,40 @@ describe("定型文（9言語）", () => {
     }
   });
 
+  it("日本語以外の言語の文に、カタカナが残っていない（訳し忘れがない）", () => {
+    // 119番の案内だけは、電話口で言う日本語「救急です」をわざと書いている（ひらがなのテストと同じ）
+    const japaneseOnPurpose = new Set(["emergency.call119"]);
+    const katakana = /[ァ-ヺー]/;
+    for (const lang of LANGUAGES) {
+      if (lang.code === "ja") continue;
+      for (const [path, text] of flatten(MESSAGES[lang.code])) {
+        if (japaneseOnPurpose.has(path)) continue;
+        assert.doesNotMatch(text, katakana, `${lang.code}: ${path}`);
+      }
+    }
+  });
+
+  it("差し込みの名前（{age}・{max} など）が、どの言語でも日本語の原文と同じ", () => {
+    const placeholders = (text: string) => [...text.matchAll(/\{(\w+)\}/g)].map((m) => m[1]).sort();
+    for (const lang of LANGUAGES) {
+      for (const [path, text] of flatten(MESSAGES[lang.code])) {
+        assert.deepEqual(placeholders(text), placeholders(japanese.get(path) ?? ""), `${lang.code}: ${path}`);
+      }
+    }
+  });
+
   it("緊急案内には、どの言語でも119番が書かれている", () => {
     for (const lang of LANGUAGES) {
       assert.match(getMessages(lang.code).emergency.call119, /119/, lang.code);
+    }
+  });
+
+  it("119番の案内で電話口で言う日本語は、どの言語でも「救急です」（漢字なら字の順が逆の「急救」にしない）", () => {
+    for (const lang of LANGUAGES) {
+      const { call119 } = getMessages(lang.code).emergency;
+      assert.ok(call119.includes("救急です") || /kyukyu desu/i.test(call119), lang.code);
+      // 中国語の語注「（是急救）」の「急救」は正しい中国語なので直さない。間違いは日本語として書いた「急救です」だけ
+      assert.doesNotMatch(call119, /急救です/, lang.code);
     }
   });
 
@@ -92,6 +123,17 @@ describe("定型文（9言語）", () => {
   });
 });
 
+describe("お薬手帳の言い方（11/8 依頼主の判断）", () => {
+  it("日本語以外では、問診（Q09）と受診の案内のどちらにも、手帳の表紙と見比べられる「Okusuri Techo」を添える", () => {
+    for (const lang of LANGUAGES) {
+      if (lang.code === "ja") continue;
+      const messages = getMessages(lang.code);
+      assert.match(messages.interview.questions.Q09.options.prescription, /Okusuri Techo/, lang.code);
+      assert.match(messages.referral.tellDoctor, /Okusuri Techo/, lang.code);
+    }
+  });
+});
+
 describe("受診をすすめる案内（docs/demo-data/referral.md の RF01〜RF05）", () => {
   it("どの言語にも、見出し・受診をすすめる文・病院で伝えること・相談先の見出し・スタッフへの案内がそろっている", () => {
     for (const lang of LANGUAGES) {
@@ -105,7 +147,7 @@ describe("受診をすすめる案内（docs/demo-data/referral.md の RF01〜RF
   it("日本語の原文は、依頼主が選んだ表（RF01〜RF05）の文と同じ", () => {
     const referral = getMessages("ja").referral;
     assert.equal(referral.title, "病院や診療所で診てもらってください");
-    assert.equal(referral.body, "申し訳ありません。今の状態では、お店の薬（市販薬）ではお応えできません。病院や診療所での受診をおすすめします。");
+    assert.equal(referral.body, "申し訳ありません。今の状態には、お店の薬（市販薬）は合いません。病院や診療所での受診をおすすめします。");
     assert.equal(referral.tellDoctor, "病院では、今日の症状と、いま飲んでいる薬を伝えてください。お薬手帳があれば持って行ってください。");
     assert.equal(referral.consultTitle, "外国語で相談できるところ");
     assert.equal(referral.askStaff, "わからないことは、スタッフに聞いてください。");

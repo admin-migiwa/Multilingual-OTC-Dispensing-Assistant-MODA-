@@ -37,7 +37,7 @@ export const ko: Messages = {
     title: "사진에 대해",
     body: "사진은 글자를 읽기 위해서만 AI에 보냅니다. 사진은 저장하지 않습니다. 이름이나 휴대폰 알림 등이 찍히지 않도록 촬영해 주세요.",
     agree: "동의하고 촬영하기",
-    decline: "촬영하지 않기(이름 입력)",
+    decline: "촬영하지 않기(상품명 입력)",
   },
   interview: {
     intro: "몸 상태에 대해 하나씩 질문합니다.",
@@ -54,7 +54,7 @@ export const ko: Messages = {
       Q03a: { text: "출산 예정일까지 12주 이내인가요?" },
       Q04: { text: "모유 수유 중이신가요?" },
       Q05: { text: "체중을 알려 주세요.", unit: "kg" },
-      Q06: { text: "천식을 일으킨 적이 있나요?" },
+      Q06: { text: "천식 발작을 일으킨 적이 있나요?" },
       Q07: {
         text: "치료 중인 병이 있나요? (여러 개 선택 가능)",
         options: {
@@ -78,7 +78,7 @@ export const ko: Messages = {
           painReliever: "해열진통제",
           antihistamine: "알레르기·비염약",
           kampo: "한방약",
-          prescription: "병원에서 처방받은 약(약 수첩이 있으면 보여 주세요)",
+          prescription: "병원에서 처방받은 약(약 수첩 'Okusuri Techo'가 있으면 보여 주세요)",
         },
         drugNameLabel: "약 이름",
       },
@@ -102,14 +102,14 @@ export const ko: Messages = {
       R04: { text: "어떤 증상에 사용하실 건가요?" },
     },
     notUnderstood: "죄송합니다. 답변을 잘 이해하지 못했습니다. 다시 답해 주세요.",
-    done: "질문은 여기까지입니다. 약사가 확인하니 잠시 기다려 주세요.",
+    done: "질문은 여기까지입니다. 약사가 확인하겠습니다. 잠시 기다려 주세요.",
   },
   emergency: {
     title: "지금 바로 구급차를 부르세요",
     body: "지금 증상은 바로 병원에서 진찰을 받아야 할 수도 있습니다.",
     call119: "119에 전화해서 먼저 \"규큐데스(救急です)\"(응급입니다)라고 말하세요.",
     staffHelp: "직원이 바로 도와드리겠습니다. 이 화면을 직원에게 보여 주세요.",
-    consultLine: "구급차를 부를지 망설여질 때는 응급 상담 창구(#7119 등, 지역에 따라 번호가 다름)에 상담할 수 있습니다.",
+    consultLine: "구급차를 부를지 망설여질 때는 응급 상담 전화(#7119 등, 지역에 따라 번호가 다름)로 상담할 수 있습니다.",
     childLine: "어린이의 휴일·야간 상담은 #8000입니다.",
     visitorHotline: "일본을 여행 중인 분은 일본정부관광국(JNTO)의 \"Japan Visitor Hotline\" 050-3816-2787로 상담할 수 있습니다(24시간·연중무휴, 영어·중국어·한국어, 질병이나 부상 등 비상시 지원).",
     infoPagesTitle: "참고할 수 있는 웹페이지",
@@ -140,8 +140,8 @@ export const ko: Messages = {
   },
   referral: {
     title: "병원이나 의원에서 진찰을 받으세요",
-    body: "죄송합니다. 지금 상태로는 가게에서 파는 약(일반의약품)으로 대응하기 어렵습니다. 병원이나 의원에서 진찰받으시기를 권합니다.",
-    tellDoctor: "병원에서는 오늘의 증상과 지금 복용 중인 약을 알려 주세요. 복약 기록 수첩이 있으면 가지고 가세요.",
+    body: "죄송합니다. 지금 상태에는 가게에서 파는 약(일반의약품)이 맞지 않습니다. 병원이나 의원에서 진찰받으시기를 권합니다.",
+    tellDoctor: "병원에서는 오늘의 증상과 지금 복용 중인 약을 알려 주세요. 약 수첩(Okusuri Techo)이 있으면 가지고 가세요.",
     consultTitle: "일본어 이외의 언어로 상담할 수 있는 곳",
     askStaff: "모르는 것이 있으면 직원에게 물어보세요.",
   },
@@ -151,6 +151,7 @@ export const ko: Messages = {
     understandQuestion: "설명을 이해하셨나요?",
     understandOptions: { understood: "이해했어요", partly: "조금 모르는 부분이 있어요", notUnderstood: "이해하지 못했어요" },
     askAgain: "모르는 부분은 약사가 다시 설명해 드립니다.",
+    japaneseOriginal: "일본어 원문(설명서)",
   },
   feedback: {
     title: "협조해 주셔서 감사합니다",
@@ -162,7 +163,7 @@ export const ko: Messages = {
     body: "계산대에서 계산해 주세요. 몸조리 잘하세요.",
   },
   guide: {
-    language: "언어를 눌러 주세요.",
+    language: "사용하실 언어를 눌러 주세요.",
     steps: { questions: "질문에 답하기", review: "약사 확인", explain: "약 설명", checkout: "계산" },
     start: "해당하는 것을 눌러 주세요.",
     search: "원하는 약을 찾아서 선택해 주세요.",

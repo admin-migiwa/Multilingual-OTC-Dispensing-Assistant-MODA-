@@ -1255,9 +1255,9 @@ function AfterApprovalPatient({
           <>
             {guidance.printed ? <p className="text-lg">{t.guidance.printed}</p> : null}
             <p className="whitespace-pre-wrap rounded-2xl bg-slate-50 px-5 py-4 text-lg leading-relaxed">{guidance.translation}</p>
-            <details lang="ja" className="text-sm text-slate-600">
-              <summary>日本語の原文（説明書）</summary>
-              <p className="mt-2 whitespace-pre-wrap">{guidance.japanese}</p>
+            <details className="text-sm text-slate-600">
+              <summary lang={language}>{t.guidance.japaneseOriginal}</summary>
+              <p lang="ja" className="mt-2 whitespace-pre-wrap">{guidance.japanese}</p>
             </details>
           </>
         ) : null}
