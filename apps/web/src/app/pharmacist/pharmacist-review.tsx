@@ -48,7 +48,7 @@ const SEX: Record<string, string> = { male: "男性", female: "女性", other: "
 const PREGNANCY: Record<string, string> = {
   pregnant: "妊娠している",
   maybe: "妊娠しているかもしれない",
-  no: "していない",
+  no: "妊娠していない",
   not_applicable: "該当しない",
 };
 const YES_NO_UNKNOWN: Record<string, string> = { yes: "はい", no: "いいえ", unknown: "わからない" };
