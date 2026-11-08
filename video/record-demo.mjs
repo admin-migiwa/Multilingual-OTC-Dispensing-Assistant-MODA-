@@ -125,7 +125,7 @@ async function setupPage(page) {
       d.textContent = text;
       if (sub) { const sm = document.createElement("small"); sm.textContent = sub; d.appendChild(sm); }
       layer().appendChild(d);
-      const W = window.innerWidth, H = window.innerHeight, w = d.offsetWidth, h = d.offsetHeight;
+      const H = window.innerHeight, w = d.offsetWidth, h = d.offsetHeight;
       // 左右の端（0〜約280px と 約1150px〜）は、あとから重ねる患者さんの情報と手順の段階に隠れるので、そのあいだに出す
       let x = Math.min(Math.max(300, r.x + r.width / 2 - w / 2), Math.max(300, 1150 - w));
       let y = below ? r.y + r.height + 22 : r.y - h - 22;
