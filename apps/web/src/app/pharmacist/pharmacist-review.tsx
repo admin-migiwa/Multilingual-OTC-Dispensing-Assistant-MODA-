@@ -639,6 +639,9 @@ function ReviewBody({
 
       {/* 段階ごとに出す（11/8 依頼主の判断）：薬を選ぶまでは手順と承認を出さない。承認の欄は、承認の前の手順がそろってから出す
           （承認できるかは、いままでどおりサーバーが確かめる。ルール1・5） */}
+      {/* 患者さんが確かめた薬と個数（販売する薬を選ぶ前から出す。一部だけ売ると承認が止まる理由が先にわかるように） */}
+      {view.status === "pharmacist_review" && view.drugs.length > 0 ? <PatientOkSection view={view} /> : null}
+
       {view.saleDrugIds.length === 0 ? (
         <Section title="次にすること">
           <p className="text-slate-700">
@@ -649,8 +652,6 @@ function ReviewBody({
         </Section>
       ) : (
         <>
-          <PatientOkSection view={view} />
-
           <GuidancePreview view={view} busy={busy} onCreate={() => onGuidance("create")} />
 
           <Section title="販売手順のチェックリスト">
@@ -1006,7 +1007,7 @@ function PatientOkSection({ view }: { view: PharmacistView }) {
           <li className="text-sm text-slate-500">確かめた時刻 {time(ok.at)}</li>
         </ul>
       )}
-      {ok !== null && !patientOkMatches(view) ? (
+      {ok !== null && view.saleDrugIds.length > 0 && !patientOkMatches(view) ? (
         <p role="alert" className="mt-2 text-red-900">販売する薬が、患者さんが確かめた薬の組み合わせと違います。</p>
       ) : null}
       {view.patientConsultedAt !== null ? (

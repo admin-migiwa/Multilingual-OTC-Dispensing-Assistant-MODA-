@@ -13,6 +13,7 @@
 import {
   DomainRuleError,
   applyAnswersWithReport,
+  isBasicInterviewComplete,
   checkConfirmQuantities,
   nextQuestion,
   quantityModeOf,
@@ -21,7 +22,7 @@ import {
   type PatientDrugConfirmation,
 } from "@moda/domain";
 
-import { openPharmacistReview } from "./pharmacist-service.ts";
+import { newReviewRound } from "./pharmacist-service.ts";
 import {
   DRUG_CONFIRMATION_STATUSES,
   SessionServiceError,
@@ -80,9 +81,20 @@ export function confirmDrugChoice(deps: ServiceDeps, id: string, input: DrugConf
       ],
     };
     if (next.snapshot.status === "interview") next = moveTo(deps, next, "drug_selection");
+    // 「症状から探す」：薬剤師に選び直してもらう。基本の問診は済んでいるので、同じ書き込みで薬剤師の確認を開く
+    // （openPharmacistReview と同じ：薬剤師の確認へ進め、新しい確認を足す）
+    if (record.interview.route === "symptom") {
+      if (!isBasicInterviewComplete(next.interview)) {
+        throw new DomainRuleError("INTERVIEW_INCOMPLETE", "基本の問診が終わっていません");
+      }
+      next = moveTo(deps, next, "pharmacist_review");
+      next = {
+        ...next,
+        pharmacistReviews: [...(next.pharmacistReviews ?? []), newReviewRound(at)],
+        events: [...next.events, event(deps, "pharmacist_review_opened")],
+      };
+    }
     deps.store.set(next);
-    // 「症状から探す」：薬剤師に選び直してもらう（基本の問診は済んでいるので、そのまま薬剤師の確認を開く）
-    if (record.interview.route === "symptom") return openPharmacistReview(deps, id);
     return next;
   }
 
@@ -99,7 +111,7 @@ export function confirmDrugChoice(deps: ServiceDeps, id: string, input: DrugConf
   let interview = record.interview;
   let packageAnswer: PatientDrugConfirmation["packageAnswer"] = null;
   const newEvents = [];
-  if (drugIds.some((d) => quantityModeOf(d) === "package")) {
+  if (drugIds.some((d) => quantityModeOf(d, rules) === "package")) {
     const packageChoice = input.packageChoice as PackageChoice;
     const multipleCount = packageChoice === "multiple" ? input.multipleCount : undefined;
     const answers = multipleCount === undefined ? { packageChoice } : { packageChoice, multipleCount: multipleCount as number };
@@ -120,13 +132,17 @@ export function confirmDrugChoice(deps: ServiceDeps, id: string, input: DrugConf
         ? { packageChoice: interview.answers.packageChoice }
         : { packageChoice: interview.answers.packageChoice, multipleCount: interview.answers.multipleCount };
     newEvents.push(event(deps, "answered", ["packageChoice", ...(packageAnswer.multipleCount !== undefined ? ["multipleCount"] : [])]));
+    // 大箱・複数個から小箱1個に変えて R03（理由）を聞かなくなったときは、消えたことを種類だけ残す（answer と同じ）
+    if (record.interview.answers.reasonText !== undefined && interview.answers.reasonText === undefined) {
+      newEvents.push(event(deps, "answers_cleared", ["reasonText"]));
+    }
   } else if (input.packageChoice !== undefined || input.multipleCount !== undefined) {
     throw new SessionServiceError("INVALID_REQUEST", "この薬には包装の選択がありません");
   }
 
   const entry: PatientDrugConfirmation = { at, drugIds, choice: "ok", quantities, packageAnswer };
   const detail = drugIds.map((d) =>
-    packageAnswer !== null && quantityModeOf(d) === "package"
+    packageAnswer !== null && quantityModeOf(d, rules) === "package"
       ? `${d}:${packageAnswer.packageChoice}${packageAnswer.multipleCount !== undefined ? `x${packageAnswer.multipleCount}` : ""}`
       : `${d}:${quantities[d] ?? "?"}`,
   );

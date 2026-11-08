@@ -50,7 +50,7 @@ export function DrugConfirm({
       ? r02.smallOne
       : a.packageChoice === "large_one"
         ? r02.largeOne
-        : `${r02.multiple}（${a.multipleCount ?? ""}）`;
+        : `${r02.multiple}: ${a.multipleCount ?? ""}`;
 
   function ok() {
     const quantities: Partial<Record<StockedDrugId, number>> = {};

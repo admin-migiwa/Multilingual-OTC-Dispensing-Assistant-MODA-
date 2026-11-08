@@ -24,7 +24,7 @@ import {
   type ServiceDeps,
   type SessionRecord,
 } from "./session-service.ts";
-import { confirmOk } from "./test-confirm.ts";
+import { confirmOk } from "./confirm.test-helper.ts";
 
 // 患者さんの薬の確認と個数（11/8 依頼主＝薬剤師の判断）。個数は sales-procedures.md Q-6（☑）、
 // 販売手順は S02（C は書面の準備）、禁忌のない答えは contraindication-tests.md の決まりどおり「問題のない答え」。

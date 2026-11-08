@@ -25,8 +25,6 @@ export type PatientDrugChoice = "ok" | "consult" | "reselect";
 
 export type QuantityMode = "count" | "package" | "fixed";
 
-/** 1個に決まっている薬（11/8 依頼主の判断。A は薬剤師の前で1錠を服用する薬。B は指定濫用防止で1包装のみ） */
-const FIXED_ONE: readonly StockedDrugId[] = ["A", "B"];
 
 /** 患者さんの確認1回分（足していくだけ） */
 export interface PatientDrugConfirmation {
@@ -40,15 +38,22 @@ export interface PatientDrugConfirmation {
   readonly packageAnswer: { readonly packageChoice: PackageChoice; readonly multipleCount?: number } | null;
 }
 
-export function quantityModeOf(drugId: StockedDrugId): QuantityMode {
+/**
+ * 個数の決め方。大箱がある指定濫用防止医薬品（E）は R02、ほかの指定濫用防止医薬品（B〈1包装のみ〉）と
+ * 版のデータで1個と決めた薬（A）は1個、それ以外は1〜上限（Q-6）
+ */
+export function quantityModeOf(drugId: StockedDrugId, rules: QuantityRules): QuantityMode {
   const data = DRUG_SALE_DATA[drugId];
   if (data.packages?.large !== undefined) return "package";
-  if (FIXED_ONE.includes(drugId) || data.categories.includes("abuse_prevention")) return "fixed";
+  if (rules.singleQuantityDrugIds.includes(drugId) || data.categories.includes("abuse_prevention")) return "fixed";
   return "count";
 }
 
+/** 同じ薬の組み合わせか（重複を除き、並べてから比べる） */
 function sameSet(a: readonly StockedDrugId[], b: readonly StockedDrugId[]): boolean {
-  return a.length === b.length && a.every((id) => b.includes(id));
+  const x = [...new Set(a)].sort();
+  const y = [...new Set(b)].sort();
+  return x.length === y.length && x.every((id, i) => id === y[i]);
 }
 
 /**
@@ -68,7 +73,7 @@ export function checkConfirmQuantities(
   }
   const result: Partial<Record<StockedDrugId, number>> = {};
   for (const drugId of drugIds) {
-    const mode = quantityModeOf(drugId);
+    const mode = quantityModeOf(drugId, rules);
     const value = quantities[drugId];
     if (mode === "package") {
       if (value !== undefined) throw new DomainRuleError("INVALID_QUANTITY", `薬 ${drugId} の個数は包装の質問で選びます`);
@@ -116,7 +121,7 @@ export function currentPatientOk(
     if (error instanceof DomainRuleError) return null;
     throw error;
   }
-  if (drugIds.some((id) => quantityModeOf(id) === "package")) {
+  if (drugIds.some((id) => quantityModeOf(id, rules) === "package")) {
     const p = latest.packageAnswer;
     if (p === null || p.packageChoice !== abuse.packageChoice || p.multipleCount !== abuse.multipleCount) return null;
   }

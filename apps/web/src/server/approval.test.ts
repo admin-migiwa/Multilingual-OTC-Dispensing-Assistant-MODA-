@@ -12,7 +12,7 @@ import {
   returnToDrugSelection,
 } from "./pharmacist-service.ts";
 import { PIN_MAX_FAILURES, PinError, createPinVerifier } from "./pin.ts";
-import { confirmOk } from "./test-confirm.ts";
+import { confirmOk } from "./confirm.test-helper.ts";
 import {
   SessionServiceError,
   answer,

@@ -150,11 +150,16 @@ export function currentSaleDrugIds(round: PharmacistReviewRound): readonly Stock
   return round.saleChoices.at(-1)?.drugIds ?? [];
 }
 
-export function procedureOf(record: SessionRecord, drugIds: readonly StockedDrugId[], now: Date): RequiredProcedure {
+export function procedureOf(
+  record: SessionRecord,
+  drugIds: readonly StockedDrugId[],
+  now: Date,
+  quantities: Readonly<Partial<Record<StockedDrugId, number>>> = {},
+): RequiredProcedure {
   const age = record.interview.answers.age;
   if (age === undefined) throw new DomainRuleError("ANSWER_MISSING", "年齢の答えがありません");
   return buildRequiredProcedure({
-    selections: saleSelectionsFor(drugIds, abusePreventionAnswers(record.interview)),
+    selections: saleSelectionsFor(drugIds, abusePreventionAnswers(record.interview), quantities),
     patientAge: age,
     date: japanDate(now),
   });
@@ -561,8 +566,7 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
     drugs,
     saleDrugIds,
     patientOk: patientOkOf(record, now),
-    patientConsultedAt:
-      (record.drugConfirmations ?? []).filter((c) => c.choice === "consult").at(-1)?.at ?? null,
+    patientConsultedAt: lastConsultAt(record),
     procedure,
     procedureError,
     checkHistory,
@@ -573,6 +577,13 @@ export function pharmacistView(record: SessionRecord, now: Date): PharmacistView
     afterApproval: afterApprovalOf(record),
     candidates: reviewing ? candidatesOf(record) : [],
   };
+}
+
+/** 今の選択の薬の組み合わせについての、最後の「相談したい」 */
+function lastConsultAt(record: SessionRecord): string | null {
+  const now = [...record.interview.selectedDrugs].sort().join(",");
+  const consults = (record.drugConfirmations ?? []).filter((c) => c.choice === "consult" && [...c.drugIds].sort().join(",") === now);
+  return consults.at(-1)?.at ?? null;
 }
 
 function patientOkOf(record: SessionRecord, now: Date): PharmacistView["patientOk"] {

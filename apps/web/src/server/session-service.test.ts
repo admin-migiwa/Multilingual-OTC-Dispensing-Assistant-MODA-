@@ -19,7 +19,7 @@ import {
   type SessionRecord,
 } from "./session-service.ts";
 import { confirmDrugChoice } from "./patient-confirmation.ts";
-import { confirmOk } from "./test-confirm.ts";
+import { confirmOk } from "./confirm.test-helper.ts";
 
 function testDeps(): ServiceDeps {
   const map = new Map<string, SessionRecord>();

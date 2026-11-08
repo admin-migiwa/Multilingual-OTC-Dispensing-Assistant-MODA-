@@ -5,7 +5,7 @@
 import { quantityModeOf, type InterviewAnswers, type StockedDrugId } from "@moda/domain";
 
 import { confirmDrugChoice } from "./patient-confirmation.ts";
-import { getSession, type ServiceDeps, type SessionRecord } from "./session-service.ts";
+import { getSession, quantityRulesAt, type ServiceDeps, type SessionRecord } from "./session-service.ts";
 
 export function confirmOk(
   deps: ServiceDeps,
@@ -14,9 +14,10 @@ export function confirmOk(
   quantities: Partial<Record<StockedDrugId, number>> = {},
 ): SessionRecord {
   const drugs = getSession(deps, id).interview.selectedDrugs;
+  const rules = quantityRulesAt(deps.now());
   const q: Partial<Record<StockedDrugId, number>> = {};
-  for (const d of drugs) if (quantityModeOf(d) === "count") q[d] = quantities[d] ?? 1;
-  const hasPackage = drugs.some((d) => quantityModeOf(d) === "package");
+  for (const d of drugs) if (quantityModeOf(d, rules) === "count") q[d] = quantities[d] ?? 1;
+  const hasPackage = drugs.some((d) => quantityModeOf(d, rules) === "package");
   return confirmDrugChoice(deps, id, {
     choice: "ok",
     quantities: q,

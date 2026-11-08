@@ -36,11 +36,12 @@ function code(fn: () => unknown): string | undefined {
 
 describe("個数の決め方（Q-6・R02）", () => {
   it("指定濫用防止医薬品でない薬（C）は個数を選ぶ、E は R02 の包装で選ぶ、A と B は1個に決まっている", () => {
-    assert.equal(quantityModeOf("C"), "count");
-    assert.equal(quantityModeOf("J"), "count");
-    assert.equal(quantityModeOf("E"), "package");
-    assert.equal(quantityModeOf("B"), "fixed");
-    assert.equal(quantityModeOf("A"), "fixed");
+    assert.equal(quantityModeOf("C", rules), "count");
+    assert.equal(quantityModeOf("J", rules), "count");
+    assert.equal(quantityModeOf("E", rules), "package");
+    assert.equal(quantityModeOf("B", rules), "fixed");
+    assert.equal(quantityModeOf("A", rules), "fixed");
+    assert.deepEqual(rules.singleQuantityDrugIds, ["A"]);
   });
 
   it("ふつうの薬は1〜3個を選べる（上限は版のデータの値）", () => {

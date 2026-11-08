@@ -332,7 +332,7 @@ export function patientView(record: SessionRecord, now: Date = new Date()): Pati
   const next = asking ? nextQuestion(record.interview) : null;
   const age = record.interview.answers.age;
   let packageOptions: PatientView["packageOptions"] = null;
-  if ((next === "R02" || (pending && record.interview.selectedDrugs.some((d) => quantityModeOf(d) === "package"))) && age !== undefined) {
+  if ((next === "R02" || (pending && record.interview.selectedDrugs.some((d) => quantityModeOf(d, quantityRulesAt(now)) === "package"))) && age !== undefined) {
     const rules = quantityRulesAt(now);
     packageOptions = {
       ...packageChoiceOptions(record.interview.selectedDrugs, age, rules),
@@ -387,7 +387,7 @@ function drugConfirmationView(record: SessionRecord, now: Date): NonNullable<Pat
     drugs: ids.map((drugId) => ({
       drugId,
       name: STOCKED_DRUGS.find((d) => d.id === drugId)?.name ?? drugId,
-      mode: quantityModeOf(drugId),
+      mode: quantityModeOf(drugId, quantityRulesAt(now)),
       contraindicated: previews.some((p) => p.drugId === drugId && isKnownContraindicated(p)),
     })),
     maxQuantity: quantityRulesAt(now).maxQuantityPerDrug,

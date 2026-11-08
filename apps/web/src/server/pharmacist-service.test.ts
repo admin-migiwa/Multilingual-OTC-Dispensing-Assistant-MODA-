@@ -13,7 +13,7 @@ import {
   pharmacistView,
   returnToDrugSelection,
 } from "./pharmacist-service.ts";
-import { confirmOk } from "./test-confirm.ts";
+import { confirmOk } from "./confirm.test-helper.ts";
 import {
   SessionServiceError,
   answer,

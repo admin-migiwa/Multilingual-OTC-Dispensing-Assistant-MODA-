@@ -102,7 +102,7 @@ export function completedStepIdsOf(round: PharmacistReviewRound): string[] {
 
 /**
  * 薬剤師が PIN で承認し、同じ書き込みで販売記録を作る（pharmacist_review → approved）。
- * 順に確かめる：PIN → 確認中であること・販売する薬 → 問診が終わっていること → 禁忌 → 承認の前の手順 → 患者さんの OK と個数。
+ * 順に確かめる：PIN → 確認中であること・販売する薬 → 問診が終わっていること → 禁忌 → 患者さんの OK と個数 → 承認の前の手順。
  */
 export function approveSale(
   deps: ServiceDeps,
@@ -127,12 +127,7 @@ export function approveSale(
   const judgments = judgmentsOf(record);
   assertSaleSelectable(judgments, drugIds, overriddenDrugIdsOf(round));
 
-  // 5. 承認の前の販売手順がすべて済んでいること（日本時間の日付で版を選ぶ。C-07・C-15）
-  const procedure = procedureOf(record, drugIds, now);
-  const completedStepIds = completedStepIdsOf(round);
-  assertApprovalAllowed(procedure, completedStepIds);
-
-  // 6. 販売する薬の組み合わせと個数を、患者さんが確かめて「OK」していること（11/8 依頼主の判断。画面だけで止めない。ルール1）
+  // 5. 販売する薬の組み合わせと個数を、患者さんが確かめて「OK」していること（11/8 依頼主の判断。画面だけで止めない。ルール1）
   const abuse = abusePreventionAnswers(record.interview);
   const confirmed = assertPatientConfirmed(
     record.drugConfirmations ?? [],
@@ -141,6 +136,11 @@ export function approveSale(
     abuse,
     quantityRulesAt(now),
   );
+
+  // 6. 承認の前の販売手順がすべて済んでいること（日本時間の日付で版を選ぶ。C-07・C-15）。品目と同じ個数で作る
+  const procedure = procedureOf(record, drugIds, now, confirmed.quantities);
+  const completedStepIds = completedStepIdsOf(round);
+  assertApprovalAllowed(procedure, completedStepIds);
 
   // ここから下は、例外が起きない計算と書き込みだけ
   const at = now.toISOString();
