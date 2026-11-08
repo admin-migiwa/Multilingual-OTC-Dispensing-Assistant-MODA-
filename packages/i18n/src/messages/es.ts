@@ -88,7 +88,7 @@ export const es: Messages = {
       Q13: { text: "¿Usa lentes de contacto blandos?" },
       Q14: {
         text: "¿Dónde se pondrá el parche?",
-        options: { body: "Cuello, hombros, espalda baja, etc.", nearEyes: "Alrededor de los ojos o cerca de la boca o la nariz", skinProblem: "Sobre eccema, irritación o una herida" },
+        options: { body: "Cuello, hombros, espalda baja, etc.", nearEyes: "Alrededor de los ojos o cerca de la boca o la nariz", skinProblem: "Sobre eczema, irritación o una herida" },
       },
       R01: { text: "¿Compró hace poco un medicamento parecido en otra tienda?" },
       R02: {
