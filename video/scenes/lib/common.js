@@ -7,7 +7,7 @@ const W = 1920, H = 1080;
 const ctx = document.getElementById("c").getContext("2d");
 const FONT = '"Segoe UI", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif';
 let GT = 0;
-// ナレーションの声。engine で使う方を選ぶ（環境変数 VOICE_ENGINE で一時的に切り替えられる）
+// ナレーションの声（実演の部分は scenes/voice.json を使う。変えるときは両方そろえる）。engine で使う方を選ぶ（環境変数 VOICE_ENGINE で一時的に切り替えられる）
 //   azure：Azure AI Speech のニューラル音声。rate・pitch は「+5%」のような書き方
 //   windows：Windows に入っている声。pitch：0〜2、rate：0.5〜6（どちらも1が標準）
 window.NARRATION_VOICE = {
