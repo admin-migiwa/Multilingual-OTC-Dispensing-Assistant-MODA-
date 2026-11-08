@@ -20,6 +20,14 @@ import {
   transition,
   cancelEmergencyEnd,
   checkPackageAnswer,
+  currentPatientOk,
+  abusePreventionAnswers,
+  previewCandidates,
+  isKnownContraindicated,
+  quantityModeOf,
+  STOCKED_DRUGS,
+  type PatientDrugConfirmation,
+  type QuantityMode,
   packageChoiceOptions,
   selectProcedureVersion,
   type InterviewAnswers,
@@ -147,7 +155,9 @@ export type SessionEventType =
   // 工程を戻した（11/7 依頼主の判断）：承認の取り消し（販売記録 ID だけ）、理解の確認のやり直し、「販売しない」の取り消し
   | "approval_cancelled"
   | "understanding_reset"
-  | "decline_cancelled";
+  | "decline_cancelled"
+  // 患者さんの薬の確認（11/8 依頼主の判断）：選んだもの（ok / consult / reselect）・薬の記号・個数（「薬:個数」）だけ
+  | "patient_drug_confirmed";
 
 export interface SessionEvent {
   readonly at: string;
@@ -180,6 +190,11 @@ export interface SessionRecord {
   readonly feedback?: { readonly at: string; readonly rating: FeedbackRating };
   /** 翻訳のチャットの記録（起きた順。なければ空。backlog S-13） */
   readonly chatLog?: readonly ChatLogEntry[];
+  /**
+   * 患者さんの薬の確認（「この薬でOK」と個数・「相談したい」・「薬を選びなおす」）。足すだけ（11/8 依頼主の判断。
+   * 中身の判定は packages/domain の patient-confirmation.ts、進め方は patient-confirmation.ts〈server〉）
+   */
+  readonly drugConfirmations?: readonly PatientDrugConfirmation[];
   readonly events: readonly SessionEvent[];
 }
 
@@ -226,6 +241,21 @@ export interface PatientView {
     readonly noticeByChoice: Readonly<Partial<Record<PackageChoice, QuantityNoticeKind>>>;
     readonly minorAgeBelow: number;
     readonly minorMaxQuantity: number;
+  } | null;
+  /**
+   * 患者さんの薬の確認を待っているときだけ（選んだ薬について、今の選択の有効な「OK」がないとき。11/8 依頼主の判断）。
+   * この間は nextQuestion を返さない（確認のあとで薬ごとの項目を聞く）。E があれば packageOptions に R02 の選択肢を入れる
+   */
+  readonly drugConfirmation: {
+    readonly drugs: readonly {
+      readonly drugId: StockedDrugId;
+      readonly name: string;
+      readonly mode: QuantityMode;
+      /** 今の答えでの仮の判定が禁忌（薬剤師が禁忌と分かって選んだ薬。確認の画面に注意の一言を出す） */
+      readonly contraindicated: boolean;
+    }[];
+    /** ふつうの薬で選べる最大の個数（版のデータ。Q-6） */
+    readonly maxQuantity: number;
   } | null;
 }
 
@@ -296,12 +326,13 @@ function advance(deps: ServiceDeps, record: SessionRecord): SessionRecord {
 
 export function patientView(record: SessionRecord, now: Date = new Date()): PatientView {
   const status = record.snapshot.status;
-  // 問診を進めてよい状態のときだけ、次に聞く項目を返す（緊急の確認中などに質問を出さないため）
-  const asking = status === "attributes" || status === "interview";
+  const pending = isDrugConfirmationPending(record, now);
+  // 問診を進めてよい状態のときだけ、次に聞く項目を返す（緊急の確認中などに質問を出さないため）。患者さんの薬の確認を待つ間も返さない
+  const asking = (status === "attributes" || status === "interview") && !pending;
   const next = asking ? nextQuestion(record.interview) : null;
   const age = record.interview.answers.age;
   let packageOptions: PatientView["packageOptions"] = null;
-  if (next === "R02" && age !== undefined) {
+  if ((next === "R02" || (pending && record.interview.selectedDrugs.some((d) => quantityModeOf(d, quantityRulesAt(now)) === "package"))) && age !== undefined) {
     const rules = quantityRulesAt(now);
     packageOptions = {
       ...packageChoiceOptions(record.interview.selectedDrugs, age, rules),
@@ -323,6 +354,43 @@ export function patientView(record: SessionRecord, now: Date = new Date()): Pati
     guidance: patientGuidance(record),
     understandingConfirmed: record.snapshot.understandingConfirmed,
     packageOptions,
+    drugConfirmation: pending ? drugConfirmationView(record, now) : null,
+  };
+}
+
+/** 患者さんの薬の確認を受け付ける状態（問診の間と薬の選択。緊急の確認中・薬剤師の確認中・承認のあとは受け付けない） */
+export const DRUG_CONFIRMATION_STATUSES: readonly SessionStatus[] = ["interview", "drug_selection"];
+
+/** 今の選択について、患者さんの有効な「OK」（なければ null。販売手順の版は店頭の日付で選ぶ） */
+export function currentDrugOk(record: SessionRecord, now: Date): PatientDrugConfirmation | null {
+  return currentPatientOk(
+    record.drugConfirmations ?? [],
+    record.interview.selectedDrugs,
+    abusePreventionAnswers(record.interview),
+    quantityRulesAt(now),
+  );
+}
+
+/** 患者さんの薬の確認を待っているか（選んだ薬があり、今の選択の有効な OK がなく、確認を受け付ける状態） */
+export function isDrugConfirmationPending(record: SessionRecord, now: Date): boolean {
+  return (
+    DRUG_CONFIRMATION_STATUSES.includes(record.snapshot.status) &&
+    record.interview.selectedDrugs.length > 0 &&
+    currentDrugOk(record, now) === null
+  );
+}
+
+function drugConfirmationView(record: SessionRecord, now: Date): NonNullable<PatientView["drugConfirmation"]> {
+  const ids = record.interview.selectedDrugs;
+  const previews = previewCandidates(record.interview, ids);
+  return {
+    drugs: ids.map((drugId) => ({
+      drugId,
+      name: STOCKED_DRUGS.find((d) => d.id === drugId)?.name ?? drugId,
+      mode: quantityModeOf(drugId, quantityRulesAt(now)),
+      contraindicated: previews.some((p) => p.drugId === drugId && isKnownContraindicated(p)),
+    })),
+    maxQuantity: quantityRulesAt(now).maxQuantityPerDrug,
   };
 }
 
@@ -335,10 +403,10 @@ export function quantityRulesAt(now: Date): QuantityRules {
   return selectProcedureVersion(japanDate(now)).quantityRules;
 }
 
-const PACKAGE_KEYS = ["packageChoice", "multipleCount"] as const;
+export const PACKAGE_KEYS = ["packageChoice", "multipleCount"] as const;
 
 /** R02 の答えが、いまの年齢・選んだ薬で選べるか（答えがなければ選べるとみなす） */
-function packageAnswerAllowed(interview: InterviewState, rules: QuantityRules): boolean {
+export function packageAnswerAllowed(interview: InterviewState, rules: QuantityRules): boolean {
   const { age, packageChoice, multipleCount } = interview.answers;
   if (age === undefined || packageChoice === undefined) return true;
   const abuse = multipleCount === undefined ? { packageChoice } : { packageChoice, multipleCount };
@@ -427,6 +495,10 @@ export function answer(deps: ServiceDeps, id: string, answers: InterviewAnswers)
   }
   if (status !== "attributes" && status !== "interview" && status !== "drug_selection") {
     throw new DomainRuleError("INVALID_TRANSITION", `${status} の状態では問診の答えを受け取れません`);
+  }
+  // 患者さんの薬の確認を待つ間は、薬ごとの項目を先に聞かない（確認の画面で OK してから。11/8 依頼主の判断）
+  if (isDrugConfirmationPending(record, deps.now())) {
+    throw new DomainRuleError("PATIENT_NOT_CONFIRMED", "選んだ薬を患者さんが確かめてから答えます");
   }
   for (const value of Object.values(answers)) {
     if (typeof value === "string" && value.length > MAX_TEXT_LENGTH) {

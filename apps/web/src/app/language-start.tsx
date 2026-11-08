@@ -26,6 +26,7 @@ import { ReferralGuide } from "./referral-guide";
 import { RuleError, sessionApi, type PatientView } from "./session-api";
 import { StaffAfterApprovalPanel } from "./staff-after-approval";
 import { TranslationChat, type ChatEmergency } from "./translation-chat";
+import { DrugConfirm, type DrugConfirmAction } from "./drug-confirm";
 import { pharmacistApi } from "./pharmacist/pharmacist-api";
 
 /**
@@ -129,6 +130,8 @@ export function LanguageStart() {
   const [trail, setTrail] = useState<readonly Step[]>([]);
   /** 「戻る」で戻って、いま出している画面（null：サーバーが決めた画面をそのまま出す） */
   const [revisit, setRevisit] = useState<Step | null>(null);
+  /** 患者さんの薬の確認で「相談したい」を押した（翻訳のチャットを開いて知らせる。11/8 依頼主の判断） */
+  const [consulted, setConsulted] = useState(false);
 
   /** サーバーを呼び、結果で画面を進める。通信が止まったら「通信が止まりました」の画面にする。onDone は受け付けられたときだけ呼ぶ */
   async function run(action: () => Promise<PatientView>, onDone?: (next: PatientView) => void): Promise<void> {
@@ -291,7 +294,8 @@ export function LanguageStart() {
   }
 
   // 「戻る」：問診を進めてよい状態の間と、薬剤師の確認が始まったあと（承認の前）。通ってきた画面がなければ、年齢・性別の質問からは言語の選択に戻る
-  const editable = view !== null && EDITABLE_STATUSES.includes(view.status);
+  // 患者さんの薬の確認を待つ間は「戻る」を出さない（サーバーは確認の前に答えを受け付けない。11/8 依頼主の判断）
+  const editable = view !== null && EDITABLE_STATUSES.includes(view.status) && view.drugConfirmation === null;
   /** 通ってきた画面を1つ戻す（覚えている画面の一覧から取り出す） */
   function popTrail(drugChosen: boolean) {
     // 薬を選んだあとは、流れ（ほしい薬がある／症状から探す）を選び直せない（サーバーの chooseRoute が受け付けない）。
@@ -567,6 +571,24 @@ export function LanguageStart() {
               );
             }}
             onChatEmergency={onChatEmergency}
+            consulted={consulted}
+            onConfirmDrugs={(action: DrugConfirmAction) => {
+              if (view === null) return;
+              if (action.choice === "consult") {
+                // 翻訳のチャットを開いて見せる（記録は通信できれば残す）
+                setConsulted(true);
+                const chat = document.getElementById("moda-translation-chat");
+                if (chat instanceof HTMLDetailsElement) {
+                  chat.open = true;
+                  chat.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+              } else {
+                setConsulted(false);
+              }
+              setMode("questions");
+              setRevisit(null);
+              void run(() => sessionApi.confirmDrugs(view.id, action));
+            }}
             onUnderstanding={(answer) => {
               if (view === null) return;
               void run(() => sessionApi.answerUnderstanding(view.id, answer));
@@ -705,6 +727,8 @@ function PatientBody({
   onSymptom,
   onFreeText,
   onChatEmergency,
+  consulted,
+  onConfirmDrugs,
   onUnderstanding,
   onFeedback,
   revision,
@@ -727,6 +751,8 @@ function PatientBody({
   onSymptom: (text: string) => void;
   onFreeText: (text: string) => boolean;
   onChatEmergency: (found: ChatEmergency) => void;
+  consulted: boolean;
+  onConfirmDrugs: (action: DrugConfirmAction) => void;
   onUnderstanding: (answer: "understood" | "partly" | "not_understood") => void;
   onFeedback: (rating: "good" | "fair" | "poor") => void;
   revision: number;
@@ -760,6 +786,8 @@ function PatientBody({
       onChooseProduct={onChooseProduct}
       onSymptom={onSymptom}
       onFreeText={onFreeText}
+      consulted={consulted}
+      onConfirmDrugs={onConfirmDrugs}
     />
   );
   // いまどの段階か（見た目の補足だけ。画面の切り替えは上の body が決める）
@@ -788,7 +816,7 @@ function PatientBody({
   return (
     <>
       {withSteps}
-      <details lang="ja" className="rounded-2xl border border-slate-200 p-3">
+      <details id="moda-translation-chat" lang="ja" className="rounded-2xl border border-slate-200 p-3">
         <summary className="cursor-pointer text-sm font-semibold text-slate-700">
           翻訳のチャットを開く（薬剤師と一緒に使う）
         </summary>
@@ -837,12 +865,16 @@ function PatientBodyMain({
   revisit,
   onBack,
   onStartSymptom,
+  consulted,
+  onConfirmDrugs,
 }: {
   language: LanguageCode;
   view: PatientView | null;
   mode: Mode;
   busy: boolean;
   onMode: (mode: Mode) => void;
+  consulted: boolean;
+  onConfirmDrugs: (action: DrugConfirmAction) => void;
   onAnswer: (answers: InterviewAnswers) => void;
   onChooseDrug: (id: StockedDrugId) => void;
   onChooseProduct: () => void;
@@ -862,6 +894,21 @@ function PatientBodyMain({
   }
   if (view === null) {
     return <p className="text-center text-lg text-slate-500">…</p>;
+  }
+
+  // 薬が決まった → 患者さんが自分の言語で薬を確かめ、個数を選ぶ（サーバーが確認待ちと決めたときだけ。11/8 依頼主の判断）
+  if (view.drugConfirmation !== null) {
+    return (
+      <DrugConfirm
+        key={view.selectedDrugs.join(",")}
+        language={language}
+        confirmation={view.drugConfirmation}
+        packageOptions={view.packageOptions}
+        busy={busy}
+        consulted={consulted}
+        onAction={onConfirmDrugs}
+      />
+    );
   }
 
   // 「ほしい薬がある」で薬を選んだあと：問診の途中でも、薬剤師の確認から「戻る」で薬の選択に戻ったときも、

@@ -17,6 +17,7 @@ import {
   abusePreventionAnswers,
   assertApprovalAllowed,
   assertInterviewComplete,
+  assertPatientConfirmed,
   assertSaleSelectable,
   saleSelectionsFor,
   undoStep,
@@ -36,7 +37,7 @@ import {
   type PharmacistReviewRound,
 } from "./pharmacist-service.ts";
 import type { PinVerifier } from "./pin.ts";
-import { event, load, moveTo, type ServiceDeps, type SessionRecord } from "./session-service.ts";
+import { event, load, moveTo, quantityRulesAt, type ServiceDeps, type SessionRecord } from "./session-service.ts";
 
 /** 販売記録の1品目（法定項目の品名・数量） */
 export interface SaleItem {
@@ -101,7 +102,7 @@ export function completedStepIdsOf(round: PharmacistReviewRound): string[] {
 
 /**
  * 薬剤師が PIN で承認し、同じ書き込みで販売記録を作る（pharmacist_review → approved）。
- * 順に確かめる：PIN → 確認中であること・販売する薬 → 問診が終わっていること → 禁忌 → 承認の前の手順。
+ * 順に確かめる：PIN → 確認中であること・販売する薬 → 問診が終わっていること → 禁忌 → 患者さんの OK と個数 → 承認の前の手順。
  */
 export function approveSale(
   deps: ServiceDeps,
@@ -126,14 +127,24 @@ export function approveSale(
   const judgments = judgmentsOf(record);
   assertSaleSelectable(judgments, drugIds, overriddenDrugIdsOf(round));
 
-  // 5. 承認の前の販売手順がすべて済んでいること（日本時間の日付で版を選ぶ。C-07・C-15）
-  const procedure = procedureOf(record, drugIds, now);
+  // 5. 販売する薬の組み合わせと個数を、患者さんが確かめて「OK」していること（11/8 依頼主の判断。画面だけで止めない。ルール1）
+  const abuse = abusePreventionAnswers(record.interview);
+  const confirmed = assertPatientConfirmed(
+    record.drugConfirmations ?? [],
+    drugIds,
+    record.interview.selectedDrugs,
+    abuse,
+    quantityRulesAt(now),
+  );
+
+  // 6. 承認の前の販売手順がすべて済んでいること（日本時間の日付で版を選ぶ。C-07・C-15）。品目と同じ個数で作る
+  const procedure = procedureOf(record, drugIds, now, confirmed.quantities);
   const completedStepIds = completedStepIdsOf(round);
   assertApprovalAllowed(procedure, completedStepIds);
 
   // ここから下は、例外が起きない計算と書き込みだけ
   const at = now.toISOString();
-  const selections = saleSelectionsFor(drugIds, abusePreventionAnswers(record.interview));
+  const selections = saleSelectionsFor(drugIds, abuse, confirmed.quantities);
   const items: SaleItem[] = selections.map(({ drug, quantity }) => {
     const stocked = STOCKED_DRUGS.find((d) => d.id === drug.id);
     // 取扱薬にない薬は、ここまでの判定で止まっているはず。万一のときも推測で埋めずに止める（ルール7）
