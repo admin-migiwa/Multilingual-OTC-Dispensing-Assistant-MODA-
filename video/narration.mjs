@@ -107,3 +107,19 @@ export async function mixAudio({ ffmpeg, sfxWav, bgmWav, lines, voice, outWav })
   run(ffmpeg, ["-y", "-loglevel", "error", ...inputs, "-filter_complex", filters.join(";"), "-map", "[out]", "-ar", "44100", outWav]);
   return outWav;
 }
+
+/** 1文を読み上げて（同じ文ならキャッシュを使う）、その長さ（秒）を返す。場面の長さをナレーションに合わせるために使う */
+export async function lineDuration(text, voice, ffmpeg) {
+  const cacheDir = resolve(here, "out", "voice", "cache");
+  mkdirSync(cacheDir, { recursive: true });
+  const { wav } = await synthesize({ text }, voice, cacheDir);
+  const total = duration(ffmpeg, wav);
+  // 読み上げ音声の後ろには無音が付いていることがある。声が実際に終わる位置を長さにする（隙間が空かないように）
+  const r = spawnSync(ffmpeg, ["-hide_banner", "-i", wav, "-af", "silencedetect=noise=-45dB:d=0.15", "-f", "null", "-"], { encoding: "utf8" });
+  const starts = [...r.stderr.matchAll(/silence_start: ([\d.]+)/g)].map((m) => Number(m[1]));
+  const ends = [...r.stderr.matchAll(/silence_end: ([\d.]+)/g)].map((m) => Number(m[1]));
+  const last = starts[starts.length - 1];
+  // 最後の無音が終わりまで続いている（silence_end がない、または終わりと同じ）なら、そこで声が終わっている
+  if (last != null && (ends.length < starts.length || Math.abs(ends[ends.length - 1] - total) < 0.05)) return last;
+  return total;
+}
