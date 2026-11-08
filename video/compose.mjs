@@ -138,7 +138,7 @@ function checklistFilters(times) {
 if (process.argv.includes("--plan")) {
   for (const c of CLIPS) {
     const p = await plan(c, JSON.parse(readFileSync(out(`demo/${c.name}.cues.json`), "utf8")), dur(out(`demo/${c.name}.mp4`)));
-    process.stdout.write(`${c.name}：${p.total.toFixed(1)} 秒　${Object.entries(p.at).map(([k, v]) => `${k} ${v.toFixed(1)}`).join("・")}
+    process.stdout.write(`${c.name}：${p.total.toFixed(1)} 秒 ${Object.entries(p.at).map(([k, v]) => `${k} ${v.toFixed(1)}`).join("・")}
 `);
   }
   process.exit(0);
